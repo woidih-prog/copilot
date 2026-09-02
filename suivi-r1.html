@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0E1216">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Suivi R1">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<title>Suivi R1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Narrow:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0E1216; --surface:#161C22; --line:#232C34;
+  --ink:#E9E7E2; --muted:#7B8894;
+  --amber:#E8A33D; --clay:#D9553F; --sage:#79BF95; --steel:#5E9BC4;
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:'Archivo',system-ui,sans-serif;
+  font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none}
+.wrap{max-width:820px;margin:0 auto;padding-bottom:80px}
+.eyebrow{font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:11px;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:42px;line-height:1.05;margin:6px 0 4px}
+h2{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:30px;margin:4px 0 16px}
+h3{font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:15px;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+
+section{display:none;height:100%;overflow-y:auto;padding:36px 22px;
+  -webkit-overflow-scrolling:touch}
+section.on{display:block}
+
+.block{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:20px;margin-bottom:16px}
+
+.pill{border:1px solid var(--line);border-radius:999px;padding:9px 17px;font-size:14px;
+  color:var(--muted);transition:.15s;white-space:nowrap}
+.pill:hover{border-color:var(--amber);color:var(--amber)}
+.pill.on{border-color:var(--amber);color:var(--amber);background:rgba(232,163,61,.1)}
+.row{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px}
+
+.gros{display:block;width:100%;background:var(--amber);color:#0E1216;border-radius:var(--radius);
+  padding:19px;font-weight:700;font-size:17px;letter-spacing:.01em;transition:.15s}
+.gros:hover{filter:brightness(1.08)}
+.gros.calme{background:none;border:1px solid var(--line);color:var(--ink);font-weight:600;font-size:15px}
+.gros.calme:hover{border-color:var(--amber)}
+
+input[type=text],input[type=password],input[type=datetime-local],input[type=date],textarea,select{
+  width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;
+  padding:11px 13px;color:var(--ink);outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--amber)}
+textarea{resize:vertical;min-height:110px;line-height:1.5}
+label{display:block;font-size:12.5px;color:var(--muted);margin:12px 0 5px}
+
+/* --- LA FILE : l element signature --- */
+.file{position:relative;padding-left:26px}
+.file:before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:1px;background:var(--line)}
+.item{position:relative;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);padding:15px 17px;margin-bottom:11px;cursor:pointer;transition:.15s}
+.item:hover{border-color:var(--muted)}
+.item:before{content:"";position:absolute;left:-23px;top:22px;width:9px;height:9px;
+  border-radius:50%;background:var(--line);border:2px solid var(--bg)}
+.item.retard{border-left:2px solid var(--clay)}
+.item.retard:before{background:var(--clay)}
+.item.bientot:before{background:var(--amber)}
+.item.r2:before{background:var(--sage)}
+.item.mort{opacity:.45}
+.item.mort:before{background:var(--muted)}
+.ligne1{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.nom{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:19px}
+.quand{font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:13px;
+  letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+.quand.retard{color:var(--clay)}
+.quand.bientot{color:var(--amber)}
+.quand.ok{color:var(--muted)}
+.quand.r2{color:var(--sage)}
+.resume{font-size:13.5px;color:var(--muted);margin-top:5px}
+.bloque{font-size:13.5px;color:var(--amber);margin-top:5px}
+
+.badge{display:inline-block;font-family:'Archivo Narrow',sans-serif;font-weight:600;
+  font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--line);border-radius:5px;padding:2px 7px;color:var(--muted)}
+.badge.r2{border-color:var(--sage);color:var(--sage)}
+.badge.rel{border-color:var(--amber);color:var(--amber)}
+.badge.mort{border-color:var(--muted)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:12px}
+.stat .n{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:30px;line-height:1}
+.stat .l{font-size:11.5px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-top:3px}
+
+.champ{border-left:2px solid var(--line);padding-left:12px;margin-bottom:13px}
+.champ .k{font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:11px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.champ .v{font-size:14.5px;margin-top:2px;white-space:pre-wrap}
+.champ.vide .v{color:var(--muted);font-style:italic}
+
+#onde{height:34px;display:flex;align-items:flex-end;gap:3px;margin:14px 0}
+#onde i{flex:1;background:var(--line);border-radius:2px;height:12%;transition:height .1s}
+.chrono{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:44px;letter-spacing:.02em}
+
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(90px);
+  background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:10px 20px;font-size:13.5px;transition:.25s;z-index:60;pointer-events:none;opacity:0}
+#toast.on{transform:translateX(-50%) translateY(0);opacity:1}
+.note{font-size:12.5px;color:var(--muted);line-height:1.5}
+.err{color:var(--clay);font-size:13.5px}
+.ok{color:var(--sage)}
+a{color:var(--steel)}
+@media (max-width:600px){h1{font-size:34px}h2{font-size:25px}section{padding:26px 15px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<!-- ================= ACCUEIL ================= -->
+<section id="home" class="on">
+  <div class="wrap">
+    <p class="eyebrow">Après le call</p>
+    <h1>Suivi R1</h1>
+    <p style="color:var(--muted);margin-bottom:22px">Tu enchaînes. Lui retient.</p>
+
+    <button class="gros" id="btnNouveau">Nouveau call R1</button>
+    <div style="height:10px"></div>
+    <button class="gros calme" id="btnRegle">Réglages et clé API</button>
+
+    <div id="alerte"></div>
+
+    <div style="margin:30px 0 12px" class="row">
+      <button class="pill on" data-filtre="tous">Tous</button>
+      <button class="pill" data-filtre="retard">En retard</button>
+      <button class="pill" data-filtre="r2">R2 calés</button>
+      <button class="pill" data-filtre="relance">À relancer</button>
+      <button class="pill" data-filtre="mort">Sans suite</button>
+    </div>
+
+    <div id="pipeline" class="file"></div>
+    <div id="vide" class="block" style="display:none">
+      <p style="color:var(--muted)">Rien encore. Après ton prochain call, appuie sur « Nouveau call R1 » et dicte trente secondes. Le reste se remplit tout seul.</p>
+    </div>
+
+    <div class="block" style="margin-top:24px"><h3>Ton pipeline en chiffres</h3>
+      <div class="grid" id="chiffres"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CAPTURE ================= -->
+<section id="capture">
+  <div class="wrap">
+    <p class="eyebrow">Étape 1</p>
+    <h2>Raconte-moi le call</h2>
+
+    <div class="row">
+      <button class="pill on" data-mode="dicter">Dicter maintenant</button>
+      <button class="pill" data-mode="ecouter">Écouter le call</button>
+      <button class="pill" data-mode="coller">Coller un texte</button>
+    </div>
+
+    <!-- dicter -->
+    <div class="block" id="modeDicter">
+      <h3>Trente secondes suffisent</h3>
+      <p class="note" style="margin-bottom:14px">Dis qui c'est, ce qu'il fait, ce qu'il veut, ce qui bloque, et ce que vous avez décidé. En vrac, dans le désordre. Le tri, c'est mon travail.</p>
+      <div id="onde"></div>
+      <div class="chrono" id="chrono">0:00</div>
+      <div class="row" style="margin-top:14px">
+        <button class="pill" id="btnDicte">Commencer à dicter</button>
+        <button class="pill" id="btnStopDicte" style="display:none">Terminer</button>
+      </div>
+      <textarea id="dictee" placeholder="Le texte dicté apparaît ici. Tu peux le corriger avant d'envoyer."></textarea>
+      <p class="err" id="micErr" style="margin-top:9px"></p>
+    </div>
+
+    <!-- ecouter -->
+    <div class="block" id="modeEcouter" style="display:none">
+      <h3>Pendant le call</h3>
+      <p class="note" style="margin-bottom:14px">Mets ton téléphone sur <b style="color:var(--ink)">haut-parleur</b>, pose-le à côté de cet écran, et lance l'écoute. Préviens ton interlocuteur que tu enregistres : c'est la loi, et ça se dit en une phrase.</p>
+      <div id="onde2" style="height:34px;display:flex;align-items:flex-end;gap:3px;margin:14px 0"></div>
+      <div class="chrono" id="chrono2">0:00</div>
+      <div class="row" style="margin-top:14px">
+        <button class="pill" id="btnEcoute">Lancer l'écoute</button>
+        <button class="pill" id="btnStopEcoute" style="display:none">Arrêter et faire la synthèse</button>
+      </div>
+      <textarea id="ecoute" placeholder="La transcription s'écrit ici en direct."></textarea>
+      <p class="err" id="micErr2" style="margin-top:9px"></p>
+    </div>
+
+    <!-- coller -->
+    <div class="block" id="modeColler" style="display:none">
+      <h3>Depuis un transcript</h3>
+      <p class="note" style="margin-bottom:12px">Fathom, Zoom, un message vocal retranscrit, tes propres notes. Colle tel quel.</p>
+      <textarea id="colle" style="min-height:200px" placeholder="Colle ici la transcription ou tes notes."></textarea>
+    </div>
+
+    <div class="row" style="margin-top:6px">
+      <button class="gros" id="btnSynthese" style="flex:1;min-width:220px">Faire la synthèse</button>
+      <button class="pill" id="btnRetour">Retour</button>
+    </div>
+    <p id="etatSynth" class="note" style="margin-top:10px"></p>
+  </div>
+</section>
+
+<!-- ================= FICHE ================= -->
+<section id="fiche">
+  <div class="wrap">
+    <p class="eyebrow" id="ficheDate">—</p>
+    <h2 id="ficheNom">—</h2>
+    <div id="ficheCorps"></div>
+
+    <div class="block">
+      <h3>La décision</h3>
+      <div class="row" id="choixSuite">
+        <button class="pill" data-suite="r2">R2 calé</button>
+        <button class="pill" data-suite="relance">À relancer</button>
+        <button class="pill" data-suite="mort">Sans suite</button>
+      </div>
+
+      <div id="champR2" style="display:none">
+        <label for="dateR2">Date et heure du R2</label>
+        <input type="datetime-local" id="dateR2">
+        <p class="note" style="margin-top:7px">Note-la maintenant. Dans deux calls tu ne t'en souviendras plus.</p>
+      </div>
+
+      <div id="champRel" style="display:none">
+        <label for="dateRel">Prochaine relance</label>
+        <input type="date" id="dateRel">
+        <div class="row" style="margin-top:9px">
+          <button class="pill" data-jours="1">Demain</button>
+          <button class="pill" data-jours="3">Dans 3 jours</button>
+          <button class="pill" data-jours="7">Dans 1 semaine</button>
+          <button class="pill" data-jours="14">Dans 2 semaines</button>
+        </div>
+        <label for="pretexte">Le prétexte de relance</label>
+        <input type="text" id="pretexte" placeholder="Ce que tu lui apportes de neuf, pas « je reviens vers toi »">
+      </div>
+
+      <div id="champMort" style="display:none">
+        <label for="raisonMort">Pourquoi ça s'arrête</label>
+        <input type="text" id="raisonMort" placeholder="Pas de budget, pas décideur, pas le bon moment…">
+      </div>
+
+      <label for="notePerso">Ce que tu veux ajouter</label>
+      <textarea id="notePerso" style="min-height:70px" placeholder="Ton ressenti, un détail à ne pas oublier."></textarea>
+    </div>
+
+    <div class="row">
+      <button class="gros" id="btnEnreg" style="flex:1;min-width:200px">Enregistrer</button>
+      <button class="pill" id="btnIcs">Ajouter à mon agenda</button>
+      <button class="pill" id="btnCopieFiche">Copier la fiche</button>
+      <button class="pill" id="btnSuppr">Supprimer</button>
+    </div>
+    <div style="height:10px"></div>
+    <button class="pill" id="btnFicheRetour">Retour au pipeline</button>
+  </div>
+</section>
+
+<!-- ================= REGLAGES ================= -->
+<section id="regle">
+  <div class="wrap">
+    <p class="eyebrow">Réglages</p>
+    <h2>Clé et mémoire</h2>
+    <div class="block">
+      <h3>Clé API</h3>
+      <p class="note" style="margin-bottom:11px">Inutile si tu ouvres cette page dans Claude. Nécessaire dans Chrome. Elle reste sur ton appareil.</p>
+      <input type="password" id="cle" placeholder="sk-ant-…">
+      <div class="row" style="margin-top:11px">
+        <button class="pill" id="btnCle">Enregistrer et tester</button>
+      </div>
+      <p id="cleEtat" class="note"></p>
+    </div>
+    <div class="block">
+      <h3>Tes données</h3>
+      <p class="note" id="memEtat"></p>
+      <div class="row" style="margin-top:11px">
+        <button class="pill" id="btnExport">Exporter mon pipeline</button>
+        <button class="pill" id="btnImport">Importer un pipeline</button>
+      </div>
+      <p class="note">Fais-le une fois par semaine. Un navigateur qui se vide, c'est tout ton suivi qui part.</p>
+    </div>
+    <button class="pill" id="btnRegleRetour">Retour</button>
+  </div>
+</section>
+
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const MODELE = "claude-sonnet-4-6";
+let API_KEY = "", MEM = "?";
+let CALLS = [];          // tout le pipeline
+let COURANT = null;      // la fiche ouverte
+let FILTRE = "tous";
+
+/* ---------- petites aides ---------- */
+function toast(t){ const e=$("toast"); e.textContent=t; e.classList.add("on"); setTimeout(()=>e.classList.remove("on"),2400); }
+function mmss(s){ return Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0"); }
+function ajd(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+function jours(iso){
+  if(!iso) return null;
+  const d = new Date(iso); d.setHours(0,0,0,0);
+  return Math.round((d - ajd())/86400000);
+}
+function dateFr(iso){
+  if(!iso) return "";
+  const d = new Date(iso);
+  const j = d.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"});
+  return iso.length > 10 ? j+" "+d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) : j;
+}
+function dansNJours(n){
+  const d = new Date(); d.setDate(d.getDate()+n);
+  return d.toISOString().slice(0,10);
+}
+
+/* ---------- stockage : Claude, puis navigateur ---------- */
+function idb(mode, fn){
+  return new Promise((res,rej)=>{
+    const o = indexedDB.open("suivi_r1",1);
+    o.onupgradeneeded = () => o.result.createObjectStore("kv",{keyPath:"k"});
+    o.onerror = () => rej(o.error);
+    o.onsuccess = () => {
+      const t = o.result.transaction("kv",mode), r = fn(t.objectStore("kv"));
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    };
+  });
+}
+const Store = {
+  async get(k){
+    if(window.storage){ try{ const r=await window.storage.get(k,false); if(r){ MEM="Claude"; return JSON.parse(r.value);} }catch(e){} }
+    try{ const r=await idb("readonly", s=>s.get(k)); if(r){ MEM="navigateur"; return r.v; } }catch(e){}
+    try{ const r=localStorage.getItem("r1_"+k); if(r){ MEM="navigateur"; return JSON.parse(r); } }catch(e){}
+    return null;
+  },
+  async set(k,v){
+    if(window.storage){ try{ await window.storage.set(k,JSON.stringify(v),false); MEM="Claude"; return true }catch(e){} }
+    try{ await idb("readwrite", s=>s.put({k,v})); MEM="navigateur"; return true }catch(e){}
+    try{ localStorage.setItem("r1_"+k, JSON.stringify(v)); MEM="navigateur"; return true }catch(e){}
+    MEM="aucune"; return false;
+  }
+};
+
+/* ---------- appel au modèle ---------- */
+async function demande(prompt){
+  const h = {"Content-Type":"application/json"};
+  if(API_KEY){
+    h["x-api-key"] = API_KEY;
+    h["anthropic-version"] = "2023-06-01";
+    h["anthropic-dangerous-direct-browser-access"] = "true";
+  }
+  let r;
+  try{
+    r = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST", headers:h,
+      body:JSON.stringify({model:MODELE, max_tokens:1400, messages:[{role:"user",content:prompt}]})
+    });
+  }catch(e){
+    throw new Error(API_KEY ? "Pas de réseau." : "Hors de Claude : mets ta clé API dans les réglages.");
+  }
+  if(!r.ok){
+    const codes = {401:"Clé API invalide.",403:"Clé sans accès.",429:"Trop de demandes, réessaie dans un instant.",400:"Requête refusée."};
+    throw new Error(codes[r.status] || ("HTTP "+r.status));
+  }
+  const d = await r.json();
+  const t = (d.content||[]).map(c=>c.text||"").join("");
+  if(!t.trim()) throw new Error("Réponse vide.");
+  return t;
+}
+function litJson(txt){
+  let t = txt.replace(/```json|```/g,"").trim();
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if(a >= 0 && b > a) t = t.slice(a, b+1);
+  return JSON.parse(t);
+}
+
+/* ---------- micro ---------- */
+let FLUX_MICRO = null;
+async function assureMicro(){
+  if(FLUX_MICRO && FLUX_MICRO.active) return true;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+  try{ FLUX_MICRO = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}}); return true; }
+  catch(e){ FLUX_MICRO = null; return false; }
+}
+
+function nouveauMicro(surTexte, surErreur){
+  const R = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!R){ surErreur("Ce navigateur ne sait pas transcrire. Utilise Chrome, ou colle un texte."); return null; }
+  const rec = new R();
+  rec.lang = "fr-FR"; rec.continuous = true; rec.interimResults = true;
+  rec.onerror = e => {
+    const m = {"not-allowed":"Micro refusé. Autorise-le dans les réglages du navigateur.",
+               "no-speech":"Rien entendu.","audio-capture":"Aucun micro trouvé.",
+               "network":"La transcription a besoin d'Internet."};
+    surErreur(m[e.error] || ("Micro : "+e.error));
+  };
+  let fige = "";
+  rec.onresult = e => {
+    let vol = "";
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const t = e.results[i][0].transcript;
+      if(e.results[i].isFinal) fige += t + " "; else vol += t;
+    }
+    surTexte((fige + vol).trim());
+  };
+  return rec;
+}
+function animeOnde(el, actif){
+  el.innerHTML = Array.from({length:34}, ()=>"<i></i>").join("");
+  const barres = [...el.children];
+  let id = setInterval(()=>{
+    if(!actif()){ clearInterval(id); barres.forEach(b=>{b.style.height="12%";b.style.background="var(--line)"}); return; }
+    barres.forEach(b=>{ b.style.height = (12+Math.random()*80)+"%"; b.style.background="var(--amber)"; });
+  }, 130);
+}
+
+/* ================= CAPTURE ================= */
+let MODE = "dicter", recDicte = null, recEcoute = null, tDicte = 0, tEcoute = 0, chr1 = null, chr2 = null;
+
+document.querySelectorAll("[data-mode]").forEach(b=>{
+  b.onclick = () => {
+    document.querySelectorAll("[data-mode]").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); MODE = b.dataset.mode;
+    $("modeDicter").style.display  = MODE==="dicter"  ? "block":"none";
+    $("modeEcouter").style.display = MODE==="ecouter" ? "block":"none";
+    $("modeColler").style.display  = MODE==="coller"  ? "block":"none";
+  };
+});
+
+$("btnDicte").onclick = async () => {
+  await assureMicro();
+  $("micErr").textContent = "";
+  recDicte = nouveauMicro(t => $("dictee").value = t, e => { $("micErr").textContent = e; arreteDicte(); });
+  if(!recDicte) return;
+  try{ recDicte.start(); }catch(e){ $("micErr").textContent = "Le micro est déjà pris."; return; }
+  tDicte = Date.now();
+  $("btnDicte").style.display="none"; $("btnStopDicte").style.display="inline-block";
+  animeOnde($("onde"), ()=>!!recDicte);
+  chr1 = setInterval(()=> $("chrono").textContent = mmss((Date.now()-tDicte)/1000), 300);
+};
+function arreteDicte(){
+  if(recDicte){ try{recDicte.stop()}catch(e){} recDicte = null; }
+  clearInterval(chr1);
+  $("btnDicte").style.display="inline-block"; $("btnStopDicte").style.display="none";
+}
+$("btnStopDicte").onclick = arreteDicte;
+
+$("btnEcoute").onclick = async () => {
+  await assureMicro();
+  $("micErr2").textContent = "";
+  recEcoute = nouveauMicro(t => $("ecoute").value = t, e => { $("micErr2").textContent = e; arreteEcoute(); });
+  if(!recEcoute) return;
+  recEcoute.onend = () => { if(recEcoute){ try{ recEcoute.start() }catch(e){} } };  // les calls durent, le micro coupe seul
+  try{ recEcoute.start(); }catch(e){ $("micErr2").textContent = "Le micro est déjà pris."; return; }
+  tEcoute = Date.now();
+  $("btnEcoute").style.display="none"; $("btnStopEcoute").style.display="inline-block";
+  animeOnde($("onde2"), ()=>!!recEcoute);
+  chr2 = setInterval(()=> $("chrono2").textContent = mmss((Date.now()-tEcoute)/1000), 300);
+};
+function arreteEcoute(){
+  if(recEcoute){ const r = recEcoute; recEcoute = null; r.onend = null; try{r.stop()}catch(e){} }
+  clearInterval(chr2);
+  $("btnEcoute").style.display="inline-block"; $("btnStopEcoute").style.display="none";
+}
+$("btnStopEcoute").onclick = () => { arreteEcoute(); $("btnSynthese").click(); };
+
+/* ================= LA SYNTHÈSE ================= */
+$("btnSynthese").onclick = async () => {
+  arreteDicte(); arreteEcoute();
+  const brut = (MODE==="dicter" ? $("dictee").value : MODE==="ecouter" ? $("ecoute").value : $("colle").value).trim();
+  if(brut.length < 30) return toast("Il me faut un peu plus que ça");
+
+  $("etatSynth").textContent = "Je trie…";
+  $("btnSynthese").disabled = true;
+  try{
+    const txt = await demande(
+`Tu assistes un closer francophone qui enchaîne des appels de découverte de dix minutes (des "R1"). Après chaque appel il te raconte ce qui s'est passé, ou te donne la transcription. Ton travail : en faire une fiche exploitable en dix secondes.
+
+VOICI LA MATIÈRE :
+${brut.slice(0, 14000)}
+
+RÈGLES :
+- N'invente rien. Si une information est absente, mets null. Un champ vide est une information utile : il dit ce qui n'a pas été creusé.
+- Reprends les mots du prospect quand ils sont marquants.
+- Sois bref. Chaque champ tient en une ou deux phrases.
+- Pour la suite à donner, choisis "r2" seulement si un rendez-vous a réellement été évoqué ou fixé. "relance" si le contact reste vivant sans date. "mort" si le prospect n'est pas qualifié ou a clairement refusé.
+- La relance proposée doit être un vrai prétexte : quelque chose que le closer apporte. Jamais "je reviens vers toi".
+
+Réponds UNIQUEMENT avec ce JSON, sans markdown :
+{"nom":"prenom et nom du prospect, ou une description courte si inconnu",
+ "activite":"ce qu'il fait, sa situation, ou null",
+ "objectif":"ce qu'il veut atteindre, ou null",
+ "probleme":"ce qui l'en empeche, ou null",
+ "douleur":"le cout concret de ce probleme pour lui, ou null",
+ "budget":"ce qui a ete dit sur l'argent, ou null",
+ "decideur":"decide-t-il seul, ou null",
+ "urgence":"pour quand, ou null",
+ "objections":["les freins exprimes"],
+ "verbatim":"la phrase du prospect la plus revelatrice, ou null",
+ "chaud":"chaud|tiede|froid",
+ "manque":"ce qui n a pas ete creuse et qu il faudra obtenir",
+ "suite":"r2|relance|mort",
+ "quand":"AAAA-MM-JJ si une date est mentionnee, sinon null",
+ "heure":"HH:MM si une heure est mentionnee, sinon null",
+ "pretexte":"le pretexte de relance concret, ou null",
+ "raison":"si suite=mort, pourquoi",
+ "conseil":"une phrase franche au closer sur ce call"}`);
+    const j = litJson(txt);
+    COURANT = {
+      id: Date.now(),
+      cree: new Date().toISOString(),
+      brut: brut.slice(0, 6000),
+      ...j
+    };
+    if(!COURANT.quand && j.suite === "relance") COURANT.quand = dansNJours(3);
+    ouvreFiche(COURANT, true);
+  }catch(e){
+    $("etatSynth").innerHTML = '<span class="err">'+e.message+'</span>';
+  }
+  $("btnSynthese").disabled = false;
+};
+
+/* ================= LA FICHE ================= */
+function champ(k, v){
+  const vide = !v || v === "null";
+  return `<div class="champ${vide?" vide":""}"><div class="k">${k}</div><div class="v">${vide?"non creusé":v}</div></div>`;
+}
+function ouvreFiche(c, neuve){
+  COURANT = c;
+  $("home").classList.remove("on"); $("capture").classList.remove("on"); $("regle").classList.remove("on");
+  $("fiche").classList.add("on");
+  $("fiche").scrollTop = 0;
+
+  const chaud = {chaud:"var(--sage)", tiede:"var(--amber)", froid:"var(--clay)"}[c.chaud] || "var(--muted)";
+  $("ficheDate").innerHTML = new Date(c.cree).toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"})
+    + ` · <span style="color:${chaud}">${(c.chaud||"?").toUpperCase()}</span>`;
+  $("ficheNom").textContent = c.nom || "Prospect";
+
+  $("ficheCorps").innerHTML = `
+    <div class="block">
+      ${champ("Son activité", c.activite)}
+      ${champ("Ce qu'il veut", c.objectif)}
+      ${champ("Ce qui bloque", c.probleme)}
+      ${champ("Ce que ça lui coûte", c.douleur)}
+      ${champ("Argent", c.budget)}
+      ${champ("Décideur", c.decideur)}
+      ${champ("Pour quand", c.urgence)}
+    </div>
+    ${c.verbatim ? `<div class="block"><h3>Sa phrase</h3><p style="font-size:17px;line-height:1.45">« ${c.verbatim} »</p></div>` : ""}
+    <div class="block">
+      <h3>Freins sortis</h3>
+      <p>${(c.objections&&c.objections.length) ? c.objections.join(" · ") : "<span style='color:var(--muted)'>aucun exprimé</span>"}</p>
+      <h3 style="margin-top:18px">Ce qui manque</h3>
+      <p style="color:var(--amber)">${c.manque || "—"}</p>
+      ${c.conseil ? `<h3 style="margin-top:18px">Franchement</h3><p>${c.conseil}</p>` : ""}
+    </div>`;
+
+  majSuite(c.suite || "relance");
+  $("dateR2").value  = c.quand ? (c.quand.length>10 ? c.quand : c.quand + "T" + (c.heure||"10:00")) : "";
+  $("dateRel").value = c.quand ? c.quand.slice(0,10) : "";
+  $("pretexte").value = c.pretexte || "";
+  $("raisonMort").value = c.raison || "";
+  $("notePerso").value = c.note || "";
+  $("btnSuppr").style.display = neuve ? "none" : "inline-block";
+}
+function majSuite(s){
+  COURANT.suite = s;
+  document.querySelectorAll("[data-suite]").forEach(b=>b.classList.toggle("on", b.dataset.suite===s));
+  $("champR2").style.display   = s==="r2"      ? "block":"none";
+  $("champRel").style.display  = s==="relance" ? "block":"none";
+  $("champMort").style.display = s==="mort"    ? "block":"none";
+}
+document.querySelectorAll("[data-suite]").forEach(b=> b.onclick = () => majSuite(b.dataset.suite));
+document.querySelectorAll("[data-jours]").forEach(b=> b.onclick = () => {
+  $("dateRel").value = dansNJours(+b.dataset.jours);
+  document.querySelectorAll("[data-jours]").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on");
+});
+
+$("btnEnreg").onclick = async () => {
+  if(!COURANT) return;
+  COURANT.note = $("notePerso").value.trim();
+  COURANT.pretexte = $("pretexte").value.trim();
+  COURANT.raison = $("raisonMort").value.trim();
+  if(COURANT.suite === "r2"){
+    if(!$("dateR2").value) return toast("Mets la date du R2, c'est tout l'intérêt");
+    COURANT.quand = $("dateR2").value;
+  } else if(COURANT.suite === "relance"){
+    if(!$("dateRel").value) return toast("Mets une date de relance");
+    COURANT.quand = $("dateRel").value;
+  } else COURANT.quand = null;
+
+  CALLS = CALLS.filter(c => c.id !== COURANT.id);
+  CALLS.push(COURANT);
+  await Store.set("calls", CALLS);
+  toast("Enregistré");
+  retourHome();
+};
+
+$("btnSuppr").onclick = async () => {
+  if(!COURANT || !confirm("Supprimer cette fiche définitivement ?")) return;
+  CALLS = CALLS.filter(c => c.id !== COURANT.id);
+  await Store.set("calls", CALLS);
+  retourHome();
+};
+
+$("btnCopieFiche").onclick = () => {
+  const c = COURANT; if(!c) return;
+  const t = [
+    c.nom, new Date(c.cree).toLocaleDateString("fr-FR"), "",
+    "Activité : "+(c.activite||"—"), "Objectif : "+(c.objectif||"—"),
+    "Blocage : "+(c.probleme||"—"), "Coût : "+(c.douleur||"—"),
+    "Argent : "+(c.budget||"—"), "Décideur : "+(c.decideur||"—"),
+    "Urgence : "+(c.urgence||"—"), "",
+    c.verbatim ? "Sa phrase : « "+c.verbatim+" »" : "",
+    "Freins : "+((c.objections||[]).join(", ")||"—"),
+    "Manque : "+(c.manque||"—"), "",
+    "Suite : "+({r2:"R2 calé",relance:"À relancer",mort:"Sans suite"}[c.suite]||"—")
+      + (c.quand ? " le "+dateFr(c.quand) : ""),
+    c.pretexte ? "Prétexte : "+c.pretexte : "",
+    c.note ? "Note : "+c.note : ""
+  ].filter(Boolean).join("\n");
+  navigator.clipboard.writeText(t).then(()=>toast("Fiche copiée"), ()=>toast("Copie refusée"));
+};
+
+/* ---------- agenda ---------- */
+$("btnIcs").onclick = () => {
+  const c = COURANT;
+  if(!c || !c.suite || c.suite === "mort") return toast("Rien à caler");
+  const brut = c.suite === "r2" ? $("dateR2").value : $("dateRel").value;
+  if(!brut) return toast("Mets d'abord une date");
+  const d = new Date(brut.length > 10 ? brut : brut + "T10:00");
+  const fin = new Date(d.getTime() + (c.suite === "r2" ? 45 : 15)*60000);
+  const z = x => x.toISOString().replace(/[-:]|\.\d{3}/g,"");
+  const titre = (c.suite === "r2" ? "R2 — " : "Relancer ") + (c.nom||"prospect");
+  const desc = [
+    c.objectif ? "Veut : "+c.objectif : "",
+    c.probleme ? "Bloque : "+c.probleme : "",
+    c.manque ? "À obtenir : "+c.manque : "",
+    c.pretexte ? "Angle : "+c.pretexte : ""
+  ].filter(Boolean).join("\\n");
+  const ics = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//SuiviR1//FR","BEGIN:VEVENT",
+    "UID:"+c.id+"@suivi-r1","DTSTAMP:"+z(new Date()),"DTSTART:"+z(d),"DTEND:"+z(fin),
+    "SUMMARY:"+titre,"DESCRIPTION:"+desc,
+    "BEGIN:VALARM","TRIGGER:-PT30M","ACTION:DISPLAY","DESCRIPTION:"+titre,"END:VALARM",
+    "END:VEVENT","END:VCALENDAR"].join("\r\n");
+  const url = URL.createObjectURL(new Blob([ics],{type:"text/calendar"}));
+  const a = document.createElement("a");
+  a.href = url; a.download = titre.replace(/[^\w\s-]/g,"").trim()+".ics"; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1500);
+  toast("Ouvre le fichier pour l'ajouter à ton agenda");
+};
+
+/* ================= LE PIPELINE ================= */
+function rendPipeline(){
+  const l = CALLS.slice().sort((a,b)=>{
+    // sans date = un trou dans le suivi : ça remonte avec les retards
+    const rang = c => c.suite==="mort" ? 3 : (c.quand ? (jours(c.quand) < 0 ? 0 : 1) : 0);
+    const ra = rang(a), rb = rang(b);
+    if(ra !== rb) return ra - rb;
+    const ja = jours(a.quand) ?? -9999, jb = jours(b.quand) ?? -9999;
+    return ja - jb;
+  }).filter(c=>{
+    if(FILTRE === "tous") return true;
+    if(FILTRE === "retard") return c.suite !== "mort" && (!c.quand || jours(c.quand) < 0);
+    return c.suite === FILTRE;
+  });
+
+  $("vide").style.display = CALLS.length ? "none" : "block";
+  $("pipeline").innerHTML = l.map(c=>{
+    const j = jours(c.quand);
+    let cls = "", quandCls = "ok", quandTxt = "sans date";
+    if(c.suite === "mort"){ cls = "mort"; quandTxt = "sans suite"; }
+    else if(j === null){ quandTxt = "date à mettre"; quandCls = "retard"; cls = "retard"; }
+    else if(j < 0){ cls = "retard"; quandCls = "retard"; quandTxt = "en retard de "+(-j)+" j"; }
+    else if(j === 0){ cls = "bientot"; quandCls = "bientot"; quandTxt = "aujourd'hui"; }
+    else if(j === 1){ cls = "bientot"; quandCls = "bientot"; quandTxt = "demain"; }
+    else { cls = c.suite === "r2" ? "r2" : ""; quandCls = c.suite === "r2" ? "r2" : "ok"; quandTxt = "dans "+j+" j"; }
+    const bcls = {r2:"r2", relance:"rel", mort:"mort"}[c.suite] || "";
+    const bnom = {r2:"R2", relance:"Relance", mort:"Stop"}[c.suite] || "?";
+    return `<div class="item ${cls}" data-id="${c.id}">
+      <div class="ligne1">
+        <span class="nom">${c.nom||"Prospect"}</span>
+        <span class="quand ${quandCls}">${quandTxt}</span>
+      </div>
+      <div class="resume">
+        <span class="badge ${bcls}">${bnom}</span>
+        ${c.quand ? " " + dateFr(c.quand) : ""}
+        ${c.objectif ? " · " + c.objectif.slice(0,70) : ""}
+      </div>
+      ${c.suite!=="mort" && c.pretexte ? `<div class="bloque">→ ${c.pretexte}</div>` : ""}
+    </div>`;
+  }).join("");
+
+  document.querySelectorAll(".item").forEach(el=>{
+    el.onclick = () => {
+      const c = CALLS.find(x => String(x.id) === el.dataset.id);
+      if(c) ouvreFiche(c, false);
+    };
+  });
+
+  const vivants = CALLS.filter(c=>c.suite!=="mort");
+  const retard = vivants.filter(c=>!c.quand || jours(c.quand) < 0).length;
+  const auj = vivants.filter(c=>jours(c.quand) === 0).length;
+  const r2 = CALLS.filter(c=>c.suite==="r2").length;
+  const taux = CALLS.length ? Math.round(r2/CALLS.length*100) : 0;
+  $("chiffres").innerHTML = `
+    <div class="stat"><div class="n">${CALLS.length}</div><div class="l">R1 faits</div></div>
+    <div class="stat"><div class="n" style="color:var(--sage)">${r2}</div><div class="l">R2 calés</div></div>
+    <div class="stat"><div class="n">${taux}%</div><div class="l">passent en R2</div></div>
+    <div class="stat"><div class="n" style="color:${retard?"var(--clay)":"var(--ink)"}">${retard}</div><div class="l">en retard</div></div>`;
+
+  $("alerte").innerHTML = (retard || auj)
+    ? `<div class="block" style="border-color:${retard?"var(--clay)":"var(--amber)"};margin-top:18px">
+         <p style="font-family:'Archivo Narrow';font-weight:700;font-size:19px">
+         ${retard ? retard + (retard>1?" contacts sont en retard":" contact est en retard") : ""}
+         ${retard && auj ? " · " : ""}
+         ${auj ? auj + (auj>1?" sont pour aujourd'hui":" est pour aujourd'hui") : ""}</p>
+         <p class="note" style="margin-top:5px">Un contact qui traîne ne revient presque jamais. Commence par ceux-là.</p>
+       </div>` : "";
+}
+document.querySelectorAll("[data-filtre]").forEach(b=>{
+  b.onclick = () => {
+    document.querySelectorAll("[data-filtre]").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); FILTRE = b.dataset.filtre; rendPipeline();
+  };
+});
+
+/* ================= NAVIGATION ================= */
+function retourHome(){
+  ["capture","fiche","regle"].forEach(x=>$(x).classList.remove("on"));
+  $("home").classList.add("on"); rendPipeline();
+}
+$("btnNouveau").onclick = () => {
+  COURANT = null;
+  $("dictee").value = ""; $("ecoute").value = ""; $("colle").value = "";
+  $("chrono").textContent = "0:00"; $("chrono2").textContent = "0:00";
+  $("etatSynth").textContent = ""; $("micErr").textContent = ""; $("micErr2").textContent = "";
+  $("home").classList.remove("on"); $("capture").classList.add("on");
+  $("capture").scrollTop = 0;
+};
+$("btnRetour").onclick = () => { arreteDicte(); arreteEcoute(); retourHome(); };
+$("btnFicheRetour").onclick = retourHome;
+$("btnRegle").onclick = () => { $("home").classList.remove("on"); $("regle").classList.add("on"); $("memEtat").textContent = "Tes fiches sont gardées dans : " + MEM + "."; };
+$("btnRegleRetour").onclick = retourHome;
+
+/* ================= RÉGLAGES ================= */
+$("btnCle").onclick = async () => {
+  const k = $("cle").value.trim();
+  if(!k) return toast("Colle la clé d'abord");
+  API_KEY = k;
+  $("cleEtat").textContent = "Test en cours…";
+  try{
+    await demande("Réponds juste : ok");
+    await Store.set("cle", k);
+    await Store.set("apikey", k);   // Closing Copilot la retrouvera aussi
+    $("cleEtat").innerHTML = '<span class="ok">Clé valide et enregistrée.</span>';
+  }catch(e){
+    API_KEY = "";
+    $("cleEtat").innerHTML = '<span class="err">'+e.message+'</span>';
+  }
+};
+$("btnExport").onclick = () => {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(CALLS,null,2)],{type:"application/json"}));
+  const a = document.createElement("a");
+  a.href = url; a.download = "pipeline-r1-"+new Date().toISOString().slice(0,10)+".json"; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+};
+$("btnImport").onclick = () => {
+  const i = document.createElement("input");
+  i.type = "file"; i.accept = ".json";
+  i.onchange = async () => {
+    const f = i.files[0]; if(!f) return;
+    try{
+      const arr = JSON.parse(await f.text());
+      if(!Array.isArray(arr)) throw new Error("format inattendu");
+      const ids = new Set(CALLS.map(c=>c.id));
+      arr.forEach(c=>{ if(!ids.has(c.id)) CALLS.push(c); });
+      await Store.set("calls", CALLS);
+      toast(arr.length + " fiches lues"); rendPipeline();
+    }catch(e){ toast("Fichier illisible"); }
+  };
+  i.click();
+};
+
+/* ================= DÉMARRAGE ================= */
+(async function(){
+  let k = await Store.get("cle");
+  if(!k) k = await Store.get("apikey");   // clé posée dans Closing Copilot
+  if(k){ API_KEY = k; $("cle").value = k; $("cleEtat").innerHTML = '<span class="ok">Clé en place.</span>'; }
+  const c = await Store.get("calls"); CALLS = Array.isArray(c) ? c : [];
+  rendPipeline();
+})();
+</script>
+</body>
+</html>
