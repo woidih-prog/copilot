@@ -1,0 +1,3684 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0E1216">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Copilot">
+<link rel="apple-touch-icon" href="./icones/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icones/icon-192.png">
+<title>Closing Copilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Narrow:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0E1216;
+  --surface:#161C22;
+  --line:#232C34;
+  --ink:#E9E7E2;
+  --muted:#7B8894;
+  --amber:#E8A33D;
+  --clay:#D9553F;
+  --sage:#79BF95;
+  --steel:#5E9BC4;
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:'Archivo',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+button:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
+.eyebrow{
+  font-family:'Archivo Narrow',sans-serif;
+  font-weight:600;
+  font-size:11px;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+
+/* ---------- ÉCRAN D'ACCUEIL ---------- */
+#home{
+  height:100%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:28px;padding:24px;text-align:center;
+}
+#home h1{
+  font-family:'Archivo Narrow',sans-serif;font-weight:700;
+  font-size:clamp(34px,7vw,58px);letter-spacing:-.01em;line-height:.98;
+}
+#home h1 span{display:block;color:var(--amber)}
+.sub{color:var(--muted);font-size:14px;max-width:420px;line-height:1.6}
+.start{
+  background:var(--amber);color:#0E1216;font-weight:700;font-size:17px;
+  padding:20px 44px;border-radius:999px;letter-spacing:.02em;
+  transition:transform .12s ease, box-shadow .12s ease;
+  box-shadow:0 0 0 0 rgba(232,163,61,.45);
+}
+.start:hover{transform:translateY(-2px);box-shadow:0 10px 30px -8px rgba(232,163,61,.5)}
+.field{display:flex;flex-direction:column;gap:8px;align-items:center}
+.field input{
+  background:var(--surface);border:1px solid var(--line);color:var(--ink);
+  padding:12px 16px;border-radius:10px;font-size:15px;width:240px;text-align:center;
+  font-family:inherit;
+}
+.field input:focus{outline:none;border-color:var(--steel)}
+.note{font-size:12px;color:var(--muted);max-width:400px;line-height:1.5;border-top:1px solid var(--line);padding-top:16px}
+
+/* ---------- ÉCRAN DE CALL ---------- */
+#call{display:none;height:100%;flex-direction:column}
+#call.on{display:flex}
+header{
+  display:flex;align-items:center;gap:14px;
+  padding:12px 18px;border-bottom:1px solid var(--line);flex-shrink:0;
+}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--clay);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+#timer{font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:15px;letter-spacing:.04em}
+#who{color:var(--muted);font-size:13px}
+header .grow{flex:1}
+.ghost{
+  border:1px solid var(--line);padding:8px 14px;border-radius:999px;
+  font-size:12px;font-weight:600;color:var(--muted);
+}
+.ghost:hover{border-color:var(--muted);color:var(--ink)}
+#btnQui{border-color:rgba(94,155,196,.55);color:var(--steel)}
+#btnQui.moi{border-color:rgba(232,163,61,.6);color:var(--amber);background:rgba(232,163,61,.08)}
+#suivant{display:none;align-items:center;gap:8px}
+#suivant.on{display:flex}
+#suivant button{background:var(--amber);color:#0E1216;font-weight:700;font-size:12px;padding:9px 16px;border-radius:999px}
+
+main{flex:1;display:flex;min-height:0}
+#trame{display:flex;gap:3px;padding:9px 18px;border-bottom:1px solid var(--line);overflow-x:auto;flex-shrink:0}
+#trame span{font-family:'Archivo Narrow',sans-serif;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:#3E4852;white-space:nowrap;padding:3px 8px;border-radius:5px;transition:all .3s}
+#trame span.fait{color:var(--sage);background:rgba(121,191,149,.1)}
+#trame span.ici{color:#0E1216;background:var(--amber);font-weight:700}
+#manque{font-size:12.5px;color:var(--steel);padding:0 18px 9px;border-bottom:1px solid var(--line);display:none}
+#manque.on{display:block}
+.stage{flex:1;display:flex;flex-direction:column;padding:20px;gap:14px;min-width:0}
+
+/* bandeau alerte dérive */
+#drift{
+  display:none;background:rgba(217,85,63,.14);border:1px solid rgba(217,85,63,.45);
+  border-radius:var(--radius);padding:14px 18px;
+}
+#drift.on{display:block}
+#drift .t{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:19px;color:var(--clay);letter-spacing:.02em}
+#drift .d{font-size:13px;color:var(--muted);margin-top:3px}
+
+/* carte principale */
+.card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:22px;display:flex;flex-direction:column;gap:14px;flex:1;min-height:0;
+  transition:border-color .25s ease;
+}
+.card.hot{border-color:rgba(232,163,61,.5)}
+.card.good{border-color:rgba(121,191,149,.5)}
+.tagline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tag{
+  font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:12px;
+  letter-spacing:.14em;text-transform:uppercase;
+  padding:5px 11px;border-radius:6px;background:rgba(232,163,61,.16);color:var(--amber);
+}
+.tag.green{background:rgba(121,191,149,.16);color:var(--sage)}
+.tag.blue{background:rgba(94,155,196,.16);color:var(--steel)}
+#cause{font-size:13px;color:var(--muted)}
+#action{
+  font-family:'Archivo Narrow',sans-serif;font-weight:700;
+  font-size:clamp(15px,1.7vw,19px);letter-spacing:.02em;line-height:1.2;
+}
+#certitude{display:none;gap:14px;flex-wrap:wrap}
+#certitude.on{display:flex}
+.cert{flex:1;min-width:150px;border-left:2px solid var(--line);padding-left:10px}
+.cert div{font-size:13px;line-height:1.4;margin-top:3px}
+#certTxt{color:var(--sage)}
+#incertTxt{color:var(--amber)}
+#phraseWrap{flex:1;display:flex;align-items:center;min-height:0}
+#phrase{
+  font-size:clamp(18px,2.4vw,28px);font-weight:500;line-height:1.35;letter-spacing:-.01em;
+}
+#phrase.idle{color:var(--muted);font-size:clamp(15px,1.6vw,18px);font-weight:400}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pill{
+  border:1px solid var(--line);padding:9px 15px;border-radius:999px;
+  font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--muted);
+}
+.pill:hover{border-color:var(--amber);color:var(--amber)}
+#btnBon:hover{border-color:var(--sage);color:var(--sage)}
+#btnMauvais:hover{border-color:var(--clay);color:var(--clay)}
+.pill.vote.on{border-color:var(--sage);color:var(--sage);background:rgba(121,191,149,.1)}
+.pill kbd{font-family:inherit;opacity:.5;margin-left:6px;font-size:10px}
+#why{display:none;font-size:13px;line-height:1.55;color:var(--muted);border-left:2px solid var(--line);padding-left:12px}
+#why.on{display:block}
+
+.heard{flex-shrink:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 14px}
+.heard #heardTxt{font-size:14px;color:var(--muted);margin-top:5px;line-height:1.4;min-height:20px}
+.heard.live{border-color:rgba(94,155,196,.55)}
+.heard.err{border-color:rgba(217,85,63,.6)}
+.heard.err #heardTxt{color:var(--clay)}
+
+/* SIGNATURE : la barre de silence */
+.silence{flex-shrink:0}
+.silence .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
+.silence .val{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:13px;color:var(--muted)}
+.track{height:5px;background:var(--line);border-radius:3px;overflow:hidden}
+#silenceFill{height:100%;width:0%;background:var(--steel);transition:width .2s linear,background .3s ease}
+
+/* colonne droite */
+aside{
+  width:310px;flex-shrink:0;border-left:1px solid var(--line);
+  display:flex;flex-direction:column;min-height:0;
+}
+.pane{padding:16px 18px;border-bottom:1px solid var(--line)}
+#log{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+#log::-webkit-scrollbar{width:4px}
+#log::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}
+.line{font-size:13.5px;line-height:1.5;color:var(--muted)}
+.line.flag{color:var(--ink);border-left:2px solid var(--amber);padding-left:9px}
+.line.buy{color:var(--ink);border-left:2px solid var(--sage);padding-left:9px}
+.line .ts{font-family:'Archivo Narrow',sans-serif;font-size:10px;letter-spacing:.1em;color:#4C5862;display:block;margin-bottom:2px}
+.metric{display:flex;justify-content:space-between;font-size:13px;margin-top:8px}
+.metric span:last-child{font-family:'Archivo Narrow',sans-serif;font-weight:700}
+
+/* MA MÉTHODE */
+#kb,#rejeu,#prog,#spar{display:none;height:100%;overflow-y:auto;padding:40px 24px}
+#spar.on{display:block}
+#spar h2{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:36px;margin:4px 0 18px}
+#sparCarte{border-left:2px solid var(--steel)}
+#signalFlash{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-140px);
+  background:var(--surface);border:1px solid var(--amber);border-left:3px solid var(--amber);
+  border-radius:11px;padding:11px 17px;max-width:min(90vw,460px);z-index:70;
+  transition:transform .3s;pointer-events:none}
+#signalFlash.on{transform:translateX(-50%) translateY(0)}
+#signalFlash .t{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:11px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--amber)}
+#signalFlash .c{font-size:14px;margin-top:4px}
+#signalFlash .s{font-size:12.5px;color:var(--muted);margin-top:3px}
+#carnetPanneau{display:none;position:fixed;inset:0;background:rgba(14,18,22,.97);
+  z-index:80;overflow-y:auto;padding:40px 22px}
+#carnetPanneau.on{display:block}
+.sig{border-left:2px solid var(--amber);padding-left:13px;margin-bottom:16px}
+.sig .h{font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--amber)}
+#sparEtatVocal.on{display:flex}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+#sparPastille.actif{animation:pulse 1.1s infinite}
+.tour{border-left:2px solid var(--line);padding-left:11px;margin-bottom:11px;font-size:13.5px}
+.tour.moi{border-color:var(--amber)}
+.tour .q{font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+#prog.on{display:block}
+#prog h2{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:36px;margin:4px 0 18px}
+#rejeu.on{display:block}
+#rejeu h2{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:36px;margin:4px 0 18px}
+#kb.on{display:block}
+#kb h2{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:36px;margin:4px 0 18px}
+#drop{
+  border:1.5px dashed var(--line);border-radius:var(--radius);padding:34px 20px;
+  display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;
+  transition:border-color .2s,background .2s;text-align:center;
+}
+#drop:hover,#drop.over{border-color:var(--amber);background:rgba(232,163,61,.05)}
+#drop strong{font-size:16px}
+#drop span{font-size:12.5px;color:var(--muted)}
+.fiche{
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:16px 18px;margin-bottom:10px;
+}
+.fiche .top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:9px}
+.fiche .ph{font-size:17px;line-height:1.4;font-weight:500}
+.fiche .wy{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.5}
+.fiche .src{font-size:11px;color:#4C5862;margin-top:8px;letter-spacing:.03em}
+.del{color:var(--muted);font-size:18px;line-height:1;padding:0 4px}
+.del:hover{color:var(--clay)}
+
+/* rapport */
+#report{display:none;height:100%;overflow-y:auto;padding:40px 24px}
+#report.on{display:block}
+.wrap{max-width:680px;margin:0 auto}
+#report h2{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:36px;margin:4px 0 26px}
+.block{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:14px}
+.block h3{font-family:'Archivo Narrow',sans-serif;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;font-weight:600}
+.block p,.block li{font-size:14.5px;line-height:1.65}
+.block ul{padding-left:18px;display:flex;flex-direction:column;gap:7px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px}
+.stat .n{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:28px;color:var(--amber)}
+.stat .l{font-size:11.5px;color:var(--muted);letter-spacing:.04em}
+
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translate(-50%,80px);
+  background:var(--ink);color:var(--bg);padding:11px 22px;border-radius:999px;
+  font-size:13px;font-weight:600;transition:transform .25s ease;z-index:50;
+}
+.toast.on{transform:translate(-50%,0)}
+
+@media (max-width:820px){
+  aside{display:none}
+  .stage{padding:14px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ACCUEIL -->
+<section id="home">
+  <div>
+    <p class="eyebrow" style="margin-bottom:10px">Copilote de closing · temps réel</p>
+    <h1>Il écoute.<span>Toi tu closes.</span></h1>
+  </div>
+  <p class="sub">Objections, reframes, et une alerte quand tu pars dans le mauvais sens. Rien d'autre à l'écran.</p>
+  <div class="field">
+    <label class="eyebrow" for="pname">Prénom du prospect</label>
+    <input id="pname" placeholder="Jean" autocomplete="off">
+  </div>
+  <button class="start" id="btnStart">Démarrer le call</button>
+  <div class="block" id="calBloc" style="display:none;margin-top:14px;border-color:var(--amber)">
+    <h3>Apprendre à reconnaître ta voix</h3>
+    <p style="font-size:13.5px;color:var(--muted);margin-bottom:12px">Deux mesures de cinq secondes. Après ça, plus besoin d'appuyer sur PROSPECT ou MOI pendant le call.</p>
+    <div class="row">
+      <button class="pill" id="btnCalMoi">1. Ma voix</button>
+      <button class="pill" id="btnCalLui">2. Celle du prospect</button>
+      <button class="pill" id="btnCalFermer">Fermer</button>
+    </div>
+    <p id="calEtat" style="font-size:13.5px;margin-top:11px"></p>
+  </div>
+  <div class="row" style="justify-content:center">
+    <button class="pill" id="btnDemo">Voir une démo sans micro</button>
+    <button class="pill" id="btnMicroOk">Autoriser le micro</button>
+    <button class="pill" id="btnCal" style="border-color:var(--amber);color:var(--amber)">Régler la détection des voix</button>
+    <button class="pill" id="btnKb">Ma méthode <span id="kbCount"></span></button>
+    <button class="pill" id="btnRejouer">Rejouer un vrai call</button>
+    <button class="pill" id="btnSpar" style="border-color:var(--steel);color:var(--steel)">Sparring — s'entraîner contre un prospect</button>
+    <button class="pill" id="btnProg">Ma progression</button>
+  </div>
+  <p class="note">Chrome sur ordinateur. Mets le prospect sur haut-parleur : le micro capte les deux voix. Préviens-le que la conversation est analysée.</p>
+</section>
+
+<!-- CALL -->
+<section id="call">
+  <header>
+    <div class="dot"></div>
+    <div id="timer">00:00</div>
+    <button class="ghost" id="btnQui" style="font-weight:700">PROSPECT parle</button>
+    <button class="ghost" id="btnCarnet">Carnet <span id="carnetNb">0</span></button>
+    <span id="quatre" style="font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);align-self:center"></span>
+    <div id="who">—</div>
+    <div class="grow"></div>
+    <select id="selRythme" class="ghost" style="background:var(--bg)"><option value="calme">Rythme calme</option><option value="normal" selected>Rythme normal</option><option value="vif">Rythme vif</option><option value="manuel">J'avance à la main</option></select>
+    <button class="ghost" id="btnMute">Pause analyse</button>
+    <button class="ghost" id="btnMini">Mini-fenêtre</button>
+    <button class="ghost" id="btnEnd">Terminer le call</button>
+  </header>
+
+  <div id="trame"></div>
+
+  <div id="manque"></div>
+
+  <main>
+    <div class="stage">
+      <div id="drift">
+        <div class="t" id="driftT"></div>
+        <div class="d" id="driftD"></div>
+      </div>
+
+      <div class="card" id="card">
+        <div class="tagline">
+          <span class="tag" id="tag">En écoute</span>
+          <span id="cause"></span>
+        </div>
+        <div id="action">Rien à signaler. Reste avec lui.</div>
+        <div id="certitude">
+          <div class="cert"><span class="eyebrow">Certain</span><div id="certTxt">—</div></div>
+          <div class="cert"><span class="eyebrow">Pas encore certain</span><div id="incertTxt">—</div></div>
+        </div>
+        <p id="origine" style="font-size:11.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;font-family:'Archivo Narrow',sans-serif;font-weight:600"></p>
+        <div id="phraseWrap">
+          <div id="phrase" class="idle">La phrase à dire apparaîtra ici dès qu'une objection sort.</div>
+        </div>
+        <div id="why"></div>
+        <div class="row">
+          <span id="suivant"><button id="btnSuivant">Suivant</button><span style="font-size:12px;color:var(--muted)" id="fileTxt"></span></span>
+          <button class="pill" id="btnTreat">Traiter maintenant<kbd>⌥T</kbd></button>
+          <button class="pill vote" id="btnBon">✓ Ça marche<kbd>⌥1</kbd></button>
+          <button class="pill vote" id="btnMauvais">✕ Pas ça<kbd>⌥2</kbd></button>
+          <button class="pill" id="btnAngle">Autre angle<kbd>⌥A</kbd></button>
+          <button class="pill" id="btnWhy">Pourquoi<kbd>⌥W</kbd></button>
+          <button class="pill" id="btnCopy">Copier<kbd>⌥C</kbd></button>
+          <button class="pill" id="btnClear">Effacer<kbd>⌥X</kbd></button>
+        </div>
+      </div>
+
+      <div class="heard" id="heard">
+        <span class="eyebrow">Entendu</span>
+        <div id="heardTxt">En attente du micro…</div>
+      </div>
+
+      <div class="row" style="margin-top:2px">
+        <input id="typed" placeholder="Tape une phrase de prospect pour tester…" style="flex:1;min-width:200px;background:var(--surface);border:1px solid var(--line);color:var(--ink);padding:11px 14px;border-radius:9px;font-size:14px;font-family:inherit">
+      </div>
+
+      <div class="silence">
+        <div class="head">
+          <span class="eyebrow">Silence</span>
+          <span class="val" id="silTxt">—</span>
+        </div>
+        <div class="track"><div id="silenceFill"></div></div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="pane">
+        <p class="eyebrow">Le call en chiffres</p>
+        <div class="metric"><span>Objections</span><span id="mObj">0</span></div>
+        <div class="metric"><span>Signaux d'achat</span><span id="mBuy">0</span></div>
+        <div class="metric"><span>Questions posées</span><span id="mQ">0</span></div>
+        <div class="metric"><span>Alertes dérive</span><span id="mDrift">0</span></div>
+        <div class="metric"><span>Analyses IA</span><span id="mApi">0</span></div>
+      </div>
+      <p class="eyebrow" style="padding:14px 18px 0">Fil du call</p>
+      <div id="log"></div>
+    </aside>
+  </main>
+</section>
+
+<!-- RAPPORT -->
+<section id="report">
+  <div class="wrap">
+    <p class="eyebrow">Call terminé</p>
+    <h2 id="rTitle">Rapport</h2>
+    <div class="block"><h3>Résultat</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Sans ça, le système ne peut rien apprendre. C'est le seul chiffre qui compte vraiment.</p>
+      <div class="row">
+        <button class="pill" data-res="vendu">Vendu</button>
+        <button class="pill" data-res="relance">Relance prévue</button>
+        <button class="pill" data-res="perdu">Perdu</button>
+      </div>
+      <p id="resEtat" style="font-size:13px;color:var(--sage);margin-top:10px"></p>
+    </div>
+    <div class="block"><h3>Le call en chiffres</h3><div class="grid" id="rStats"></div></div>
+    <div class="block"><h3>Objections rencontrées</h3><div id="rObj"></div></div>
+    <div class="block"><h3>Signaux d'achat</h3><div id="rBuy"></div></div>
+    <div class="block"><h3>Parcours de la trame</h3><div id="rTrame"></div></div>
+    <div class="block"><h3>Ce qu'il faut corriger</h3><div id="rCoach"><p style="color:var(--muted)">Analyse en cours…</p></div></div>
+    <div class="block" id="journalBloc" style="display:none"><h3>Ce que le moteur a fait, tour par tour</h3>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">Chaque prise de parole, et pourquoi elle a été analysée ou ignorée. C'est ici qu'on voit s'il a décroché.</p>
+      <div id="journalTxt" style="font-size:12.5px;font-family:ui-monospace,monospace;line-height:1.7"></div>
+      <div class="row" style="margin-top:12px"><button class="pill" id="btnCopyJournal">Copier le journal</button></div>
+    </div>
+    <div class="block" id="signauxBloc" style="display:none"><h3>Signaux annonciateurs</h3><div id="signauxTxt"></div></div>
+    <div class="block" id="auditBloc" style="display:none"><h3>Audit horodaté</h3><div id="auditTxt"></div></div>
+    <div class="block"><h3>Transcription</h3><p id="rTrans" style="color:var(--muted);white-space:pre-wrap;font-size:13.5px"></p></div>
+    <div class="row" style="margin-bottom:60px">
+      <button class="pill" id="btnAudit" style="border-color:var(--amber);color:var(--amber)">Audit horodaté du call</button>
+      <button class="pill" id="btnCopyReport">Copier le rapport</button>
+      <button class="pill" id="btnNew">Nouveau call</button>
+    </div>
+  </div>
+</section>
+
+<!-- PROGRESSION -->
+<section id="prog">
+  <div class="wrap">
+    <p class="eyebrow">Sur la durée</p>
+    <h2>Ma progression</h2>
+    <div id="progVide" class="block"><p style="color:var(--muted)">Aucun call enregistré. À la fin de chaque call, indique le résultat : c'est ce qui alimente cette page.</p></div>
+    <div id="progContenu"></div>
+    <div class="row" style="margin-bottom:60px">
+      <button class="pill" id="btnAnalyseHisto">Demander une analyse de mes tendances</button>
+      <button class="pill" id="btnProgBack">Retour</button>
+    </div>
+    <div id="progIA"></div>
+  </div>
+</section>
+
+<div id="signalFlash"></div>
+<div id="carnetPanneau">
+  <div class="wrap" style="max-width:640px">
+    <p class="eyebrow">Ce qu'il a laissé passer</p>
+    <h2 style="font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:28px;margin:4px 0 16px">Carnet des signaux</h2>
+    <div id="carnetListe"></div>
+    <button class="pill" id="btnCarnetFermer" style="margin-top:14px">Fermer</button>
+  </div>
+</div>
+
+<!-- SPARRING -->
+<section id="spar">
+  <div class="wrap">
+    <p class="eyebrow">Entraînement</p>
+    <h2>Sparring</h2>
+
+    <div id="sparSetup">
+      <p style="color:var(--muted);margin-bottom:18px">Un prospect en face de toi. Il résiste comme un vrai, et il a un blocage qu'il ne dira pas de lui-même. À toi de le trouver.</p>
+      <div class="block">
+        <h3>Ton offre</h3>
+        <input type="text" id="sparOffre" placeholder="Ce que tu vends, en une ligne">
+        <label for="sparPrix" style="display:block;font-size:12.5px;color:var(--muted);margin:12px 0 5px">Prix annoncé</label>
+        <input type="text" id="sparPrix" placeholder="3000 €">
+      </div>
+      <div class="block">
+        <h3>À qui tu veux te frotter</h3>
+        <div class="row" id="sparProfils">
+          <button class="pill on" data-profil="prix">Bloqué sur le prix</button>
+          <button class="pill" data-profil="temps">Pas le bon moment</button>
+          <button class="pill" data-profil="conjoint">Doit en parler à quelqu'un</button>
+          <button class="pill" data-profil="tiede">Poli mais tiède</button>
+          <button class="pill" data-profil="curieux">Curieux, pas acheteur</button>
+          <button class="pill" data-profil="chaud">Chaud mais effrayé</button>
+          <button class="pill" data-profil="hasard">Au hasard</button>
+        </div>
+        <h3 style="margin-top:20px">Comment vous vous parlez</h3>
+        <div class="row" id="sparCanaux">
+          <button class="pill on" data-canal="vocal">À la voix, mains libres</button>
+          <button class="pill" data-canal="ecrit">À l'écrit</button>
+        </div>
+        <div id="sparVoixBloc">
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin:10px 0 5px">Sa voix</label>
+          <select id="sparVoix" style="width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)"></select>
+          <p style="font-size:12.5px;color:var(--muted);margin-top:8px">En mains libres : il parle, ton micro s'ouvre tout seul, tu réponds, et il repart. Tu ne touches à rien.</p>
+        </div>
+
+        <h3 style="margin-top:20px">Sa dureté</h3>
+        <div class="row" id="sparNiveaux">
+          <button class="pill" data-niveau="1">Souple</button>
+          <button class="pill on" data-niveau="2">Réaliste</button>
+          <button class="pill" data-niveau="3">Coriace</button>
+        </div>
+      </div>
+      <div class="row">
+        <button class="pill" id="btnSparGo" style="border-color:var(--amber);color:var(--amber)">Lancer le sparring</button>
+        <button class="pill" id="btnSparBack">Retour</button>
+      </div>
+      <p id="sparEtat" style="font-size:13px;color:var(--muted);margin-top:10px"></p>
+      <p id="sparCle" style="font-size:12.5px;margin-top:6px"></p>
+      <div class="block" id="sparCleBloc" style="display:none;border-color:var(--clay)">
+        <h3>Ta clé API</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:11px">Tu as ouvert le fichier dans Chrome. Ici il faut une clé. Elle vient de console.anthropic.com et commence par sk-ant-.</p>
+        <input type="password" id="sparCleInput" placeholder="sk-ant-…" style="width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:11px 13px;color:var(--ink)">
+        <div class="row" style="margin-top:11px">
+          <button class="pill" id="btnSparCle">Enregistrer et tester</button>
+          <button class="pill" id="btnDiag">Pourquoi ça ne marche pas ?</button>
+        </div>
+        <p id="sparCleEtat" style="font-size:13px;margin-top:9px"></p>
+        <div id="diag" style="display:none;font-size:12.5px;color:var(--muted);margin-top:12px;line-height:1.6"></div>
+      </div>
+    </div>
+
+    <div id="sparJeu" style="display:none">
+      <div class="block" id="sparCarte">
+        <h3 id="sparQui">Le prospect</h3>
+        <p id="sparDit" style="font-size:19px;line-height:1.45">…</p>
+        <p id="sparTon" style="font-size:12.5px;color:var(--muted);margin-top:10px"></p>
+        <div id="sparEtatVocal" style="display:none;align-items:center;gap:10px;margin-top:14px">
+          <span id="sparPastille" style="width:9px;height:9px;border-radius:50%;background:var(--line);flex:none"></span>
+          <span id="sparPhase" style="font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">—</span>
+        </div>
+      </div>
+      <div class="block">
+        <textarea id="sparMoi" style="min-height:80px" placeholder="Ce que tu réponds. Écris, ou utilise le micro."></textarea>
+        <div class="row" style="margin-top:10px">
+          <button class="pill" id="btnSparEnvoi" style="border-color:var(--amber);color:var(--amber)">Envoyer</button>
+          <button class="pill" id="btnSparMicro">Micro</button>
+          <button class="pill" id="btnSparRedire">Redis-moi ça</button>
+          <button class="pill" id="btnSparIndice">Un indice</button>
+          <button class="pill" id="btnSparFin">Terminer et débriefer</button>
+        </div>
+        <p id="sparInfo" style="font-size:12.5px;color:var(--muted);margin-top:10px"></p>
+      </div>
+      <div class="block"><h3>Ce qui s'est dit</h3><div id="sparHisto"></div></div>
+    </div>
+
+    <div id="sparDebrief"></div>
+  </div>
+</section>
+
+<!-- REJEU -->
+<section id="rejeu">
+  <div class="wrap">
+    <p class="eyebrow">Entraînement</p>
+    <h2>Rejouer un vrai call</h2>
+    <p class="sub" style="text-align:left;max-width:100%;margin-bottom:20px">Colle un transcript Fathom. Le copilote le rejoue tour par tour, en sachant qui parle, comme si tu étais en direct. C'est la seule façon honnête de le tester : vrai rythme, vraies objections, vrai enchaînement.</p>
+    <div class="block">
+      <h3>Le transcript</h3>
+      <textarea id="rjTexte" placeholder="[00:00] Woidih: Bonjour Marie...&#10;[00:05] Marie: Bonjour..." style="width:100%;min-height:170px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:12px 14px;font-size:13.5px;font-family:inherit;line-height:1.5;resize:vertical"></textarea>
+      <div class="row" style="margin-top:12px">
+        <input id="rjMoi" value="Woidih" placeholder="Ton nom dans le transcript" style="background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:10px 13px;border-radius:9px;font-size:13.5px;font-family:inherit;width:190px">
+        <select id="rjVitesse" class="pill" style="background:var(--bg)">
+          <option value="0">Pas à pas — j'appuie pour avancer</option>
+          <option value="2500">Une réplique toutes les 2,5 s</option>
+          <option value="1200">Rapide — 1,2 s</option>
+        </select>
+        <button class="pill" id="btnRjGo" style="border-color:var(--amber);color:var(--amber)">Lancer le rejeu</button>
+        <button class="pill" id="btnRjBack">Retour</button>
+      </div>
+      <p id="rjInfo" style="font-size:12.5px;color:var(--muted);margin-top:12px"></p>
+    </div>
+  </div>
+</section>
+
+<!-- MA MÉTHODE -->
+<section id="kb">
+  <div class="wrap">
+    <p class="eyebrow">Ta base</p>
+    <h2>Ma méthode</h2>
+    <p class="sub" style="text-align:left;max-width:100%;margin-bottom:22px">Dépose tes transcripts de calls et tes coachings. Chaque document est lu une fois, puis réduit à des fiches courtes : l'objection, ta formulation, pourquoi elle marche. Ce sont ces fiches que le copilote te ressort pendant le call.</p>
+
+    <p id="memState" style="font-size:12.5px;color:var(--muted);margin-bottom:18px;line-height:1.6"></p>
+
+    <div class="block" id="keyBox">
+      <h3>Clé API</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Nécessaire uniquement si tu ouvres ce fichier depuis ton ordinateur. Dans Claude, laisse vide. Ta clé reste sur ta machine, elle n'est envoyée qu'à Anthropic.</p>
+      <input id="apiKey" placeholder="sk-ant-..." style="background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:11px 14px;border-radius:9px;font-size:14px;width:100%;font-family:inherit">
+      <button class="pill" id="btnKey" style="margin-top:10px">Enregistrer la clé</button>
+      <select id="selModele" class="pill" style="background:var(--bg);margin-top:10px;width:100%">
+        <option value="auto">Pendant le call : automatique (recommandé)</option>
+        <option value="claude-haiku-4-5-20251001">Toujours le léger (le moins cher)</option>
+        <option value="claude-sonnet-4-6">Toujours le puissant (le plus fin)</option>
+      </select>
+      <p id="modeleDetail" style="font-size:12.5px;color:var(--muted);margin-top:9px"></p>
+      <span id="keyState" style="font-size:12.5px;color:var(--muted);margin-left:10px"></span>
+      <h3 style="margin-top:22px">Ma trame de call</h3>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">C'est la colonne vertébrale que le copilote suit. Mets la tienne : une étape par ligne, un tiret entre le nom et l'objectif.</p>
+      <textarea id="trameTxt" style="width:100%;min-height:190px;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:11px 13px;color:var(--ink);font-size:13px;line-height:1.6;font-family:ui-monospace,monospace"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="pill" id="btnTrameSave">Enregistrer ma trame</button>
+        <button class="pill" id="btnTrameReset">Remettre celle d'origine</button>
+      </div>
+      <p id="trameEtat" style="font-size:12.5px;color:var(--muted);margin-top:8px"></p>
+
+      <h3 style="margin-top:22px">Mes écoles et leur terrain</h3>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:11px">Chaque coach est fort quelque part. Dis-moi où, et le système appellera le bon au bon moment du call.</p>
+      <div id="listeEcoles"></div>
+      <div style="border:1px solid var(--line);border-radius:11px;padding:14px;margin-top:12px">
+        <input type="text" id="newEcole" placeholder="Nom du coach" style="width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)">
+        <p style="font-size:12.5px;color:var(--muted);margin:10px 0 6px">Il est fort sur quoi ?</p>
+        <div class="row" id="newTerrains">
+          <button class="pill" data-t="cadrage">Cadrage</button>
+          <button class="pill" data-t="decouverte">Découverte</button>
+          <button class="pill" data-t="objection">Objections</button>
+          <button class="pill" data-t="closing">Closing</button>
+        </div>
+        <button class="pill" id="btnAddEcole">Ajouter</button>
+      </div>
+
+      <h3 style="margin-top:22px">Ta base, par école</h3>
+      <div id="parEcole" style="font-size:13.5px"></div>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:9px">Si les autres écoles dépassent la tienne, le copilote finira par te faire parler comme quelqu'un d'autre.</p>
+
+      <h3 style="margin-top:22px">Ce que tu dépenses</h3>
+      <select id="selEco" class="pill" style="background:var(--bg);width:100%">
+        <option value="serre">Serré — il ne parle que quand c'est important</option>
+        <option value="normal" selected>Normal — l'équilibre</option>
+        <option value="large">Large — il analyse tout, ça coûte plus</option>
+      </select>
+      <p id="ecoDetail" style="font-size:12.5px;color:var(--muted);margin-top:9px"></p>
+      <div style="margin-top:14px;display:flex;gap:18px;flex-wrap:wrap">
+        <div><div style="font-family:'Archivo Narrow';font-weight:700;font-size:26px" id="ecoNb">0</div><div style="font-size:11px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase">analyses</div></div>
+        <div><div style="font-family:'Archivo Narrow';font-weight:700;font-size:26px" id="ecoCout">0 c</div><div style="font-size:11px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase">coût estimé</div></div>
+      </div>
+      <p id="ecoCache" style="font-size:12.5px;color:var(--muted);margin-top:10px"></p>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">Estimation, pas une facture. Le vrai chiffre est sur console.anthropic.com.</p>
+    </div>
+
+    <div id="drop">
+      <strong>Dépose tes fichiers ici</strong>
+      <span>PDF, TXT, Markdown, ou l'export Claude (zip ou json)</span>
+      <input type="file" id="files" multiple hidden>
+    </div>
+
+    <div class="block">
+      <h3>Ou colle ton texte directement</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Ouvre une conversation, Ctrl+A, Ctrl+C, puis colle ici. Aucun fichier, aucun format à respecter.<br>
+      <b style="color:var(--ink)">YouTube :</b> sous la vidéo, clique sur « … » puis « Afficher la transcription », sélectionne tout et colle ici. Les horodatages sont nettoyés automatiquement.</p>
+      <textarea id="paste" placeholder="Colle ici : transcript de call, coaching, conversation, ou sous-titres YouTube d'un closer que tu admires…" style="width:100%;min-height:130px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:12px 14px;font-size:14px;font-family:inherit;line-height:1.5;resize:vertical"></textarea>
+      <div class="row" style="margin-top:10px">
+        <input id="pasteName" placeholder="Nom (ex : coaching Sami 17-06)" style="background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:10px 13px;border-radius:9px;font-size:13.5px;font-family:inherit;flex:1;min-width:180px">
+        <div style="margin:14px 0 10px">
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px">D'où vient ce document ?</label>
+          <div class="row" id="ecoleChoix">
+            <button class="pill on" data-ecole="moi">Mes calls</button>
+            <button class="pill" data-ecole="sami">Sami</button>
+            <button class="pill" data-ecole="autre">Un autre closer</button>
+          </div>
+          <input type="text" id="ecoleNom" placeholder="Son nom" style="display:none;width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink);margin-top:8px">
+          <p style="font-size:12.5px;color:var(--muted);margin-top:8px">Une source anglaise est traduite par le sens, pas mot à mot. La phrase d'origine est conservée pour que tu puisses vérifier.</p>
+        </div>
+        <button class="pill" id="btnPaste">Distiller ce texte</button>
+      </div>
+    </div>
+
+    <div id="progress" class="block" style="display:none">
+      <h3>Lecture en cours</h3>
+      <p id="progTxt" style="margin-bottom:10px"></p>
+      <div class="track"><div id="progFill" style="height:100%;width:0%;background:var(--amber);transition:width .3s"></div></div>
+      <p id="progErr" style="font-size:12.5px;color:var(--clay);margin-top:10px"></p>
+      <button class="pill" id="btnStop" style="margin-top:8px">Arrêter</button>
+    </div>
+
+    <div class="row" style="margin:18px 0">
+      <button class="pill" id="btnExport">Sauvegarder ma base</button>
+      <button class="pill" id="btnImportKb">Charger une base</button>
+      <button class="pill" id="btnMergeKb">Ajouter à ma base</button>
+      <input type="file" id="mergeFile" accept=".json" hidden>
+      <button class="pill" id="btnWipe">Tout effacer</button>
+      <button class="pill" id="btnBack">Retour</button>
+      <input type="file" id="kbFile" accept=".json" hidden>
+    </div>
+
+    <div id="docs"></div>
+    <div id="cards"></div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   0. APPEL CLAUDE — un seul point d'entrée
+   ========================================================= */
+let API_KEY = "";
+let CHOIX_MODELE = "auto";
+const LEGER = "claude-haiku-4-5-20251001";
+const PUISSANT = "claude-sonnet-4-6";
+let MODELE_DIRECT = LEGER;
+let COMPTE_LOURD = 0;
+
+/* AUTOMATIQUE — le léger fait tourner le call, le puissant sort aux moments qui décident.
+   La règle : on paie cher là où une erreur coûte la vente. */
+function choisirModele(){
+  if(CHOIX_MODELE !== "auto") return CHOIX_MODELE;
+  const t = S.transcript || [];
+  const dernier = (t.length ? t[t.length-1].text : "").toLowerCase();
+  const objOuverte = !!S.current;                                  // une objection est en cours
+  const plusieurs = (S.events||[]).filter(e=>e.type==="OBJ").length >= 2;
+  const gros = dernier.split(/\s+/).length > 35;                   // un long monologue du prospect
+  const argent = /(cher|prix|budget|argent|payer|coûte|tarif|moyens|financ)/.test(dernier);
+  const fin = S.t0 && (Date.now() - S.t0) > 25*60000;               // dernier tiers du call
+  if(objOuverte || plusieurs || argent || gros || fin){ COMPTE_LOURD++; return PUISSANT; }
+  return LEGER;
+}
+const MODELE_FOND = "claude-sonnet-4-6";           // débrief et distillation : plus fin
+let COMPTEUR = {direct:0, fond:0};
+
+/* ÉCONOMIE — moins de tours envoyés, moins de fiches, plus de patience avant de parler.
+   Chaque cran divise à peu près la dépense par deux. */
+const ECOS = {
+  serre:  {nom:"Serré",  tours:4, fiches:3, motsMin:8, motsAntic:10, attente:1200, antic:false},
+  normal: {nom:"Normal", tours:8, fiches:5, motsMin:5, motsAntic:6,  attente:550,  antic:true},
+  large:  {nom:"Large",  tours:12,fiches:8, motsMin:3, motsAntic:4,  attente:350,  antic:true}
+};
+let ECO = ECOS.normal;
+
+/* Le bloc de consignes est identique à chaque analyse. On le marque comme
+   réutilisable : Anthropic le garde en mémoire et le refacture 10 %.
+   Sans effet sur le modèle léger (seuil trop haut), gros effet sur le puissant. */
+let CACHE = {ecrit:0, relu:0};
+async function callClaudeStream(prompt, onTexte, fixe){
+  await pretOuTantPis();
+  COMPTEUR.direct++;
+  const h = {"Content-Type":"application/json"};
+  if(API_KEY){ h["x-api-key"]=API_KEY; h["anthropic-version"]="2023-06-01"; h["anthropic-dangerous-direct-browser-access"]="true"; }
+  let r;
+  try{
+    r = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST", headers:h,
+      body:JSON.stringify(Object.assign(
+        {model:choisirModele(), max_tokens:400, stream:true,
+         messages:[{role:"user", content:prompt}]},
+        fixe ? {system:[{type:"text", text:fixe, cache_control:{type:"ephemeral"}}]} : {}
+      ))
+    });
+  }catch(e){ throw new Error(API_KEY ? "Pas de réseau, ou clé refusée." : (window.storage
+        ? "Le cerveau n'a pas répondu. Réessaie dans un instant."
+        : "Rien ne répond. Si tu es dans Chrome, mets ta clé API dans Ma méthode. Si tu es dans Claude, réessaie.")); }
+  if(!r.ok || !r.body){
+    const codes = {401:"Clé API invalide.",403:"Clé sans accès.",429:"Trop de demandes.",400:"Requête refusée."};
+    const err = new Error(codes[r.status] || ("HTTP "+r.status)); err.status = r.status; throw err;
+  }
+  const lecteur = r.body.getReader(), dec = new TextDecoder();
+  let reste = "", txt = "";
+  while(true){
+    const {done, value} = await lecteur.read();
+    if(done) break;
+    reste += dec.decode(value, {stream:true});
+    const lignes = reste.split("\n"); reste = lignes.pop();
+    for(const l of lignes){
+      if(!l.startsWith("data:")) continue;
+      try{
+        const d = JSON.parse(l.slice(5));
+        // l'API nous dit si les consignes ont bien été relues depuis la mémoire
+        if(d.type === "message_start" && d.message && d.message.usage){
+          const u = d.message.usage;
+          if(u.cache_creation_input_tokens) CACHE.ecrit++;
+          if(u.cache_read_input_tokens) CACHE.relu++;
+        }
+        if(d.type === "content_block_delta" && d.delta && d.delta.text){
+          txt += d.delta.text;
+          if(onTexte) onTexte(txt);
+        }
+      }catch(_){}
+    }
+  }
+  if(!txt.trim()) throw new Error("réponse vide");
+  return txt;
+}
+
+async function callClaude(prompt){
+  await pretOuTantPis();
+  COMPTEUR.fond++;
+  const h = {"Content-Type":"application/json"};
+  if(API_KEY){
+    h["x-api-key"] = API_KEY;
+    h["anthropic-version"] = "2023-06-01";
+    h["anthropic-dangerous-direct-browser-access"] = "true";
+  }
+  let r;
+  try{
+    r = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST", headers:h,
+      body:JSON.stringify({model:MODELE_FOND,max_tokens:1000,messages:[{role:"user",content:prompt}]})
+    });
+  }catch(e){
+    throw new Error(API_KEY
+      ? "Pas de réseau, ou clé refusée par le navigateur."
+      : (window.storage
+        ? "Le cerveau n'a pas répondu. Réessaie dans un instant."
+        : "Rien ne répond. Si tu es dans Chrome, mets ta clé API dans Ma méthode. Si tu es dans Claude, réessaie."));
+  }
+  if(!r.ok){
+    const codes = {401:"Clé API invalide.",403:"Clé sans accès.",429:"Trop de demandes, ça se calme tout seul.",400:"Requête refusée."};
+    const err = new Error(codes[r.status] || ("HTTP "+r.status));
+    err.status = r.status;
+    throw err;
+  }
+  const d = await r.json();
+  if(d.error) throw new Error(d.error.message || "erreur API");
+  const txt = (d.content||[]).filter(c=>c.type==="text").map(c=>c.text).join("");
+  if(!txt.trim()) throw new Error("réponse vide");
+  return txt;
+}
+
+/* =========================================================
+   1. BASE DE CONNAISSANCE — objections, causes, angles
+   Modifie librement : c'est ici que vit ta méthode.
+   ========================================================= */
+const KB = [
+{
+  id:"PRIX", label:"Objection · Prix", cause:"Cause probable : perception du risque, pas le montant",
+  patterns:[/trop cher/i,/c'?est cher/i,/ça fait beaucoup/i,/le prix/i,/ça coûte/i,/gros budget/i,/c'?est un budget/i,/ça représente/i,/paraît cher/i,/trouve ça cher/i,/\d[\d\s]{2,}\s*(euros?|€|balles)/i,/onéreux/i,/ça pique/i],
+  action:"NE JUSTIFIE PAS. Fais-le préciser.",
+  why:"Justifier le prix confirme au prospect que le prix est le sujet. Tant que tu ne sais pas ce que « cher » veut dire pour lui, toute réponse est un coup dans le vide.",
+  angles:[
+    {n:"Clarification", p:"Qu'est-ce qui te fait dire que c'est cher exactement ?"},
+    {n:"Comparaison interne", p:"Cher par rapport à quoi ?"},
+    {n:"Isolation", p:"Si le budget n'était pas un sujet, tu avancerais aujourd'hui ?"}
+  ]
+},
+{
+  id:"MOYENS", label:"Objection · Moyens", cause:"Cause probable : vraie contrainte OU sortie de secours",
+  patterns:[/pas les moyens/i,/pas l'?argent/i,/pas le budget/i,/je suis serré/i,/financièrement/i,/je peux pas me permettre/i,/j'?ai pas de sous/i],
+  action:"Sépare « je ne peux pas » de « je ne veux pas ».",
+  why:"« Pas les moyens » est l'objection la plus souvent fausse. Si tu la traites comme vraie sans vérifier, tu t'excuses et tu perds la vente. Si elle est vraie, tu perds ton temps à convaincre.",
+  angles:[
+    {n:"Vérification", p:"Si tu avais l'argent sur la table là maintenant, tu le ferais ?"},
+    {n:"Écart", p:"Il te manque combien pour que ce soit possible ?"},
+    {n:"Coût de l'inaction", p:"Et dans six mois, ça te coûte combien de ne rien changer ?"}
+  ]
+},
+{
+  id:"REFLEXION", label:"Objection · Réflexion", cause:"Cause probable : un doute non exprimé",
+  patterns:[/réfléchir/i,/y penser/i,/je te redis/i,/je vous redis/i,/laisse[- ]moi du temps/i,/je vais voir/i,/je reviens vers/i],
+  action:"Trouve sur QUOI il réfléchit. Ne raccroche pas dessus.",
+  why:"Personne ne réfléchit dans le vide. Il y a une question précise à laquelle il n'a pas de réponse. Si tu le laisses partir avec, elle ne disparaîtra pas — elle deviendra un non silencieux.",
+  angles:[
+    {n:"Clarification", p:"Bien sûr. Tu veux réfléchir à quoi précisément ?"},
+    {n:"Hésitation", p:"Qu'est-ce qui te fait le plus hésiter aujourd'hui ?"},
+    {n:"Engagement conditionnel", p:"Si cette question-là était réglée maintenant, tu serais prêt à avancer ?"}
+  ]
+},
+{
+  id:"CONJOINT", label:"Objection · Tiers décideur", cause:"Cause probable : lui-même n'est pas convaincu",
+  patterns:[/ma femme/i,/mon mari/i,/ma compagne/i,/mon compagnon/i,/mon associé/i,/en parler à/i,/en discuter avec/i,/mon épouse/i],
+  action:"Vérifie SA décision à lui d'abord.",
+  why:"Un prospect convaincu défend le projet devant son conjoint. Un prospect non convaincu s'en sert comme bouclier. Tu dois savoir dans quel cas tu es avant de proposer quoi que ce soit.",
+  angles:[
+    {n:"Position perso", p:"Et toi, indépendamment d'elle, tu en penses quoi ?"},
+    {n:"Anticipation", p:"Qu'est-ce qu'elle va te dire à ton avis ?"},
+    {n:"Call à deux", p:"On la met en ligne cinq minutes maintenant, ça règle tout ?"}
+  ]
+},
+{
+  id:"PEUR", label:"Objection · Peur d'échouer", cause:"Cause probable : doute sur lui, pas sur toi",
+  patterns:[/peur de/i,/j'?ai peur/i,/si ça marche pas/i,/si je réussis pas/i,/pas sûr d'?y arriver/i,/capable/i,/pas fait pour moi/i,/j'?y arrive pas/i],
+  action:"Ne rassure pas. Fais-lui dire ce qui le rendrait sûr.",
+  why:"Rassurer un prospect qui doute de lui, c'est parler contre son expérience personnelle : il va défendre son doute. Il doit s'entendre décrire lui-même ce qui le ferait réussir.",
+  angles:[
+    {n:"Reframe risque", p:"Donc ce n'est pas l'investissement qui te bloque, c'est la peur de ne pas y arriver ?"},
+    {n:"Condition de réussite", p:"Qu'est-ce qu'il te faudrait pour être sûr d'y arriver ?"},
+    {n:"Antécédent", p:"C'est déjà arrivé que tu te lances dans un truc et que ça marche ?"}
+  ]
+},
+{
+  id:"PREUVE", label:"Objection · Confiance", cause:"Cause probable : besoin de preuve concrète",
+  patterns:[/comment je sais/i,/des preuves/i,/des résultats/i,/témoignages/i,/arnaque/i,/vous êtes sérieux/i,/on m'?a déjà/i,/je me suis déjà fait/i,/garantie/i,/remboursé/i],
+  action:"Une preuve précise. Pas trois. Puis rends-lui la parole.",
+  why:"Empiler les preuves ressemble à de la défense. Une seule preuve qui ressemble à sa situation à lui vaut plus que dix cas génériques.",
+  angles:[
+    {n:"Preuve ciblée", p:"Qu'est-ce qui te convaincrait, concrètement ?"},
+    {n:"Antécédent négatif", p:"Il s'est passé quoi la dernière fois ?"},
+    {n:"Critère", p:"À quoi tu reconnaîtrais que cette fois c'est différent ?"}
+  ]
+},
+{
+  id:"TIMING", label:"Objection · Timing", cause:"Cause probable : urgence absente",
+  patterns:[/pas le moment/i,/plus tard/i,/dans quelques mois/i,/l'?année prochaine/i,/après les vacances/i,/en septembre/i,/en janvier/i,/quand j'?aurai/i],
+  action:"Reviens à son objectif et à l'écart.",
+  why:"Le timing n'est jamais le vrai sujet. Ce qui manque, c'est la conscience du coût d'attendre. Ne discute pas la date : discute l'écart entre où il est et où il veut être.",
+  angles:[
+    {n:"Coût du délai", p:"Qu'est-ce qui va changer d'ici là ?"},
+    {n:"Rappel objectif", p:"Tu m'as dit que ton objectif c'était {objectif}. En attendant, tu t'en rapproches comment ?"},
+    {n:"Vérif sincérité", p:"C'est vraiment une question de moment, ou il y a autre chose ?"}
+  ]
+},
+{
+  id:"TEMPS", label:"Objection · Temps", cause:"Cause probable : priorité, pas agenda",
+  patterns:[/pas (?:trop |vraiment |beaucoup )?le temps/i,/(?:je suis |suis )?débordé/i,/j'?ai trop de/i,/mon emploi du temps/i,/entre le boulot/i,/c'?est long/i,/(?:trois|3|six|6|deux|2|quatre|4)\s*mois.{0,12}(?:long|beaucoup)/i,/ça fait long/i,/pas dispo/i,/j'?ai pas le temps/i,/manque de temps/i],
+  action:"Ne vends pas un planning. Teste la priorité.",
+  why:"Tout le monde trouve le temps pour ce qui compte vraiment. « Pas le temps » veut souvent dire « pas assez important encore » — ce qui renvoie à la douleur, pas au calendrier.",
+  angles:[
+    {n:"Priorité", p:"Sur une semaine, tu dirais que ce sujet-là est à quelle place dans tes priorités ?"},
+    {n:"Réalité", p:"Tu as combien d'heures dispo dans une semaine, honnêtement ?"},
+    {n:"Coût", p:"Et si tu ne prends pas ce temps-là, il se passe quoi dans un an ?"}
+  ]
+},
+{
+  id:"COMPARE", label:"Objection · Comparaison", cause:"Cause probable : critère de choix flou",
+  patterns:[/j'?ai vu ailleurs/i,/moins cher ailleurs/i,/comparer/i,/d'?autres formations/i,/un autre programme/i,/concurrent/i,/j'?ai des devis/i],
+  action:"Fais-lui définir SON critère de choix.",
+  why:"Si tu attaques le concurrent, tu deviens vendeur. Si tu fais définir le critère, c'est lui qui compare — et il compare sur le terrain que tu as choisi.",
+  angles:[
+    {n:"Critère", p:"Tu vas choisir sur quoi au final ?"},
+    {n:"Manque", p:"Qu'est-ce qui te manque chez eux ?"},
+    {n:"Décision", p:"Si les deux se valaient, tu choisirais lequel et pourquoi ?"}
+  ]
+},
+{
+  id:"DEJA", label:"Objection · Déjà essayé", cause:"Cause probable : blessure passée non traitée",
+  patterns:[/j'?ai déjà essayé/i,/j'?ai déjà fait/i,/ça n'?a pas marché/i,/j'?ai déjà acheté/i,/j'?ai déjà payé/i,/j'?ai déjà suivi/i],
+  action:"Fais raconter l'échec avant de proposer quoi que ce soit.",
+  why:"Tant qu'il n'a pas décrit pourquoi ça a échoué, ton offre est rangée dans la même case. Le récit de l'échec est ce qui ouvre la place pour autre chose.",
+  angles:[
+    {n:"Récit", p:"Il s'est passé quoi exactement ?"},
+    {n:"Responsabilité", p:"Avec le recul, ça a bloqué où selon toi ?"},
+    {n:"Différence", p:"Qu'est-ce qui devrait être différent cette fois ?"}
+  ]
+},
+{
+  id:"DOC", label:"Objection · Demande de doc", cause:"Cause probable : fuite polie",
+  patterns:[/envoie[- ]moi/i,/tu peux m'?envoyer/i,/par mail/i,/de la documentation/i,/une plaquette/i,/un pdf/i,/des infos par/i],
+  action:"N'envoie rien. Trouve la question derrière.",
+  why:"Un document ne convainc personne. La demande de doc est presque toujours une manière polie de sortir du call sans dire non.",
+  angles:[
+    {n:"Recentrage", p:"Tu veux voir quoi précisément dedans ?"},
+    {n:"Direct", p:"Pose-moi la question là maintenant, c'est plus rapide."},
+    {n:"Test", p:"Et une fois que tu l'as lu, il se passe quoi ?"}
+  ]
+}
+];
+
+/* LA TRAME — les étapes d'un call, dans l'ordre */
+const TRAME = [
+  {c:"CADRAGE",   n:"Cadrage",     but:"prendre le lead, poser le cadre du call"},
+  {c:"SITUATION", n:"Situation",   but:"où il en est aujourd'hui, concrètement"},
+  {c:"PROBLEME",  n:"Problème",    but:"ce qui bloque, depuis quand"},
+  {c:"DOULEUR",   n:"Douleur",     but:"comment ça l'impacte lui, et ses proches"},
+  {c:"OBJECTIF",  n:"Objectif",    but:"ce qu'il veut atteindre, chiffré"},
+  {c:"CAUSE",     n:"Cause",       but:"ce qui l'a vraiment empêché jusqu'ici"},
+  {c:"PASSE",     n:"Passé",       but:"ce que cette limite lui a déjà coûté"},
+  {c:"FUTUR",     n:"Futur",       but:"ce que ça coûtera s'il ne change rien"},
+  {c:"IDENTITE",  n:"Identité",    but:"qui il veut devenir"},
+  {c:"ENGAGEMENT",n:"Engagement",  but:"à quel point il est engagé à le devenir"},
+  {c:"DECIDEUR",  n:"Décideur",    but:"qui décide, et avec quel budget"},
+  {c:"SOLUTION",  n:"Solution",    but:"présenter, relié à ce qu'il a dit"},
+  {c:"PRIX",      n:"Prix",        but:"annoncer sec, puis se taire"},
+  {c:"OBJECTION", n:"Objection",   but:"diagnostiquer, isoler, puis seulement reframer"},
+  {c:"CLOSING",   n:"Closing",     but:"demander l'engagement"}
+];
+
+/* TEMPS 2 — le traitement, une fois la vraie cause connue */
+const TRAITE = {
+PRIX:[
+ {n:"Reframe coût / investissement", p:"La vraie question c'est pas combien ça coûte, c'est combien ça te rapporte. Aujourd'hui, ne rien faire, ça te coûte quoi sur un an ?"},
+ {n:"Analogie", p:"C'est comme un permis de conduire. Tu ne paies pas des heures de conduite, tu paies le fait de ne plus dépendre de personne pour te déplacer."},
+ {n:"Reframe prix / valeur", p:"Si tu étais certain d'atteindre ton objectif, est-ce que 3000 euros serait toujours cher ?"}
+],
+MOYENS:[
+ {n:"Reframe priorité", p:"Tu n'as pas les moyens de ne pas le faire, en fait. C'est justement parce que c'est serré que ça ne peut pas rester comme ça."},
+ {n:"Solution concrète", p:"On regarde ensemble ce qui est faisable pour toi, plutôt que de fermer la porte tout de suite ?"}
+],
+REFLEXION:[
+ {n:"Reframe décision", p:"Réfléchir, c'est utile quand il te manque une info. Là, tu as tout. Ce qu'il te manque, c'est pas du temps, c'est une certitude."},
+ {n:"Analogie", p:"Dans six mois tu auras exactement les mêmes éléments qu'aujourd'hui. La seule chose qui aura changé, c'est six mois de perdus."},
+ {n:"Isolation finale", p:"Franchement, entre nous, il y a quoi comme doute derrière le fait de réfléchir ?"}
+],
+CONJOINT:[
+ {n:"Reframe rôle", p:"Elle va te demander si toi tu y crois. Si toi tu n'es pas convaincu, elle dira non. Donc la vraie question c'est : toi tu en es où ?"},
+ {n:"Projection", p:"Tu lui présentes ça comment ? Si tu me le racontes maintenant, on voit tout de suite ce qui coince."}
+],
+PEUR:[
+ {n:"Reframe échec", p:"La question c'est pas si tu peux échouer. C'est ce qui se passe si tu ne tentes rien : là, tu es sûr du résultat."},
+ {n:"Analogie", p:"Personne n'apprend à nager en lisant. Tu as peur de l'eau, c'est normal. C'est pour ça qu'on ne te lâche pas dedans tout seul."},
+ {n:"Renversement", p:"Tu as peur de ne pas y arriver seul. Justement : là tu ne serais plus seul."}
+],
+PREUVE:[
+ {n:"Preuve ciblée", p:"Je vais te donner un seul exemple, celui qui ressemble le plus à ta situation. Dis-moi après si ça répond."},
+ {n:"Reframe méfiance", p:"Ta méfiance est saine, garde-la. Mais garde-la aussi pour ce que tu fais aujourd'hui, qui ne te donne aucun résultat."}
+],
+TIMING:[
+ {n:"Reframe fenêtre", p:"Il n'y a jamais de bon moment. Il y a juste des moments où on décide, et des moments où on repousse."},
+ {n:"Coût du délai", p:"Si tu attends six mois, tu commences six mois plus tard, et tu arrives six mois plus tard. C'est ça que tu veux ?"}
+],
+TEMPS:[
+ {n:"Reframe priorité", p:"Tu n'as pas un problème de temps, tu as un problème de retour sur ce temps. Aujourd'hui tu bosses beaucoup pour peu."},
+ {n:"Analogie", p:"C'est comme couper du bois avec une hache émoussée. Prendre le temps d'affûter, ça a l'air d'en perdre. En vrai ça en fait gagner."}
+],
+COMPARE:[
+ {n:"Reframe critère", p:"Compare ce qui compte : pas le prix, mais ce que tu obtiens réellement, et à quelle vitesse."},
+ {n:"Confiance", p:"Prends le temps de comparer, sincèrement. Mais compare sur le résultat, pas sur la brochure."}
+],
+DEJA:[
+ {n:"Reframe échec passé", p:"Ça n'a pas marché parce que tu étais seul face à ça. Le problème c'était pas toi, c'était le fait d'être seul."},
+ {n:"Différenciation", p:"Ce qui a manqué la dernière fois, c'est exactement ce qu'on met en place ici. Dis-moi si je me trompe."}
+],
+DOC:[
+ {n:"Reframe doc", p:"Un document ne va pas te convaincre. Ce qui te convaincra, c'est de voir si ça s'applique à ta situation. On le fait maintenant, en cinq minutes."}
+]
+};
+
+const BUY = [/ça m'?intéresse/i,/comment ça marche/i,/je commence quand/i,/on commence quand/i,/combien de temps ça/i,/le paiement/i,/plusieurs fois/i,/on fait comment/i,/prochaine étape/i,/je m'?inscris/i,/il reste des places/i,/vous acceptez/i,/en combien de fois/i];
+
+/* mots qui trahissent une justification de ta part */
+const JUSTIF = [/parce que/i,/en fait/i,/tu auras accès/i,/vous aurez accès/i,/ça inclut/i,/on te donne/i,/notre programme/i,/en plus tu/i,/c'?est vraiment/i,/je t'?assure/i,/crois[- ]moi/i];
+
+/* =========================================================
+   2. ÉTAT
+   ========================================================= */
+const S = {
+  running:false, muted:false, t0:0, prospect:"",
+  transcript:[], events:[], lastSpeech:0,
+  current:null, angleIdx:0, driftCount:0, qCount:0, beat:0, saidAtObj:"", moiQuiParle:false, etape:null, faites:[], signaux:[],
+  lastObjectionAt:0, lastObjectionId:null, profile:{objectif:null}
+};
+
+/* rythme : combien de temps on attend, et combien de temps la carte reste lisible */
+const RYTHMES = {
+  calme:  {pause:2800, tenue:12000, nom:"Calme"},
+  normal: {pause:1800, tenue:7000,  nom:"Normal"},
+  vif:    {pause:1000, tenue:3000,  nom:"Vif"},
+  manuel: {pause:2500, tenue:Infinity, nom:"Manuel"}
+};
+let RYTHME = RYTHMES.normal;
+let verrouJusqu = 0, carteEnFile = null;
+
+const $ = id => document.getElementById(id);
+const fmt = s => String(Math.floor(s/60)).padStart(2,'0')+":"+String(Math.floor(s%60)).padStart(2,'0');
+
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1800); }
+
+/* =========================================================
+   3. RECONNAISSANCE VOCALE
+   ========================================================= */
+let rec = null;
+/* Le navigateur redemande l'autorisation à chaque nouvelle écoute.
+   On ouvre le micro une fois et on garde le flux : il ne redemande plus de la session. */
+/* ============================================================
+   RECONNAÎTRE QUI PARLE, SANS BOUTON.
+   Ta voix est près du micro : elle arrive fort. Celle du prospect
+   sort du haut-parleur, plus loin : elle arrive faible.
+   On mesure le volume de chaque phrase et on tranche.
+   ============================================================ */
+let AUDIO = null, ANALYSEUR = null, DONNEES = null, SPECTRE = null;
+let NIVEAU_MOI = 0, NIVEAU_LUI = 0, CALIBRE = false;
+let EMPREINTE_MOI = null, EMPREINTE_LUI = null;
+let mesures = [], mesureId = null;
+
+/* ============================================================
+   L'EMPREINTE DE TA VOIX.
+   Le volume dit à quelle distance est la personne. L'empreinte dit
+   QUI c'est : la répartition des fréquences, propre à chaque voix.
+   Les deux ensemble sont bien plus fiables que le volume seul.
+   ============================================================ */
+const BANDES = 24;
+
+function spectreCourant(){
+  if(!ANALYSEUR || !SPECTRE) return null;
+  ANALYSEUR.getByteFrequencyData(SPECTRE);
+  const utile = Math.floor(SPECTRE.length * 0.55);   // au-delà, c'est du souffle
+  const v = new Array(BANDES).fill(0);
+  const parBande = Math.floor(utile / BANDES);
+  for(let b = 0; b < BANDES; b++){
+    let s = 0;
+    for(let i = b*parBande; i < (b+1)*parBande; i++) s += SPECTRE[i];
+    v[b] = s / parBande;
+  }
+  return v;
+}
+
+function normalise(v){
+  if(!v) return null;
+  const n = Math.sqrt(v.reduce((s,x)=>s+x*x, 0));
+  return n < 1 ? null : v.map(x=>x/n);
+}
+
+function ressemblance(a, b){
+  if(!a || !b) return 0;
+  let p = 0;
+  for(let i = 0; i < a.length; i++) p += a[i]*b[i];
+  return p;                                  // vecteurs normalisés : c'est le cosinus
+}
+
+/* La moyenne des spectres pendant que la personne parlait */
+function empreinteDe(depuis){
+  const debut = Math.max(depuis, Date.now() - 12000);
+  const m = mesures.filter(x => x.t >= debut && x.sp);
+  if(m.length < 4) return null;
+  const somme = new Array(BANDES).fill(0);
+  m.forEach(x => x.sp.forEach((v,i)=> somme[i] += v));
+  return normalise(somme.map(x => x/m.length));
+}
+
+function demarreMesure(){
+  if(ANALYSEUR || !FLUX_MICRO) return;
+  try{
+    AUDIO = new (window.AudioContext || window.webkitAudioContext)();
+    const src = AUDIO.createMediaStreamSource(FLUX_MICRO);
+    ANALYSEUR = AUDIO.createAnalyser();
+    ANALYSEUR.fftSize = 1024;
+    ANALYSEUR.smoothingTimeConstant = 0.3;
+    src.connect(ANALYSEUR);
+    DONNEES = new Uint8Array(ANALYSEUR.frequencyBinCount);
+    SPECTRE = new Uint8Array(ANALYSEUR.frequencyBinCount);
+    mesureId = setInterval(()=>{
+      ANALYSEUR.getByteTimeDomainData(DONNEES);
+      let somme = 0;
+      for(let i=0;i<DONNEES.length;i++){ const v = (DONNEES[i]-128)/128; somme += v*v; }
+      const niveau = Math.sqrt(somme/DONNEES.length);
+      // on ne garde le spectre que quand quelqu'un parle vraiment
+      if(niveau > 0.008) mesures.push({t:Date.now(), n:niveau, sp: niveau > 0.015 ? spectreCourant() : null});
+      if(mesures.length > 900) mesures = mesures.slice(-600);
+    }, 60);
+  }catch(e){ ANALYSEUR = null; }
+}
+
+/* Le volume moyen pendant que la phrase se disait */
+function niveauDe(depuis){
+  // on ne remonte jamais plus de 12 secondes : au-delà, on mesurerait l'autre voix
+  const debut = Math.max(depuis, Date.now() - 12000);
+  const m = mesures.filter(x => x.t >= debut);
+  if(m.length < 3) return null;
+  const tri = m.map(x=>x.n).sort((a,b)=>a-b);
+  return tri[Math.floor(tri.length*0.7)];       // le haut du volume, pas la moyenne
+}
+
+/* Qui parle ? Deux avis : le timbre de la voix, et le volume.
+   Le timbre pèse plus lourd : il ne bouge pas si tu te recules. */
+function quiParle(niveau, empreinte){
+  if(!CALIBRE) return null;
+  let voixMoi = 0, voixLui = 0, poids = 0;
+
+  if(empreinte && EMPREINTE_MOI && EMPREINTE_LUI){
+    const rm = ressemblance(empreinte, EMPREINTE_MOI);
+    const rl = ressemblance(empreinte, EMPREINTE_LUI);
+    const d = rm - rl;
+    // le timbre pèse le plus : il ne change pas si tu bouges
+    voixMoi += (d > 0 ? Math.min(1, d*18) : 0) * 0.75;
+    voixLui += (d < 0 ? Math.min(1, -d*18) : 0) * 0.75;
+    poids += 0.75;
+  }
+
+  if(niveau !== null && NIVEAU_MOI && NIVEAU_LUI){
+    const milieu = (NIVEAU_MOI + NIVEAU_LUI) / 2;
+    const ecart = Math.abs(NIVEAU_MOI - NIVEAU_LUI);
+    if(ecart >= 0.008){
+      const s = Math.min(1, Math.abs(niveau - milieu) / (ecart/2));
+      if(niveau > milieu) voixMoi += s * 0.25; else voixLui += s * 0.25;
+      poids += 0.25;
+    }
+  }
+
+  if(poids < 0.3) return null;                        // pas assez d'éléments pour trancher
+  const moi = voixMoi > voixLui;
+  const surete = Math.abs(voixMoi - voixLui) / poids;
+  return {qui: moi ? "CLOSER" : "PROSPECT", surete: Math.min(1, surete)};
+}
+
+let FLUX_MICRO = null;
+async function assureMicro(){
+  if(FLUX_MICRO && FLUX_MICRO.active) return true;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+  try{
+    FLUX_MICRO = await navigator.mediaDevices.getUserMedia({audio:{
+      echoCancellation:false,      // sinon le navigateur égalise les volumes et on ne distingue plus rien
+      noiseSuppression:false,
+      autoGainControl:false        // le gain automatique écraserait l'écart entre les deux voix
+    }});
+    demarreMesure();
+    return true;
+  }catch(e){ FLUX_MICRO = null; return false; }
+}
+
+function initRec(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ alert("Ce navigateur ne gère pas la reconnaissance vocale. Ouvre l'app dans Chrome."); return false; }
+  rec = new SR();
+  rec.lang = "fr-FR";
+  rec.continuous = true;
+  rec.interimResults = true;
+
+  rec.onstart = () => {
+    $("heard").className = "heard live";
+    $("heardTxt").textContent = "Micro actif. Parle, le texte s'affiche ici.";
+  };
+  rec.onresult = e => {
+    if(!debutPhrase) debutPhrase = Date.now() - 400;   // la phrase avait commencé un peu avant
+    S.lastSpeech = Date.now();
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(!debutPhrase) debutPhrase = Date.now() - 200;   // phrase suivante dans le même événement
+      const txt = e.results[i][0].transcript.trim();
+      if(!txt) continue;
+      $("heard").className = "heard live";
+      $("heardTxt").textContent = txt;
+      if(e.results[i].isFinal){
+        const n = niveauDe(debutPhrase);
+        debutPhrase = 0;
+        handleUtterance(txt, quiParle(n, empreinteDe(debutPhrase)));
+      }
+      else anticipe(txt);
+    }
+  };
+  rec.onerror = e => {
+    $("heard").className = "heard err";
+    const m = {
+      "not-allowed":"Micro bloqué. Ouvre ce fichier dans Chrome sur ordinateur et autorise le micro.",
+      "service-not-allowed":"Micro bloqué par le navigateur. Ouvre le fichier dans Chrome sur ordinateur.",
+      "audio-capture":"Aucun micro trouvé. Vérifie ton entrée audio.",
+      "network":"Pas de réseau. La reconnaissance vocale a besoin d'Internet.",
+      "no-speech":"Rien entendu. Rapproche-toi du micro."
+    };
+    $("heardTxt").textContent = m[e.error] || ("Erreur micro : "+e.error);
+  };
+  // Chrome coupe la reconnaissance toutes les minutes environ. On la relance,
+  // mais on espace un peu pour éviter les redémarrages en rafale.
+  let dernierRedemarrage = 0;
+  rec.onend = () => {
+    if(!S.running || S.muted) return;
+    const maintenant = Date.now();
+    const attente = (maintenant - dernierRedemarrage < 800) ? 900 : 60;
+    dernierRedemarrage = maintenant;
+    setTimeout(()=>{ if(S.running && !S.muted){ try{ rec.start() }catch(_){} } }, attente);
+  };
+  return true;
+}
+
+/* =========================================================
+   4. MOTEUR — que faire de chaque phrase entendue
+   ========================================================= */
+/* Anticipation : on n'attend pas la fin de la phrase pour afficher la carte */
+let peeked = null;
+function peek(txt){
+  if(txt.split(/\s+/).length < 3) return;
+  const hit = KB.find(o => o.patterns.some(r=>r.test(txt)));
+  if(!hit) return;
+  if(peeked === hit.id) return;
+  if(S.current && S.current.id === hit.id) return;
+  peeked = hit.id;
+  provisoire(hit);
+}
+
+let debutPhrase = 0;
+function handleUtterance(text, detecte){
+  const t = (Date.now()-S.t0)/1000;
+  // le volume tranche ; le bouton manuel reste maître si tu t'en sers
+  let qui = S.moiQuiParle ? "CLOSER" : "PROSPECT";
+  if(detecte && detecte.surete > 0.35 && !S.manuelRecent){
+    qui = detecte.qui;
+    S.moiQuiParle = (qui === "CLOSER");
+    majBoutonQui(detecte.surete);
+  }
+  S.transcript.push({t, text, qui});
+  sauveCallEnCours();
+
+  const duProspect = (qui === "PROSPECT");
+  const words = text.split(/\s+/).length;
+  if(!duProspect && (/\?$/.test(text) || /^(qu'?est|comment|pourquoi|quand|combien|qui|où|est-ce)/i.test(text))) S.qCount++;
+
+  // capture de l'objectif chiffré
+  const g = duProspect ? text.match(/(?:objectif|j'?aimerais|je veux|mon but|viser|atteindre)[^.]{0,60}/i) : null;
+  if(g && !S.profile.objectif && /\d/.test(g[0])) S.profile.objectif = g[0].trim();
+
+  // une objection ne peut venir que du PROSPECT. Si c'est toi qui dis "cher",
+  // ce n'est pas une objection, c'est toi qui parles de prix.
+  const hit = duProspect ? KB.find(o => o.patterns.some(r=>r.test(text))) : null;
+  const buy = duProspect && BUY.some(r=>r.test(text));
+  if(hit){
+    S.events.push({t,type:"OBJ",id:hit.id,label:hit.label,text});
+    $("mObj").textContent = S.events.filter(e=>e.type==="OBJ").length;
+    logLine(t,text,"flag");
+  } else if(buy){
+    S.events.push({t,type:"BUY",text});
+    $("mBuy").textContent = S.events.filter(e=>e.type==="BUY").length;
+    logLine(t,text,"buy");
+  } else {
+    logLine(t,text,"");
+  }
+  peeked = null;
+
+  // dérive : tu justifies, ou tu monologues
+  // ces deux alertes ne concernent QUE toi. Un prospect qui monologue, c'est une bonne nouvelle.
+  if(!duProspect){
+    if(S.beat && JUSTIF.some(r=>r.test(text)) && words > 12){
+      fireDrift("TU JUSTIFIES.","Arrête l'argumentaire. Repose une question ouverte et rends-lui la parole.");
+    } else if(words > 45 && !/\?/.test(text)){
+      fireDrift("TU PARLES TROP.","Plus de 45 mots sans une seule question. Reprends la main en lui redonnant la parole.");
+    }
+  }
+
+  // l'IA lit toute la conversation et décide
+  if(vautLeCoup(text)){ derniereAnticipation = ""; programmerAnalyse(text); }
+}
+
+/* affichage immédiat pendant que l'IA réfléchit */
+function provisoire(o){
+  $("card").className = "card hot";
+  $("tag").className = "tag"; $("tag").textContent = o.label;
+  $("cause").textContent = "Analyse en cours…";
+  $("action").textContent = o.action;
+  $("phrase").className = "";
+  $("phrase").textContent = "« "+o.angles[0].p+" »";
+  $("why").textContent = o.why; $("why").classList.remove("on");
+  S.current = JSON.parse(JSON.stringify(o));
+  S.angleIdx = 0;
+}
+
+function fireDrift(title,desc){
+  S.driftCount++;
+  $("mDrift").textContent = S.driftCount;
+  $("driftT").textContent = title;
+  $("driftD").textContent = desc;
+  $("drift").classList.add("on");
+  S.events.push({t:(Date.now()-S.t0)/1000,type:"DRIFT",text:title});
+  clearTimeout(fireDrift._to);
+  fireDrift._to = setTimeout(()=>$("drift").classList.remove("on"), 14000);
+}
+
+function idleCard(){
+  S.current = null; S.beat = 0;
+  $("card").className = "card";
+  $("tag").className = "tag blue"; $("tag").textContent = "En écoute";
+  $("cause").textContent = "";
+  $("action").textContent = "Rien à signaler. Reste avec lui.";
+  $("phrase").className = "idle";
+  $("phrase").textContent = "La phrase à dire apparaîtra ici dès qu'une objection sort.";
+  $("why").classList.remove("on");
+}
+
+/* FILTRE — la moitié des appels ne servent à rien. On les coupe. */
+const BAVARDAGE = /^(oui|ouais|d'?accord|ok|okay|hmm|mmh|voila|voilà|exactement|tout à fait|je vois|bien sûr|super|parfait|merci|bonjour|salut|au revoir|ça marche|nickel|top)[\s.!?]*$/i;
+// les salutations du début : rien à analyser, et ça coûte de l'argent pour rien
+const POLITESSE = /^(bonjour|bonsoir|salut|allô|allo|oui)\b[^?]{0,60}(ça va|ca va|bien merci|très bien|tres bien|et vous|et toi|comment allez|comment vas)[^?]{0,25}[.!]?$/i;
+
+let JOURNAL = [];
+function note(text, qui, ok, raison){
+  JOURNAL.push({t:S.t0?(Date.now()-S.t0)/1000:0, text:text.slice(0,90), qui, ok, raison});
+  if(JOURNAL.length > 400) JOURNAL = JOURNAL.slice(-300);
+  return ok;
+}
+
+function vautLeCoup(text, force){
+  if(force) return true;
+  if(!API_KEY && !window.storage){
+    // c'était le défaut : sans clé, l'app ne faisait rien DU TOUT, sans rien dire
+    $("card").className = "card hot";
+    $("tag").textContent = "IMPOSSIBLE D'ANALYSER";
+    $("action").textContent = "IL MANQUE TA CLÉ";
+    $("phrase").className = "";
+    $("phrase").textContent = "Va dans Ma méthode et colle ta clé API. Sans elle, le copilote ne peut pas réfléchir.";
+    $("cause").textContent = "";
+    $("why").textContent = "";
+    return false;
+  }
+  const mots = text.trim().split(/\s+/).length;
+  const brut = text.trim();
+  const qui0 = S.moiQuiParle ? "MOI" : "PROSPECT";
+  if(BAVARDAGE.test(brut)) return note(brut, qui0, false, "simple acquiescement");
+  if(POLITESSE.test(brut)) return note(brut, qui0, false, "politesse d'ouverture");
+  if(mots < ECO.motsMin) return note(brut, qui0, false, "trop court ("+mots+" mots, seuil "+ECO.motsMin+")");
+  if(S.moiQuiParle){
+    const q = /\?\s*$/.test(brut) || /^(qu'?est|comment|pourquoi|quand|combien|qui\b|où|est-ce|dis-moi|raconte|explique)/i.test(brut);
+    return note(brut, qui0, q, q ? "ta question" : "c'est toi qui parles, pas une question");
+  }
+  return note(brut, qui0, true, "analysé");
+}
+
+/* ANTICIPATION : on lance l'analyse pendant que le prospect finit sa phrase.
+   La réponse arrive donc au moment où il se tait, pas 5 secondes après. */
+let derniereAnticipation = "", horlogeAnticipe = null;
+function anticipe(partiel){
+  // on ne se fie pas à l'étiquette de la phrase précédente : on mesure MAINTENANT
+  if(CALIBRE){
+    const dep = debutPhrase || (Date.now()-2500);
+    const d = quiParle(niveauDe(dep), empreinteDe(dep));
+    if(d && d.surete > 0.35 && d.qui === "CLOSER") return;   // c'est toi, on n'anticipe pas
+    if(!d && S.moiQuiParle) return;                          // dans le doute, on garde l'étiquette
+  } else if(S.moiQuiParle) return;
+  if(BAVARDAGE.test(partiel.trim())) return;
+  const mots = partiel.trim().split(/\s+/).length;
+  if(!ECO.antic) return;
+  if(mots < ECO.motsAntic) return;
+  if(partiel === derniereAnticipation) return;
+  derniereAnticipation = partiel;
+  clearTimeout(horlogeAnticipe);
+  // la phrase s'est stabilisée : il marque une pause, on part maintenant
+  horlogeAnticipe = setTimeout(()=>{
+    if(!enCours) analyse(partiel, true);
+  }, ECO.attente);
+}
+
+/* on attend la fin du tour de parole avant d'analyser */
+let tampon = [], finTour = null;
+function programmerAnalyse(text){
+  tampon.push(text);
+  clearTimeout(finTour);
+  finTour = setTimeout(()=>{
+    const bloc = tampon.join(" ");
+    tampon = [];
+    if(!vautLeCoup(bloc)) return;
+    // si l'anticipation a déjà couvert presque tout, on ne refait pas le travail
+    const couvert = derniereAnticipation && bloc.length - derniereAnticipation.length < 12
+                    && bloc.startsWith(derniereAnticipation.slice(0, Math.min(40, derniereAnticipation.length)));
+    if(!couvert) analyse(bloc);
+  }, RYTHME.pause);
+}
+
+/* =========================================================
+   MOTEUR D'ANALYSE — l'IA lit la conversation entière et décide
+   ========================================================= */
+/* Ce texte ne change jamais d'une analyse à l'autre. C'est lui qu'on met en cache. */
+function CONSIGNES(){
+  return `Tu es le copilote d'un closer francophone, en direct pendant un appel de vente. Chaque tour de parole est étiqueté CLOSER (le vendeur que tu assistes) ou PROSPECT (le client). Ces étiquettes sont posées à la main par le closer : fie-toi à elles. Une étiquette "?" signifie qu'elle est inconnue. Ne conseille jamais sur la base d'une phrase dite par le CLOSER comme si c'était une objection du PROSPECT.
+
+TRAME DU CALL (ordre de référence, on peut revenir en arrière) :
+${TRAME.map(e=>e.c+' — '+e.but).join('\n')}
+
+Analyse la situation RÉELLE, pas un mot-clé isolé. Demande-toi :
+- À quelle étape de la trame on se trouve maintenant ?
+- Qu'est-ce qui manque encore à cette étape avant de passer à la suite ?
+- Où en est-on vraiment dans le call ?
+- Est-ce une nouvelle objection, la suite de la précédente, ou juste du bavardage ?
+- La cause profonde a-t-elle déjà été exprimée, ou faut-il encore la chercher ?
+
+Tu n'optimises pas ce que le closer dit. Tu optimises SA PROCHAINE MEILLEURE ACTION.
+Cinq actions possibles, pas une de plus :
+- "attendre" : le prospect est en train de livrer quelque chose. Ne pas le couper. C'est souvent la bonne réponse.
+- "diagnostic" : une objection est là, sa vraie cause n'est pas certaine. UNE question qui creuse, rien d'autre.
+- "isoler" : plusieurs objections sont posées en même temps, ou l'objection n'a pas été isolée du reste. Il faut savoir laquelle bloque vraiment avant tout traitement.
+- "traitement" : la cause est certaine ET isolée. Un reframe, une analogie, un retournement.
+- "closing" : les signaux d'achat sont là, il faut demander l'engagement.
+
+LES QUATRE CONDITIONS AVANT TOUT PITCH.
+Le closer ne doit jamais présenter son offre tant que ces quatre-là ne sont pas réunies, dites par le prospect lui-même :
+1. Un problème brûlant, pas un simple problème.
+2. Un désir et un engagement à le régler, exprimés.
+3. L'aveu qu'il ne s'en sortira pas seul.
+4. Assez de confiance dans le closer.
+S'il en manque une seule et que le closer s'apprête à pitcher, dis-le : action = diagnostic, et donne la question qui va chercher la condition manquante.
+Une objection qui tombe en fin de call vient presque toujours d'une de ces quatre qui n'a jamais été obtenue.
+
+DOULEUR RESSENTIE OU DOULEUR RACONTÉE.
+Un prospect qui décrit son problème calmement, de loin, n'est pas prêt. Un prospect qui le revit en te parlant l'est. Si tu vois de la description sans émotion, ne laisse pas avancer : il faut creuser plus loin, jusqu'à ce qu'on ne puisse plus.
+
+TROIS FAUTES QUE TU DOIS EMPÊCHER, dans l'ordre de gravité.
+1. Traiter une objection dont la cause n'est pas certaine. Le closer répond à une objection imaginaire et perd le prospect sans comprendre pourquoi.
+2. Traiter alors que plusieurs freins coexistent sans être isolés. Il en résout un, l'autre reste, et le prospect dit qu'il va réfléchir.
+3. Justifier le prix. Dès que le closer explique pourquoi c'est cher, il a accepté que ce soit cher. Il ne faut jamais justifier, il faut faire comparer.
+
+EXEMPLES D'ARBITRAGE.
+Le prospect dit « il faut que j'en parle à ma femme » : ce n'est pas forcément un décideur manquant, c'est souvent une porte de sortie polie. Action = diagnostic, pas traitement.
+Le prospect dit « je vais réfléchir » sans avoir exprimé un seul frein : action = diagnostic. On ne traite pas du vide.
+Le prospect répète le même frein pour la troisième fois : il n'a pas été entendu. Action = diagnostic, reformule ce qu'il a dit avant toute chose.
+Le prospect pose une question sur les modalités, le démarrage, le paiement : c'est un signal d'achat. Action = closing.
+Le prospect se tait après une question forte : action = attendre. Le silence travaille pour le closer.
+
+L'OBJECTION INCONSCIENTE — celle qui tue les calls sans qu'on sache pourquoi.
+Demande-toi en permanence : ce que le prospect cherche vraiment à régler, est-ce que la solution du closer va le régler ?
+Exemple réel : une femme veut gagner autant que son mari pour qu'il cesse de lui reprocher son temps de travail. Mais si elle réussit, elle travaillera encore plus, et le conflit empirera. Sa vraie question n'est pas commerciale.
+Quand tu repères ce genre d'écart, dis-le au closer : il doit le mettre sur la table maintenant. Non dit, ça ressort en fin de call sous forme de « je vais réfléchir » — une objection fausse, qui répond à ce qui n'a pas été abordé.
+
+LE CALCUL DU COÛT — le levier le plus sous-utilisé.
+Quand le prospect donne des heures, une durée, un objectif jamais atteint, propose au closer de faire le calcul À VOIX HAUTE avec lui : heures × jours × années, ou écart mensuel × 12 × années.
+Prends toujours l'hypothèse la plus basse, celle qu'il ne peut pas contester. Un chiffre gonflé se retourne contre le closer au moment du prix.
+Après le calcul : « C'est exact ? » puis seulement « Et ça te fait quoi ? ». Jamais l'inverse.
+
+LES SIGNAUX FAIBLES — tu dois les repérer AVANT qu'ils deviennent des objections.
+Un prospect annonce presque toujours son objection finale bien avant de la poser. Il la glisse au milieu d'une phrase anodine, souvent au passé, souvent sur le ton de la confidence.
+Exemples de signaux faibles et de ce qu'ils annoncent :
+« j'ai déjà pris des formations et ça n'a pas été ça » → il annonce une méfiance sur la valeur. Il ressortira à la fin sous la forme « je vais réfléchir ».
+« en ce moment c'est un peu compliqué » → il annonce l'argent, bien avant qu'on parle du prix.
+« ma femme trouve que je me disperse » → il annonce un décideur caché.
+« j'ai pas beaucoup de temps en ce moment » → il annonce la durée.
+« j'aime bien faire les choses par moi-même » → il annonce un doute sur l'accompagnement.
+Dès qu'une phrase du prospect contient ce genre d'annonce, remplis le champ "signal". Cite ses mots exacts. Ne l'invente jamais : s'il n'y a rien, mets null.
+Repérer un signal ne veut pas dire le traiter tout de suite. Le plus souvent, action = diagnostic ou attendre. Mais il faut le noter, parce qu'il reviendra.
+
+TU AS UN CARNET DES SIGNAUX déjà repérés depuis le début du call. Sers-t'en. Si le prospect pose enfin son objection et qu'un signal l'annonçait, dis-le au closer : il pourra reprendre les mots du prospect dits vingt minutes plus tôt, ce qui est bien plus fort que n'importe quel reframe.
+
+RÈGLE D'ISOLATION — la plus importante.
+Tant que plusieurs freins coexistent (argent, durée, doute sur le produit, timing…) sans qu'on sache lequel bloque réellement, tu ne traites JAMAIS. Tu isoles.
+Exemple : le prospect dit que le montant est important ET que la durée le contraint. Ce sont deux freins. Tant que tu ne sais pas lequel tombe si l'autre disparaît, action = "isoler".
+Une bonne question d'isolation ressemble à : « Si la durée n'était plus un problème, est-ce que le budget resterait bloquant ? »
+
+SÉPARE TOUJOURS le certain de l'interprétation.
+"certain" = ce que le prospect a réellement dit, dans ses mots.
+"incertain" = ce qui reste à vérifier. Une hypothèse n'est jamais une cause.
+
+RÈGLE ABSOLUE — n'invente jamais.
+Tu ne dois attribuer au prospect aucune émotion, peur, difficulté financière, doute ou intention qu'il n'a pas prononcée lui-même. Si tu remplis le champ "cause", tu dois recopier dans "preuve" les mots exacts du prospect qui la prouvent, tirés de la conversation ci-dessus. Si tu ne peux pas citer ces mots, alors cause = null, preuve = null, et le temps est "diagnostic". Ne suppose jamais une peur d'échouer, un manque d'argent ou une hésitation non exprimée.
+
+Si une formulation numérotée ci-dessus colle vraiment, sers-t'en et indique son numéro. Sinon mets fiche à null. Ne force jamais une fiche hors sujet.
+
+Réponds uniquement avec ce JSON, dans cet ordre exact, sans markdown :
+{"temps":"attendre|diagnostic|isoler|traitement|closing","action":"consigne de 5 mots max, en majuscules","phrase":"ce que le closer dit, ou null si temps=attendre","certain":"ce que le prospect a dit, dans ses mots, ou null","incertain":"ce qui reste a verifier, 8 mots max, ou null","freins":["liste des freins encore ouverts"],"objection":"nom court ou null","etape":"code de la trame","manque":"ce qui reste a obtenir a cette etape, 10 mots max","cause":"cause certaine en 5 mots ou null","preuve":"mots exacts du prospect ou null","raison":"pourquoi, en une phrase","fiche":null}`;
+}
+
+let enCours = false, enAttente = null;
+
+/* les fiches les plus proches de ce qui se dit, toutes objections confondues */
+let TERRAIN_ACTUEL = {terrain:"decouverte", bonnes:["moi","sami"]};
+function candidats(n){
+  n = n || ECO.fiches;
+  TERRAIN_ACTUEL = ecolesPour(S.beat === 2 ? "traitement" : S.beat === 1 ? "diagnostic" : "attendre", S.etape);
+  const recent = S.transcript.slice(-4).map(x=>x.text).join(" ").toLowerCase();
+  const mots = recent.replace(/[^a-zàâäéèêëïîôöùûüç\s]/g," ").split(/\s+/)
+    .filter(w=>w.length>4 && !/^(alors|parce|comme|quand|aussi|voila|enfin|vraiment|beaucoup)$/.test(w));
+  return FICHES.map((f,i)=>{
+    const hay = ((f.situation||"")+" "+(f.label||"")+" "+f.phrase).toLowerCase();
+    let sc = mots.reduce((s,w)=>s+(hay.includes(w)?1:0),0);
+    sc += (f.valide||0) * 1.5;                              // ce que tu as validé remonte
+    if(f.ecole === "moi" || !f.ecole) sc += 2;              // ta voix d'abord
+    else if(f.ecole === "sami") sc += 1;                    // puis ton coach
+    // une école sur son terrain remonte : Walsh sur l'objection, Josh sur la découverte
+    if(TERRAIN_ACTUEL.bonnes.includes(f.ecole)) sc += 1.5;
+    return {i, f, score: sc};
+  }).sort((a,b)=>b.score-a.score).slice(0,n).filter(x=>x.score>0 || FICHES.length<20);
+}
+
+function etatDuCall(){
+  const objs = S.events.filter(e=>e.type==="OBJ").map(e=>`${fmt(e.t)} ${e.label}`).join(" · ") || "aucune";
+  return `Prospect : ${S.prospect}
+Objectif chiffré : ${S.profile.objectif || "pas encore donné"}
+Objections déjà apparues : ${objs}
+Durée écoulée : ${fmt((Date.now()-S.t0)/1000)}
+CARNET DES SIGNAUX repérés depuis le début : ${
+  S.signaux.length
+    ? "\n" + S.signaux.map(x=>`  [${fmt(x.t)}] ${x.type} — il a dit « ${x.cite} » — annonce : ${x.sens}`).join("\n")
+    : "aucun"
+}`;
+}
+
+async function analyse(dernier, anticipation){
+  if(enCours){
+    if(!anticipation){
+      enAttente = dernier;
+      JOURNAL.push({t:(Date.now()-S.t0)/1000, text:String(dernier).slice(0,60), qui:"", ok:false,
+                    raison:"mis en file, l'analyse précédente tournait encore"});
+    }
+    return;
+  }
+  if(anticipation) verrouJusqu = 0;   // une anticipation peut s'afficher tout de suite
+  enCours = true;
+  const cands = candidats();
+  const bloc = cands.length
+    ? "\nSES PROPRES FORMULATIONS DISPONIBLES (numérotées) :\n" + cands.map((c,k)=>`${k+1}. [${c.f.type||"?"} · ${c.f.label||c.f.objection}] « ${c.f.phrase} »`).join("\n")
+    : "";
+  const evites = REJETS.filter(r=>!S.current || r.objection===S.current.id || REJETS.length<10)
+                       .slice(-6).map(r=>"- « "+r.phrase+" »").join("\n");
+  const lecons = evites ? "\nDÉJÀ REFUSÉ PAR CE CLOSER — ne propose jamais ces formulations ni de simples variantes :\n"+evites : "";
+  window.__ecoles = {};   // pour afficher d'où vient la fiche retenue
+  const tr = ecolesPour(S.beat === 2 ? "traitement" : S.beat === 1 ? "diagnostic" : "attendre", S.etape);
+  const specialistes = tr.bonnes.filter(e=>e!=="moi"&&e!=="sami").map(e=>(ECOLES[e]&&ECOLES[e].nom)||e);
+  const orientation = `
+PHASE ACTUELLE : ${tr.terrain.toUpperCase()} — ${TERRAINS[tr.terrain]}
+${specialistes.length ? `Écoles spécialistes de cette phase, dont des fiches te sont proposées : ${specialistes.join(", ")}. Sur cette phase, leurs angles sont les plus solides — mais la formulation doit rester celle d'un closer français.` : ""}
+Rappel de hiérarchie : à qualité égale, préfère toujours une fiche issue de ses propres calls, puis de son coach, puis des autres écoles.`;
+  const dial = S.transcript.slice(-ECO.tours).map(x=>`[${fmt(x.t)}] ${x.qui||"?"} : ${x.text}`).join("\n");
+
+  const th = $("heardTxt");
+  const avant = th ? th.textContent : "";
+  if(th) th.textContent = "Analyse en cours…";
+  const dejaVu = {a:false, p:false};
+  const affiche = (partiel)=>{
+    const ma = partiel.match(/"action"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if(ma && !dejaVu.a){ dejaVu.a = true; $("action").textContent = ma[1]; }
+    const mp = partiel.match(/"phrase"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if(mp && !dejaVu.p){
+      dejaVu.p = true;
+      if(Date.now() >= verrouJusqu){
+        $("phrase").className = "";
+        $("phrase").textContent = "« "+mp[1].replace(/\\"/g,'"')+" »";
+      }
+    }
+  };
+
+  try{
+    const txt = await callClaudeStream(
+`ÉTAT DU CALL
+${etatDuCall()}
+
+DERNIÈRES MINUTES DE CONVERSATION
+${dial}
+
+DERNIÈRE PHRASE ENTENDUE : "${dernier}"
+${bloc}${lecons}
+${orientation}
+
+Étapes déjà couvertes : ${S.faites.join(', ')||'aucune'}
+
+Analyse maintenant, selon les consignes reçues.`, affiche, CONSIGNES());
+    const j = JSON.parse(txt.replace(/```json|```/g,"").trim());
+    if(j.signal && j.signal.cite && !S.signaux.some(x=>x.cite === j.signal.cite)){
+      S.signaux.push({t:(Date.now()-S.t0)/1000, type:j.signal.type||"signal",
+                      cite:j.signal.cite, sens:j.signal.sens||""});
+      montreSignal(j.signal);
+    }
+    appliquer(j, cands);
+  }catch(e){
+    JOURNAL.push({t:(Date.now()-S.t0)/1000, text:"", qui:"", ok:false, raison:"ERREUR — "+e.message});
+    $("cause").textContent = "Analyse indisponible · " + e.message;
+    $("card").className = "card hot";
+    $("tag").textContent = "PROBLÈME";
+    $("action").textContent = "LE COPILOTE NE RÉPOND PAS";
+    $("phrase").className = "";
+    $("phrase").textContent = e.message;
+  }
+  if(th && th.textContent === "Analyse en cours…") th.textContent = avant;
+  enCours = false;
+  if(enAttente){ const d = enAttente; enAttente = null; analyse(d); }
+}
+
+function majFile(){
+  const box = $("suivant");
+  if(carteEnFile){ box.classList.add("on"); $("fileTxt").textContent = "nouvelle analyse prête"; }
+  else box.classList.remove("on");
+}
+
+function libererCarte(){
+  if(!carteEnFile) return;
+  const c = carteEnFile; carteEnFile = null; verrouJusqu = 0;
+  appliquer(c.j, c.cands); majFile();
+}
+
+function majTrame(code){
+  if(code && !S.faites.includes(code)){
+    const i = TRAME.findIndex(e=>e.c===code);
+    if(i>=0){
+      TRAME.slice(0,i).forEach(e=>{ if(!S.faites.includes(e.c)) S.faites.push(e.c); });
+      S.faites.push(code);
+    }
+  }
+  if(code) S.etape = code;
+  $("trame").innerHTML = TRAME.map(e=>{
+    const cl = e.c===S.etape ? "ici" : S.faites.includes(e.c) ? "fait" : "";
+    return `<span class="${cl}">${e.n}</span>`;
+  }).join("");
+  const ici = $("trame").querySelector(".ici");
+  if(ici) ici.scrollIntoView({inline:"center", block:"nearest"});
+}
+
+function appliquer(j, cands){
+  const org0 = $("origine"); if(org0) org0.textContent = "";   // on repart propre à chaque carte
+  // la carte reste lisible : on ne l'écrase pas pendant que Woidih la lit
+  if(Date.now() < verrouJusqu){ carteEnFile = {j, cands}; majFile(); return; }
+  verrouJusqu = RYTHME.tenue === Infinity ? Infinity : Date.now() + RYTHME.tenue;
+  carteEnFile = null; majFile();
+  if(RYTHME.tenue !== Infinity){
+    setTimeout(()=>{ if(carteEnFile) libererCarte(); }, RYTHME.tenue+50);
+  }
+
+  majTrame(j.etape);
+  if(j.manque){ $("manque").classList.add("on"); $("manque").textContent = "Il te manque encore : "+j.manque; }
+  else $("manque").classList.remove("on");
+
+  const temps = (j.temps||"").toLowerCase();
+  S.beat = temps === "traitement" ? 2 : (temps === "diagnostic" || temps === "isoler") ? 1 : 0;
+
+  // pas de preuve dans ses mots = pas de cause affichée
+  const cause = (j.cause && j.preuve) ? j.cause : "";
+  const preuve = j.preuve ? "D'après ses mots : « "+j.preuve+" »" : "";
+
+  if(temps === "attendre"){
+    if(j.certain){ $("certitude").classList.add("on"); $("certTxt").textContent = "« "+j.certain+" »"; $("incertTxt").textContent = j.incertain||"—"; }
+    $("card").className = "card";
+    $("tag").className = "tag blue"; $("tag").textContent = "Laisse-le parler";
+    $("cause").textContent = preuve;
+    $("action").textContent = j.action || "NE RÉPONDS PAS ENCORE";
+    $("phrase").className = "idle";
+    $("phrase").textContent = j.raison || "Rien à dire pour l'instant.";
+    $("why").textContent = j.raison || "";
+    return;
+  }
+
+  // les quatre conditions de Lyons, visibles en permanence
+  const q = $("quatre");
+  if(q && Array.isArray(j.manquantes)){
+    const noms = {probleme_brulant:"problème brûlant", desir_engagement:"engagement",
+                  aveu_incapacite:"aveu", confiance:"confiance"};
+    const m = j.manquantes.filter(x=>noms[x]);
+    S.manquantes = m;
+    q.textContent = m.length ? "manque : " + m.map(x=>noms[x]).join(" · ") : "4/4 — tu peux pitcher";
+    q.style.color = m.length ? "var(--amber)" : "var(--sage)";
+  }
+
+  if(j.certain || j.incertain){
+    $("certitude").classList.add("on");
+    $("certTxt").textContent = j.certain ? "« "+j.certain+" »" : "—";
+    $("incertTxt").textContent = j.incertain || "—";
+  } else $("certitude").classList.remove("on");
+
+  if(temps === "isoler"){
+    $("card").className = "card hot";
+    $("tag").className = "tag"; $("tag").textContent = "OBJECTION NON ISOLÉE";
+    $("cause").textContent = (j.freins && j.freins.length) ? "Freins ouverts : "+j.freins.join(" · ") : preuve;
+    $("action").textContent = j.action || "NE TRAITE PAS ENCORE";
+    $("phrase").className = "";
+    $("phrase").textContent = j.phrase ? "« "+j.phrase+" »" : "—";
+    $("why").textContent = (j.raison||"") + "\n\nTant que tu ne sais pas lequel de ces freins tombe si l'autre disparaît, tout traitement est un coup dans le vide.";
+    S.current = {id:"ISOLER", cause:j.cause||"", why:j.raison||"",
+                 angles:[{n:"Isolation", p:j.phrase||"", why:j.raison}]};
+    S.angleIdx = 0;
+    return;
+  }
+
+  // les fiches sont numérotées à partir de 1 dans le prompt : un seul décodage, ici
+  const iFiche = (j.fiche === null || j.fiche === undefined) ? -1 : (parseInt(j.fiche,10) - 1);
+  const fRetenue = (cands && iFiche >= 0 && cands[iFiche]) ? cands[iFiche] : null;
+  const org = $("origine");
+  if(org){
+    const e = fRetenue && fRetenue.f ? (fRetenue.f.ecole || "") : "";
+    org.textContent = !e || e === "moi" ? "" :
+      e === "sami" ? "d'après Sami" : "d'après " + e + " — adapté en français";
+    org.style.color = (e && e !== "moi" && e !== "sami") ? "var(--amber)" : "var(--muted)";
+  }
+
+  const closing = temps === "closing";
+  $("card").className = closing ? "card good" : "card hot";
+  $("tag").className = closing ? "tag green" : "tag";
+  const etape = closing ? "Closing" : temps === "traitement" ? "2. Traitement" : "1. Diagnostic";
+  $("tag").textContent = (j.objection ? j.objection + " · " : "") + etape;
+  $("cause").textContent = [cause, preuve].filter(Boolean).join(" · ");
+  $("action").textContent = j.action || (temps==="traitement" ? "TRAITE MAINTENANT" : "FAIS PRÉCISER");
+  $("phrase").className = "";
+  $("phrase").textContent = j.phrase ? "« "+j.phrase+" »" : "—";
+
+  const src = fRetenue ? fRetenue.f : null;
+  $("why").textContent = (j.raison||"") + (src ? "\n\nTirée de ta base : "+(src.source||"") : "");
+  if(src) $("cause").textContent = ($("cause").textContent+" · Ta méthode").trim();
+
+  // angles de repli : le reste de ses fiches, puis la base intégrée
+  const autres = (cands||[]).filter((c,k)=>k !== iFiche).map(c=>({n:c.f.type||"Ta base", p:c.f.phrase, why:c.f.pourquoi, src:c.f.source}));
+  const id = Object.keys(TRAITE).find(k=>new RegExp(k,"i").test(j.objection||""));
+  const secours = (temps==="traitement" && id ? TRAITE[id] : []).map(a=>({n:a.n,p:a.p}));
+  S.current = {id: id||"LIBRE", cause: j.cause||"", why: j.raison||"",
+               angles: [{n:"Recommandé", p:j.phrase||"", why:j.raison}].concat(autres, secours)};
+  S.angleIdx = 0;
+}
+/* =========================================================
+   6. FIL + BOUCLE
+   ========================================================= */
+/* Un call de 30 minutes ne doit pas disparaître si l'onglet se recharge. */
+let horlogeSauve = 0;
+function sauveCallEnCours(){
+  clearTimeout(horlogeSauve);
+  horlogeSauve = setTimeout(()=>{
+    try{
+      Store.set("call_en_cours", {
+        t0:S.t0, prospect:S.prospect, transcript:S.transcript.slice(-400),
+        events:S.events.slice(-120), faites:S.faites, signaux:S.signaux,
+        profile:S.profile, quand:Date.now()
+      });
+    }catch(e){}
+  }, 4000);
+}
+
+async function reprendreCall(){
+  const c = await Store.get("call_en_cours");
+  if(!c || !c.transcript || !c.transcript.length) return;
+  const min = Math.round((Date.now() - (c.quand||0))/60000);
+  if(min > 90){ Store.set("call_en_cours", null); return; }
+  const b = document.createElement("div");
+  b.className = "block";
+  b.style.borderColor = "var(--amber)";
+  b.style.marginTop = "16px";
+  b.innerHTML = `<h3>Un call n'a pas été terminé</h3>
+    <p style="font-size:13.5px">${c.prospect||"Prospect"} — ${c.transcript.length} échanges, il y a ${min} minute${min>1?"s":""}.</p>
+    <div class="row" style="margin-top:11px">
+      <button class="pill" id="btnReprend">Reprendre ce call</button>
+      <button class="pill" id="btnJette">Repartir de zéro</button>
+    </div>`;
+  const h = document.querySelector("#home .wrap") || $("home");
+  if(h) h.appendChild(b);
+  const rep = document.getElementById("btnReprend");
+  if(rep) rep.onclick = () => {
+    Object.assign(S, {t0:c.t0, prospect:c.prospect, transcript:c.transcript,
+      events:c.events||[], faites:c.faites||[], signaux:c.signaux||[],
+      profile:c.profile||S.profile});
+    c.transcript.forEach(x=>logLine(x.t, x.text, ""));
+    $("mObj").textContent = S.events.filter(e=>e.type==="OBJ").length;
+    $("carnetNb").textContent = S.signaux.length;
+    b.remove();
+    $("btnStart").click();
+  };
+  const jet = document.getElementById("btnJette");
+  if(jet) jet.onclick = () => { Store.set("call_en_cours", null); b.remove(); };
+}
+
+function logLine(t,text,cls){
+  const d=document.createElement("div");
+  d.className="line "+cls;
+  d.innerHTML='<span class="ts">'+fmt(t)+' · '+(S.moiQuiParle?'MOI':'PROSPECT')+'</span>'+text.replace(/</g,"&lt;");
+  $("log").appendChild(d);
+  $("log").scrollTop = $("log").scrollHeight;
+  $("mQ").textContent = S.qCount;
+}
+
+function loop(){
+  if(!S.running) return;
+  const ma = $("mApi"); if(ma) ma.textContent = COMPTEUR.direct + COMPTEUR.fond;
+  majCout();
+  const el=(Date.now()-S.t0)/1000;
+  $("timer").textContent = fmt(el);
+  const sil=(Date.now()-S.lastSpeech)/1000;
+  const pct=Math.min(sil/6,1)*100;
+  $("silenceFill").style.width = pct+"%";
+  if(sil<1.2){ $("silTxt").textContent="Ça parle"; $("silenceFill").style.background="var(--steel)"; }
+  else if(sil<4){ $("silTxt").textContent="Laisse-le venir · "+sil.toFixed(0)+"s"; $("silenceFill").style.background="var(--amber)"; }
+  else { $("silTxt").textContent="À toi de reprendre · "+sil.toFixed(0)+"s"; $("silenceFill").style.background="var(--clay)"; }
+  requestAnimationFrame(loop);
+}
+
+/* =========================================================
+   7. CONTRÔLES
+   ========================================================= */
+$("btnStart").onclick = async () => {
+  await pretOuTantPis();
+  if(!API_KEY && !window.storage){
+    return alert("Il manque ta clé API.\n\nVa dans « Ma méthode » et colle-la, sinon le copilote ne pourra rien analyser pendant le call.");
+  }
+  await assureMicro();
+  if(!initRec()) return;
+  S.prospect = $("pname").value.trim() || "Prospect";
+  S.running = true; S.t0 = Date.now(); S.lastSpeech = Date.now();
+  $("home").style.display="none";
+  $("call").classList.add("on");
+  demarreMesure();
+  if(!CALIBRE){
+    $("heardTxt").textContent = "Détection des voix non réglée : appuie sur PROSPECT / MOI à la main, ou règle-la depuis l'accueil.";
+  } else if(!EMPREINTE_MOI || !EMPREINTE_LUI){
+    $("heardTxt").textContent = "Détection réglée sur le volume seul. Si tu bouges pendant le call, corrige avec le bouton.";
+  }
+  idleCard();
+  try{ rec.start(); }catch(_){}
+  loop();
+};
+
+/* Démo : rejoue un vrai enchaînement de call, sans micro */
+const DEMO = [
+  [1200,"Ouais donc aujourd'hui je fais à peu près 1200 euros par mois"],
+  [3200,"Mon objectif ce serait d'atteindre 5000 euros par mois d'ici un an"],
+  [3800,"Franchement 3000 euros ça me paraît quand même beaucoup"],
+  [5500,"Bah en fait j'ai peur de payer et de ne pas y arriver au final"],
+  [7000,"Écoute en fait parce que dans le programme tu auras accès à tout le contenu et en plus on te donne un suivi personnalisé pendant six mois avec des sessions chaque semaine et un groupe privé"],
+  [6000,"Je vais réfléchir, j'en parle à ma femme"],
+  [5500,"C'est surtout que la dernière fois j'ai déjà payé une formation et ça n'a rien donné"],
+  [6000,"Ok ça m'intéresse, je commence quand si je dis oui ?"]
+];
+$("btnDemo").onclick = () => {
+  S.prospect = "Démo"; S.running = true; S.t0 = Date.now(); S.lastSpeech = Date.now();
+  $("home").style.display="none"; $("call").classList.add("on");
+  idleCard(); loop();
+  $("heardTxt").textContent = "Mode démo — aucun micro utilisé.";
+  let d = 600;
+  DEMO.forEach(([wait,line])=>{
+    d += wait;
+    setTimeout(()=>{
+      if(!S.running) return;
+      S.lastSpeech = Date.now();
+      $("heard").className="heard live"; $("heardTxt").textContent = line;
+      handleUtterance(line);
+    }, d);
+  });
+};
+
+$("selRythme").onchange = e => { RYTHME = RYTHMES[e.target.value]; toast("Rythme "+RYTHME.nom.toLowerCase()); };
+
+$("btnMute").onclick = () => {
+  S.muted = !S.muted;
+  $("btnMute").textContent = S.muted ? "Reprendre l'analyse" : "Pause analyse";
+  if(S.muted){ try{rec.stop()}catch(_){} } else { try{rec.start()}catch(_){} }
+};
+
+$("typed").onkeydown = e => {
+  if(e.key !== "Enter") return;
+  const t = e.target.value.trim();
+  if(!t) return;
+  e.target.value = "";
+  S.lastSpeech = Date.now();
+  $("heard").className="heard live"; $("heardTxt").textContent = t;
+  peeked = null;
+  handleUtterance(t);
+  if(!vautLeCoup(t)) analyse(t, true);
+};
+
+/* mini-fenêtre flottante, toujours au-dessus de ton call */
+let pipWin = null;
+$("btnMini").onclick = async () => {
+  if(pipWin){ pipWin.close(); return; }
+  const carte = $("card"), derive = $("drift"), place = document.createElement("div");
+  carte.parentNode.insertBefore(place, carte);
+  const styles = [...document.styleSheets].map(sh=>{
+    try{ return [...sh.cssRules].map(r=>r.cssText).join("\n"); }catch(e){ return ""; }
+  }).join("\n");
+  try{
+    if(!window.documentPictureInPicture) throw new Error("indisponible");
+    pipWin = await documentPictureInPicture.requestWindow({width:440, height:340});
+  }catch(e){
+    pipWin = window.open("", "copilot", "width=440,height=340,alwaysRaised=yes");
+    if(!pipWin){ place.remove(); return toast("Le navigateur a bloqué la fenêtre"); }
+  }
+  const st = pipWin.document.createElement("style");
+  st.textContent = styles + "\nbody{background:var(--bg);color:var(--ink);padding:12px;margin:0;font-family:'Archivo',system-ui,sans-serif}\n.card{height:auto;min-height:0}";
+  pipWin.document.head.appendChild(st);
+  pipWin.document.body.appendChild(derive);
+  pipWin.document.body.appendChild(carte);
+  $("btnMini").textContent = "Fermer la mini";
+  const retour = () => {
+    place.parentNode && place.parentNode.insertBefore(derive, place);
+    place.parentNode && place.parentNode.insertBefore(carte, place);
+    place.remove(); pipWin = null; $("btnMini").textContent = "Mini-fenêtre";
+  };
+  pipWin.addEventListener("pagehide", retour);
+  pipWin.addEventListener("beforeunload", retour);
+};
+
+/* APPRENTISSAGE — ce que tu valides devient ta méthode, ce que tu rejettes disparaît */
+function derniereReco(){
+  const p = $("phrase").textContent.replace(/^«\s*|\s*»$/g,"").trim();
+  if(!p || p === "—") return null;
+  return {phrase:p, objection:(S.current&&S.current.id)||"LIBRE", etape:S.etape||null,
+          temps:S.beat===2?"REFRAME":S.beat===1?"DIAGNOSTIC":"AUTRE"};
+}
+
+$("btnBon").onclick = () => {
+  const r = derniereReco(); if(!r) return;
+  if(!FICHES.some(f=>f.phrase===r.phrase)){
+    FICHES.push({objection:r.objection, label:"Validé en call", type:r.temps,
+                 situation:"validé pendant un vrai call", phrase:r.phrase,
+                 pourquoi:"tu l'as jugée juste sur le moment",
+                 source:"Validé · "+S.prospect+" "+new Date().toLocaleDateString("fr-FR"),
+                 valide:1});
+    saveKb();
+  } else {
+    const f = FICHES.find(f=>f.phrase===r.phrase); f.valide = (f.valide||0)+1; saveKb();
+  }
+  S.events.push({t:(Date.now()-S.t0)/1000, type:"VOTE+", text:r.phrase});
+  $("btnBon").classList.add("on");
+  setTimeout(()=>$("btnBon").classList.remove("on"), 1200);
+  toast("Gardée dans ta méthode");
+};
+
+$("btnMauvais").onclick = () => {
+  const r = derniereReco(); if(!r) return;
+  if(!REJETS.some(x=>x.phrase===r.phrase)){
+    REJETS.push({phrase:r.phrase, objection:r.objection, quand:new Date().toISOString().slice(0,10)});
+    if(REJETS.length > 120) REJETS = REJETS.slice(-120);
+    Store.set("rejets", REJETS);
+  }
+  const i = FICHES.findIndex(f=>f.phrase===r.phrase);
+  if(i>=0){ FICHES.splice(i,1); saveKb(); }
+  S.events.push({t:(Date.now()-S.t0)/1000, type:"VOTE-", text:r.phrase});
+  if(S.current){ S.angleIdx++; renderAngle(); }
+  toast("Écartée. Un autre angle.");
+};
+
+function majBoutonQui(surete){
+  const b = $("btnQui");
+  b.classList.toggle("moi", S.moiQuiParle);
+  const pastille = surete === undefined ? "" : (surete > 0.7 ? " ●" : " ○");
+  b.textContent = (S.moiQuiParle ? "MOI qui parle" : "PROSPECT parle") + pastille;
+}
+
+/* Un signal repéré : un bandeau court, sans couper la lecture de la carte */
+function montreSignal(sig){
+  const f = $("signalFlash");
+  f.innerHTML = `<div class="t">Signal noté · ${sig.type||""}</div>
+    <div class="c">« ${sig.cite} »</div>
+    <div class="s">${sig.sens||""}</div>`;
+  f.classList.add("on");
+  clearTimeout(montreSignal.h);
+  montreSignal.h = setTimeout(()=>f.classList.remove("on"), 5000);
+  $("carnetNb").textContent = S.signaux.length;
+  $("btnCarnet").style.borderColor = "var(--amber)";
+  $("btnCarnet").style.color = "var(--amber)";
+}
+
+$("btnCarnet").onclick = () => {
+  $("carnetListe").innerHTML = S.signaux.length
+    ? S.signaux.map(x=>`<div class="sig"><div class="h">${fmt(x.t)} · ${x.type}</div>
+        <p style="font-size:15px;margin-top:3px">« ${x.cite} »</p>
+        <p style="font-size:13px;color:var(--muted);margin-top:3px">${x.sens}</p></div>`).join("")
+      + `<p style="font-size:13px;color:var(--muted);margin-top:18px">Quand il posera enfin son objection, reprends ses mots d'il y a vingt minutes. C'est plus fort que n'importe quel reframe.</p>`
+    : '<p style="color:var(--muted)">Rien de noté pour l\'instant.</p>';
+  $("carnetPanneau").classList.add("on");
+};
+$("btnCarnetFermer").onclick = () => $("carnetPanneau").classList.remove("on");
+
+$("btnQui").onclick = () => {
+  S.moiQuiParle = !S.moiQuiParle;
+  // tu reprends la main : la détection se tait dix secondes
+  S.manuelRecent = true;
+  clearTimeout(S.horlogeManuel);
+  S.horlogeManuel = setTimeout(()=>{ S.manuelRecent = false; }, 10000);
+  $("btnQui").textContent = S.moiQuiParle ? "MOI qui parle" : "PROSPECT parle";
+  $("btnQui").classList.toggle("moi", S.moiQuiParle);
+};
+$("btnSuivant").onclick = () => { if(carteEnFile) libererCarte(); else if(RJ.tours.length && !RJ.auto) tourSuivant(); };
+
+$("btnTreat").onclick = () => { const d=S.transcript.slice(-1)[0]; if(d){ $("action").textContent="ANALYSE…"; verrouJusqu=0; analyse(d.text+" [le closer demande de passer au traitement maintenant]"); } };
+$("btnAngle").onclick = () => { if(S.current){ S.angleIdx++; renderAngle(); } };
+$("btnWhy").onclick   = () => $("why").classList.toggle("on");
+$("btnClear").onclick = () => { $("drift").classList.remove("on"); idleCard(); };
+$("btnCopy").onclick  = () => {
+  const p = $("phrase").textContent.replace(/[«»]/g,"").trim();
+  navigator.clipboard.writeText(p); toast("Phrase copiée");
+};
+
+document.addEventListener("keydown", e=>{
+  if(!e.altKey) return;
+  const k=e.key.toLowerCase();
+  if(k==="1"){e.preventDefault();$("btnBon").click()}
+  if(k==="2"){e.preventDefault();$("btnMauvais").click()}
+  if(k==="m"){e.preventDefault();$("btnQui").click()}
+  if(k==="n"){e.preventDefault();$("btnSuivant").click()}
+  if(k==="t"){e.preventDefault();$("btnTreat").click()}
+  if(k==="a"){e.preventDefault();$("btnAngle").click()}
+  if(k==="w"){e.preventDefault();$("btnWhy").click()}
+  if(k==="c"){e.preventDefault();$("btnCopy").click()}
+  if(k==="x"){e.preventDefault();$("btnClear").click()}
+});
+
+/* =========================================================
+   9. MA MÉTHODE — import, distillation, recherche
+   ========================================================= */
+let FICHES = [];
+let REJETS = [];        // ce qu'il ne doit plus proposer
+
+/* ============================================================
+   LES ÉCOLES ET LEUR TERRAIN.
+   Chacune est forte quelque part et faible ailleurs. Le système
+   appelle celle qui correspond au moment du call, pas la première venue.
+   ============================================================ */
+const TERRAINS = {
+  cadrage:    "Poser le cadre, prendre l'autorité, annoncer le déroulé",
+  decouverte: "Faire parler, creuser la douleur, désamorcer les freins AVANT qu'ils sortent",
+  objection:  "Traiter un frein déjà posé : diagnostic, isolation, retournement",
+  closing:    "Demander l'engagement, sécuriser l'acompte, tenir après le oui"
+};
+
+let ECOLES = {
+  moi:  {nom:"Mes calls", terrains:["cadrage","decouverte","objection","closing"], note:"ta voix, toujours prioritaire"},
+  sami: {nom:"Sami",      terrains:["decouverte","objection","closing"], note:"ton coach"}
+};
+
+/* Quelle école appeler, selon où on en est */
+function ecolesPour(temps, etape){
+  let terrain = "decouverte";
+  if(temps === "closing") terrain = "closing";
+  else if(temps === "traitement" || temps === "isoler") terrain = "objection";
+  else if(temps === "diagnostic") terrain = S.current ? "objection" : "decouverte";
+  else if(etape === "CADRAGE") terrain = "cadrage";
+  const bonnes = Object.entries(ECOLES).filter(([k,v])=>(v.terrains||[]).includes(terrain)).map(([k])=>k);
+  return {terrain, bonnes};
+}
+let HISTO = [];         // un résumé par call, pour voir les tendances
+let stopFlag = false;
+
+/* stockage : Claude, sinon navigateur, sinon rien — et on sait lequel */
+let MEM = "aucune";
+const Store = {
+  async get(k){
+    if(window.storage){ try{ const r=await window.storage.get(k,false); if(r){ MEM="Claude"; return JSON.parse(r.value);} }catch(e){} }
+    try{ const r=await idb("readonly", s=>s.get(k)); if(r){ MEM="navigateur"; return r.v; } }catch(e){}
+    try{ const r=localStorage.getItem("cc_"+k); if(r){ MEM="navigateur"; return JSON.parse(r); } }catch(e){}
+    return null;
+  },
+  async set(k,v){
+    if(window.storage){ try{ await window.storage.set(k,JSON.stringify(v),false); MEM="Claude"; return true }catch(e){} }
+    try{ await idb("readwrite", s=>s.put({k,v})); MEM="navigateur"; return true }catch(e){}
+    try{ localStorage.setItem("cc_"+k, JSON.stringify(v)); MEM="navigateur"; return true }catch(e){}
+    MEM="aucune"; return false;
+  }
+};
+function idb(mode,fn){
+  return new Promise((res0,rej0)=>{
+    // un fichier ouvert depuis le disque peut ne jamais répondre :
+    // sans ce garde-fou, l'application resterait figée en attente
+    let fini = false;
+    const secours = setTimeout(()=>{ if(!fini){ fini = true; rej0(new Error("stockage muet")); } }, 1500);
+    const res = v => { if(!fini){ fini = true; clearTimeout(secours); res0(v); } };
+    const rej = e => { if(!fini){ fini = true; clearTimeout(secours); rej0(e); } };
+    const r = indexedDB.open("closing-copilot",1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv",{keyPath:"k"});
+    r.onsuccess = () => {
+      const tx = r.result.transaction("kv",mode);
+      const req = fn(tx.objectStore("kv"));
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    };
+    r.onerror = () => rej(r.error);
+  });
+}
+
+async function loadApprentissage(){
+  const r = await Store.get("rejets");   REJETS = Array.isArray(r) ? r : [];
+  const h = await Store.get("historique"); HISTO = Array.isArray(h) ? h : [];
+}
+
+async function loadKb(){
+  const ok = await Store.set("ping", Date.now());
+  const d = await Store.get("fiches");
+  FICHES = Array.isArray(d) ? d : [];
+  const box = $("memState");
+  if(box){
+    if(MEM==="aucune" || !ok){
+      box.innerHTML = `<span style="color:var(--clay)">⚠ Rien ne se sauvegarde ici.</span> Ta clé et tes fiches disparaîtront en fermant. Utilise <b>Sauvegarder ma base</b> avant de partir, et <b>Charger une base</b> en revenant.`;
+    }else{
+      box.innerHTML = `Mémoire : <b>${MEM}</b>. Ta clé et tes fiches sont conservées d'une session à l'autre.`;
+    }
+  }
+  renderKb();
+}
+function saveKb(){ Store.set("fiches", FICHES); renderKb(); }
+
+function renderKb(){
+  $("kbCount").textContent = FICHES.length ? "· "+FICHES.length : "";
+  const c = $("cards"); if(!c) return;
+
+  // inventaire des documents lus
+  const docs = {};
+  FICHES.forEach(f=>{
+    const src = (f.source||"inconnu").replace(/ \(partie \d+\)/,"");
+    docs[src] = docs[src] || {n:0, t:{}};
+    docs[src].n++;
+    const ty = f.type||"AUTRE";
+    docs[src].t[ty] = (docs[src].t[ty]||0)+1;
+  });
+  const names = Object.keys(docs);
+  $("docs").innerHTML = names.length ? `
+    <div class="block">
+      <h3>Documents en mémoire · ${names.length}</h3>
+      ${names.map(n=>`<div class="metric"><span>${n}</span><span>${docs[n].n} fiches · ${Object.entries(docs[n].t).map(([k,v])=>k.slice(0,4)+" "+v).join(" / ")}</span></div>`).join("")}
+      <p style="font-size:12.5px;color:var(--muted);margin-top:14px">Un document absent de cette liste n'a rien donné d'exploitable : soit c'est un PDF scanné en image, soit il ne contient pas de formulation réutilisable.</p>
+    </div>` : "";
+
+  if(!FICHES.length){
+    c.innerHTML = '<p style="color:var(--muted);font-size:14px">Aucune fiche pour l\'instant. Dépose un transcript ci-dessus : tu verras apparaître tes propres formulations, une par fiche.</p>';
+    return;
+  }
+  const byObj = {};
+  FICHES.forEach((f,i)=>{ (byObj[f.label] = byObj[f.label]||[]).push({f,i}); });
+  c.innerHTML = Object.entries(byObj).map(([lab,arr])=>
+    `<p class="eyebrow" style="margin:22px 0 10px">${lab} · ${arr.length}</p>` +
+    arr.map(({f,i})=>`
+      <div class="fiche">
+        <div class="top"><span class="eyebrow"><b style="color:var(--amber)">${f.type||"FICHE"}</b> · ${f.situation||""}</span><button class="del" data-i="${i}">×</button></div>
+        <div class="ph">« ${f.phrase} »</div>
+        ${f.pourquoi?`<div class="wy">${f.pourquoi}</div>`:""}
+        <div class="src">${f.source||""}</div>
+      </div>`).join("")
+  ).join("");
+  c.querySelectorAll(".del").forEach(b=>b.onclick=()=>{ FICHES.splice(+b.dataset.i,1); saveKb(); });
+}
+
+/* --- lecture des fichiers --- */
+async function readFile(file){
+  const name = file.name.toLowerCase();
+  if(name.endsWith(".pdf")){
+    if(!window.pdfjsLib){
+      await new Promise((res,rej)=>{
+        const s=document.createElement("script");
+        s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+        s.onload=res; s.onerror=rej; document.head.appendChild(s);
+      });
+      pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({data:buf}).promise;
+    let out="";
+    for(let p=1;p<=doc.numPages;p++){
+      const c = await (await doc.getPage(p)).getTextContent();
+      out += c.items.map(i=>i.str).join(" ")+"\n";
+    }
+    return out;
+  }
+  return await file.text();
+}
+
+function chunk(txt,size=7000){
+  const clean = txt.replace(/\r/g,"").replace(/\n{3,}/g,"\n\n").trim();
+  const out=[]; let i=0;
+  while(i<clean.length){ out.push(clean.slice(i,i+size)); i+=size; }
+  return out;
+}
+
+/* --- distillation par Claude --- */
+/* --- distillation par Claude --- */
+function parseFiches(txt){
+  let t = txt.replace(/```json|```/g,"").trim();
+  const a = t.indexOf("["), b = t.lastIndexOf("]");
+  if(a>=0 && b>a) t = t.slice(a,b+1);
+  try{ return JSON.parse(t); }
+  catch(e){
+    // réponse coupée : on récupère les objets complets un par un
+    const out=[];
+    (t.match(/\{[^{}]*\}/g)||[]).forEach(o=>{ try{ out.push(JSON.parse(o)) }catch(_){} });
+    if(out.length) return out;
+    throw new Error("réponse illisible");
+  }
+}
+
+async function distill(text, source, ecole){
+  const ids = KB.map(o=>o.id).join(", ");
+  const etranger = ecole && ecole !== "moi" && ecole !== "sami";
+  const prompt =
+`Document de closing : transcript de call, coaching, script, fiche méthode ou sous-titres de vidéo. Il peut être en français ou en anglais.
+
+"""${text}"""
+
+${ecole === "moi"
+  ? "Ce document vient du closer lui-même. Garde ses mots EXACTS, ne reformule jamais : c'est sa voix qu'on veut conserver."
+  : ecole === "sami"
+    ? "Ce document vient de son coach francophone. Garde les mots exacts."
+    : `Ce document vient d'un autre closer (école : ${ecole || "inconnue"}), possiblement en anglais.
+
+TON TRAVAIL DE TRADUCTION — le plus important.
+Ne traduis JAMAIS mot à mot. Une formulation de vente anglaise traduite littéralement sonne faux en français et se repère immédiatement au téléphone.
+Tu dois faire passer le MÉCANISME, pas les mots. Demande-toi : quel levier psychologique cette phrase actionne ? Puis écris la phrase française qu'un closer français dirait pour actionner le même levier.
+Le registre attendu : français parlé, tutoiement, phrases courtes, aucun anglicisme, aucune tournure calquée.
+Exemple de ce qu'il ne faut pas faire : "What would need to be true for this to work?" ne devient pas "Qu'est-ce qui aurait besoin d'être vrai pour que ça marche ?" mais "Il faudrait quoi, concrètement, pour que ça marche ?"
+Remplis aussi "origine" avec la phrase anglaise d'origine, pour que le closer puisse vérifier.`}
+
+Extrais les formulations commerciales réutilisables.
+
+Type : DIAGNOSTIC (question qui fait préciser la cause), REFRAME (retournement), ANALOGIE (image concrète), PREUVE (exemple ou chiffre).
+Objection : ${ids}, AUTRE.
+
+Priorité aux REFRAME et ANALOGIE. Ignore le bavardage, les promotions, les appels à s'abonner. Rien d'exploitable : renvoie [].
+Maximum 5 fiches. "phrase" sous 40 mots, "pourquoi" sous 15 mots.
+
+Réponds uniquement avec ce JSON, sans markdown :
+[{"objection":"PRIX","label":"Objection · Prix","type":"REFRAME","situation":"quand il trouve que c'est cher","phrase":"...","pourquoi":"..."${etranger ? ',"origine":"la phrase anglaise d\'origine"' : ""}}]`;
+
+  let lastErr = "";
+  for(let essai=0; essai<3; essai++){
+    try{
+      const txt = await callClaude(prompt);
+      const arr = parseFiches(txt);
+      return (Array.isArray(arr)?arr:[]).filter(f=>f&&f.phrase).map(f=>({...f, source, ecole: ecole||"autre"}));
+    }catch(e){
+      lastErr = e.message;
+      if(e.status===401 || e.status===403 || /Hors de Claude/.test(lastErr)) throw e;
+      if(essai<2) await new Promise(s=>setTimeout(s, e.status===429 ? 4000*(essai+1) : 1500));
+    }
+  }
+  throw new Error(lastErr);
+}
+
+/* --- export Claude : conversations.json --- */
+function isExport(x){
+  if(!Array.isArray(x) || !x.length) return false;
+  return x.some(c => c && (c.chat_messages || c.messages || c.mapping));
+}
+
+/* extrait les objets de premier niveau un par un : encaisse les très gros fichiers */
+function scanObjects(t){
+  const out=[]; let depth=0, start=-1, inStr=false, esc=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(inStr){ if(esc) esc=false; else if(c==="\\") esc=true; else if(c==='"') inStr=false; continue; }
+    if(c==='"'){ inStr=true; continue; }
+    if(c==="{"){ if(depth===0) start=i; depth++; }
+    else if(c==="}"){ depth--; if(depth===0 && start>=0){ try{ out.push(JSON.parse(t.slice(start,i+1))) }catch(_){} start=-1; } }
+  }
+  return out;
+}
+
+/* --- lecture des zip --- */
+async function loadZipLib(){
+  if(window.JSZip) return;
+  await new Promise((res,rej)=>{
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload=res; s.onerror=()=>rej(new Error("Impossible de charger le lecteur de zip. Décompresse le fichier à la main."));
+    document.head.appendChild(s);
+  });
+}
+
+/* renvoie les conversations trouvées dans un zip, même imbriqué */
+async function readZipConvs(file, depth=0){
+  if(depth>2) return [];
+  await loadZipLib();
+  const zip = await JSZip.loadAsync(file);
+  let convs = [];
+  const noms = Object.keys(zip.files).filter(n=>!zip.files[n].dir);
+  for(const n of noms){
+    const court = n.split("/").pop();
+    if(/\.zip$/i.test(court)){
+      if(/conversation/i.test(court) || depth===0){
+        $("progTxt").textContent = `Ouverture de ${court}…`;
+        try{ convs = convs.concat(await readZipConvs(await zip.files[n].async("blob"), depth+1)); }catch(e){}
+      }
+      continue;
+    }
+    if(!/\.json$/i.test(court)) continue;
+    $("progTxt").textContent = `Lecture de ${court}…`;
+    try{
+      const raw = await zip.files[n].async("string");
+      let data;
+      try{ data = JSON.parse(raw); }catch(e){ data = scanObjects(raw); }
+      if(!Array.isArray(data)) data = data.conversations || [data];
+      if(isExport(data)) convs = convs.concat(data);
+    }catch(e){}
+  }
+  return convs;
+}
+
+async function readJson(f){
+  const head = new Uint8Array(await f.slice(0,4).arrayBuffer());
+  if(head[0]===0x50 && head[1]===0x4B){
+    const c = await readZipConvs(f);
+    if(c.length) return c;
+    throw new Error("Archive lue, mais aucune conversation dedans.");
+  }
+
+  let raw;
+  try{ raw = await f.text(); }
+  catch(e){ throw new Error(`Fichier trop lourd pour le navigateur (${Math.round(f.size/1048576)} Mo).`); }
+
+  try{
+    const d = JSON.parse(raw);
+    if(Array.isArray(d)) return d;
+    if(d && Array.isArray(d.conversations)) return d.conversations;
+    if(d && typeof d === "object") return [d];
+  }catch(e){
+    const objs = scanObjects(raw);
+    if(objs.length) return objs;
+    throw new Error(`JSON illisible (${Math.round(f.size/1024)} ko). Début du fichier : ${raw.slice(0,60)}…`);
+  }
+  throw new Error("Format non reconnu.");
+}
+
+function convToText(c){
+  const msgs = c.chat_messages || c.messages || c.mapping && Object.values(c.mapping).map(n=>n.message).filter(Boolean) || [];
+  return msgs.map(m=>{
+    if(!m) return "";
+    const s = m.sender || m.role || (m.author && m.author.role) || "";
+    const who = /human|user/i.test(s) ? "MOI" : "CLAUDE";
+    let body = m.text || "";
+    if(!body && Array.isArray(m.content)) body = m.content.map(b=>b.text||b.input&&"" ||"").join(" ");
+    if(!body && m.content && Array.isArray(m.content.parts)) body = m.content.parts.filter(p=>typeof p==="string").join(" ");
+    if(!body && typeof m.content === "string") body = m.content;
+    return body ? who+" : "+body : "";
+  }).filter(Boolean).join("\n\n");
+}
+
+function showPicker(convs){
+  const rows = convs.map((c,i)=>{
+    const t = convToText(c);
+    return {i, name: c.name || c.title || "Sans titre", len: t.length, txt: t};
+  }).filter(r=>r.len>1500).sort((a,b)=>b.len-a.len);
+
+  const kw = /call|clos|objection|coach|sami|reframe|prospect|vente|pitch|analyse/i;
+  $("docs").innerHTML = `
+    <div class="block">
+      <h3>Export Claude · ${rows.length} conversations exploitables</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Les conversations qui parlent de closing sont pré-cochées. Décoche ce que tu ne veux pas. Compte environ une minute de lecture pour 20 000 caractères.</p>
+      <div style="max-height:340px;overflow-y:auto;margin-bottom:14px">
+        ${rows.map(r=>`<label style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:13.5px;cursor:pointer;border-bottom:1px solid var(--line)">
+          <input type="checkbox" class="pick" data-i="${r.i}" ${kw.test(r.name)?"checked":""} style="margin-top:3px">
+          <span>${r.name}<br><span style="color:var(--muted);font-size:11.5px">${Math.round(r.len/1000)} k caractères</span></span>
+        </label>`).join("")}
+      </div>
+      <button class="pill" id="btnGo">Distiller la sélection</button>
+      <button class="pill" id="btnAll">Tout cocher</button>
+    </div>`;
+  const store = {}; rows.forEach(r=>store[r.i]=r);
+  $("btnAll").onclick = () => document.querySelectorAll(".pick").forEach(c=>c.checked=true);
+  $("btnGo").onclick = () => {
+    const sel=[...document.querySelectorAll(".pick:checked")].map(c=>store[+c.dataset.i]);
+    if(!sel.length) return toast("Rien de sélectionné");
+    $("docs").innerHTML="";
+    ingestTexts(sel.map(r=>({text:r.txt, source:r.name})));
+  };
+}
+
+async function ingestTexts(items){
+  stopFlag=false;
+  $("progress").style.display="block";
+  $("progErr").textContent="";
+  const jobs=[];
+  items.forEach(it => chunk(it.text).forEach((c,i)=>jobs.push({c, source: it.source+(i?` (partie ${i+1})`:"")})));
+  let done=0, added=0, ko=0, msg="";
+  for(const j of jobs){
+    if(stopFlag) break;
+    $("progTxt").textContent = `${done+1} / ${jobs.length} — ${j.source} · ${added} fiches`;
+    $("progFill").style.width = (done/jobs.length*100)+"%";
+    try{
+      const f = await distill(j.c, j.source, ecoleChoisie());
+      f.forEach(x=>{ if(x.phrase && !FICHES.some(y=>y.phrase===x.phrase)){ FICHES.push(x); added++; } });
+      saveKb();
+    }catch(e){
+      ko++; msg = e.message;
+      $("progErr").textContent = `${ko} tranche(s) en échec — dernière raison : ${msg}`;
+      if(ko>=3 && added===0){
+        $("progTxt").textContent = `Arrêté : rien ne passe. Raison : ${msg}`;
+        return;
+      }
+    }
+    done++;
+    await new Promise(s=>setTimeout(s,400));
+  }
+  $("progFill").style.width="100%";
+  $("progTxt").textContent = `${stopFlag?"Arrêté":"Terminé"}. ${added} fiches ajoutées${ko?`, ${ko} tranches ratées`:""}.`;
+}
+
+async function ingest(fileList){
+  const files = [...fileList];
+
+  // JSON : sommaire d'export, fichiers de conversations, ou base sauvegardée
+  const jsons = files.filter(f=>/\.json$/i.test(f.name) || f.type==="application/json" || /\.zip$/i.test(f.name));
+  if(jsons.length){
+    $("progress").style.display="block";
+    $("progErr").textContent = "";
+    let convs = [], manifest = null;
+    for(const f of jsons){
+      $("progTxt").textContent = `Lecture de ${f.name}…`;
+
+      // archive : on l'ouvre et on cherche les conversations dedans
+      const head = new Uint8Array(await f.slice(0,2).arrayBuffer());
+      if(head[0]===0x50 && head[1]===0x4B){
+        try{
+          const c = await readZipConvs(f);
+          if(c.length) convs = convs.concat(c);
+          else $("progErr").textContent = `${f.name} : aucune conversation dedans.`;
+        }catch(e){ $("progErr").textContent = `${f.name} : ${e.message}`; }
+        continue;
+      }
+
+      try{
+        const data = await readJson(f);
+        const d0 = data[0]||{};
+        if(d0.data_files || d0.total_files){ manifest = d0; continue; }
+        if(isExport(data)){ convs = convs.concat(data); continue; }
+        if(d0.phrase){ FICHES = data; saveKb(); $("progress").style.display="none"; toast(data.length+" fiches chargées"); return; }
+        $("progErr").textContent = `${f.name} : format non reconnu (champs : ${Object.keys(d0).slice(0,6).join(", ")||"aucun"}).`;
+      }catch(e){ $("progErr").textContent = `${f.name} : ${e.message}`; }
+    }
+
+    if(convs.length){ $("progress").style.display="none"; showPicker(convs); return; }
+
+    if(manifest){
+      const liste = (manifest.data_files||[]).map(x => typeof x === "string" ? x : (x.name||x.file||x.filename||JSON.stringify(x)));
+      $("progTxt").textContent = "Ce fichier est le sommaire de l'export, pas les conversations.";
+      $("progErr").innerHTML =
+        `<span style="color:var(--ink)">Retourne dans le dossier décompressé et dépose ${liste.length?"ces fichiers-là":"les autres fichiers .json"} :</span><br>`
+        + (liste.length ? liste.map(n=>"• "+n).join("<br>") : "les fichiers du type conversations.json ou conversations_1.json")
+        + `<br><br><span style="color:var(--muted)">Tu peux les déposer tous en même temps, ils seront fusionnés.</span>`;
+      return;
+    }
+    if(!$("progErr").textContent) $("progTxt").textContent = "Aucune conversation trouvée dans ces fichiers.";
+    return;
+  }
+
+  stopFlag = false;
+  $("progress").style.display="block";
+  $("progErr").textContent="";
+  let jobs = [];
+  for(const f of files){
+    try{
+      const raw = await readFile(f);
+      if(raw.replace(/\s/g,"").length < 200){
+        $("progErr").textContent = `${f.name} : aucun texte lisible. C'est sans doute un PDF scanné en image.`;
+        continue;
+      }
+      chunk(raw).forEach((c,i)=>jobs.push({c,source:f.name+(i?` (partie ${i+1})`:"")}));
+    }catch(e){ $("progErr").textContent = `${f.name} illisible : ${e.message}`; }
+  }
+  if(!jobs.length){ $("progTxt").textContent = "Rien à lire dans ces fichiers."; return; }
+  let done=0, added=0, ko=0;
+  for(const j of jobs){
+    if(stopFlag) break;
+    $("progTxt").textContent = `${done+1} / ${jobs.length} — ${j.source} · ${added} fiches`;
+    $("progFill").style.width = (done/jobs.length*100)+"%";
+    try{
+      const fiches = await distill(j.c, j.source, ecoleChoisie());
+      fiches.forEach(f=>{
+        if(f.phrase && !FICHES.some(x=>x.phrase===f.phrase)){ FICHES.push(f); added++; }
+      });
+      saveKb();
+    }catch(e){
+      ko++;
+      $("progErr").textContent = `${ko} tranche(s) en échec — dernière raison : ${e.message}`;
+      if(ko>=3 && added===0){ $("progTxt").textContent = `Arrêté : rien ne passe. Raison : ${e.message}`; return; }
+    }
+    done++;
+    await new Promise(s=>setTimeout(s,400));
+  }
+  $("progFill").style.width="100%";
+  $("progTxt").textContent = `${stopFlag?"Arrêté":"Terminé"}. ${added} fiches ajoutées${ko?`, ${ko} tranches ratées`:""}.`;
+  setTimeout(()=>$("progress").style.display="none", 8000);
+}
+
+/* --- recherche pendant le call --- */
+function findFiches(objId, said, types, n=3){
+  const mots = (said||"").toLowerCase()
+    .replace(/[^a-zàâäéèêëïîôöùûüç\s]/g," ").split(/\s+/)
+    .filter(w=>w.length>4 && !/^(alors|parce|comme|quand|aussi|voila|enfin|vraiment|beaucoup)$/.test(w));
+  const out = FICHES
+    .filter(f=>f.objection===objId)
+    .filter(f=>!types || !f.type || types.includes(f.type))
+    .map(f=>{
+      const hay = ((f.situation||"")+" "+f.phrase).toLowerCase();
+      let score = mots.reduce((s,w)=>s+(hay.includes(w)?1:0),0);
+      if(types && f.type && types[0]===f.type) score += 0.5;   // bon type au bon moment
+      return {f, score};
+    })
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,n);
+  // pertinence minimale : sinon la base intégrée reste devant
+  const bonnes = out.filter(x=>x.score>0);
+  return { sures: bonnes.map(x=>x.f), autres: out.filter(x=>x.score===0).map(x=>x.f) };
+}
+
+/* --- contrôles de l'écran --- */
+/* --- clé API --- */
+let PRET = null;
+/* On attend la clé, mais jamais plus de deux secondes : mieux vaut une erreur
+   claire qu'une application qui ne répond plus. */
+async function pretOuTantPis(){
+  if(!PRET) return;
+  try{
+    await Promise.race([PRET, new Promise(r=>setTimeout(r, 2000))]);
+  }catch(e){}
+  PRET = null;   // une fois passé, on ne réattend plus jamais
+}
+async function loadKey(){
+  const m = await Store.get("modele");
+  if(m){
+    CHOIX_MODELE = m;
+    MODELE_DIRECT = (m === "auto") ? LEGER : m;
+    $("selModele").value = m;
+  }
+  majModeleDetail();
+  // "apikey" pour cette app, "cle" pour Suivi R1 : une clé posée dans l'une sert à l'autre
+  const vx = await Store.get("voix");
+  if(vx && vx.moi && vx.lui){
+    NIVEAU_MOI = vx.moi; NIVEAU_LUI = vx.lui;
+    EMPREINTE_MOI = vx.empMoi || null; EMPREINTE_LUI = vx.empLui || null;
+    const et = (EMPREINTE_MOI && EMPREINTE_LUI) ? 1 - ressemblance(EMPREINTE_MOI, EMPREINTE_LUI) : 0;
+    CALIBRE = Math.abs(NIVEAU_MOI - NIVEAU_LUI) >= 0.008 || et >= 0.06;
+  }
+  const ec = await Store.get("eco");
+  if(ec && ECOS[ec]){ ECO = ECOS[ec]; $("selEco").value = ec; }
+  const tr = await Store.get("trame");
+  if(Array.isArray(tr) && tr.length >= 3){ TRAME.length = 0; tr.forEach(x=>TRAME.push(x)); }
+  if($("trameTxt")) $("trameTxt").value = trameEnTexte();
+  const ecl = await Store.get("ecoles");
+  if(ecl && typeof ecl === "object"){ ECOLES = Object.assign(ECOLES, ecl); }
+  majEcoDetail(); majCout(); majParEcole(); majListeEcoles();
+  reprendreCall();
+  let k = await Store.get("apikey");
+  if(!k) k = await Store.get("cle");
+  if(k){
+    API_KEY = k; $("apiKey").value = k;
+    $("keyState").textContent = "Clé enregistrée.";
+    $("keyState").style.color = "var(--sage)";
+  }
+}
+$("btnKey").onclick = async () => {
+  API_KEY = $("apiKey").value.trim();
+  const saved = await Store.set("apikey", API_KEY);
+  await Store.set("cle", API_KEY);   // Suivi R1 la retrouvera aussi
+  $("keyState").textContent = "Test en cours…";
+  $("keyState").style.color = "var(--muted)";
+  try{
+    await callClaude("Réponds uniquement : ok");
+    $("keyState").textContent = saved ? "✓ Le cerveau répond. Clé conservée." : "✓ Le cerveau répond, mais la clé ne sera pas gardée.";
+    $("keyState").style.color = saved ? "var(--sage)" : "var(--amber)";
+  }catch(e){
+    $("keyState").textContent = "✗ " + e.message;
+    $("keyState").style.color = "var(--clay)";
+  }
+};
+/* Un fichier ouvert depuis le disque n'a pas d'adresse fixe : Chrome redemande
+   l'autorisation du micro à CHAQUE redémarrage de la reconnaissance, soit
+   une fois par minute environ. Rien dans le code ne peut l'empêcher. */
+function alerteFichierLocal(){
+  if(location.protocol !== "file:") return;
+  const h = document.querySelector("#home .wrap") || document.getElementById("home");
+  if(!h) return;
+  const d = document.createElement("div");
+  d.className = "block";
+  d.style.borderColor = "var(--clay)";
+  d.style.marginTop = "16px";
+  d.innerHTML = `<h3>Le micro va te redemander l'autorisation sans arrêt</h3>
+    <p style="font-size:13.5px">Cette page est ouverte depuis ton disque dur. Pour Chrome, un fichier posé sur un disque n'a pas d'adresse : il redemande l'autorisation à chaque redémarrage du micro, soit une fois par minute.</p>
+    <p style="font-size:13.5px;margin-top:8px">Ce n'est pas réparable ici. Il faut donner une vraie adresse à l'application — la mettre en ligne, ou l'ouvrir depuis Claude. Une fois, et c'est réglé pour toujours.</p>`;
+  h.appendChild(d);
+}
+
+PRET = loadKey().then(()=>{
+  alerteFichierLocal();
+  if(!window.storage && !API_KEY){
+    const h = document.querySelector("#home .wrap") || document.getElementById("home");
+    if(h){
+      const d = document.createElement("div");
+      d.className = "block";
+      d.style.borderColor = "var(--clay)";
+      d.style.marginTop = "16px";
+      d.innerHTML = "<h3>Il manque ta clé</h3><p style='font-size:13.5px'>Cette application est ouverte dans Chrome, pas dans Claude. Ici il lui faut une clé API pour réfléchir.</p><p style='font-size:13px;color:var(--muted);margin-top:8px'>Deux solutions : rouvrir l'application depuis Claude, ou coller ta clé dans <b style='color:var(--ink)'>Ma méthode</b>.</p>";
+      h.appendChild(d);
+    }
+  }
+});
+
+/* =========================================================
+   REJEU D'UN VRAI CALL
+   ========================================================= */
+let RJ = {tours:[], i:0, timer:null, auto:0};
+
+function nettoie(ligne){
+  return ligne
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[*_`>#]/g, "")
+    .replace(/^\s*\[?\d{1,2}:\d{2}(:\d{2})?\]?\s*[-–—|]?\s*/, "")
+    .replace(/\(\s*\d{1,2}:\d{2}(:\d{2})?\s*\)\s*$/, "")
+    .trim();
+}
+
+function parseTranscript(txt, moi){
+  const nomSeul  = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,45})$/;
+  const nomTexte = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,45})\s*[:：]\s*(.*)$/;
+  const lignes = txt.split(/\r?\n/).map(nettoie).filter(Boolean);
+
+  // 1er passage : qui sont les interlocuteurs ? un nom se répète, une phrase non.
+  const compte = {}, noms = new Set();
+  lignes.forEach(l=>{
+    const m = l.match(nomTexte);
+    if(m && m[1].split(/\s+/).length <= 5){ noms.add(m[1].trim()); return; }
+    const sansHeure = l.replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/, "").trim();
+    if(nomSeul.test(sansHeure) && sansHeure.split(/\s+/).length <= 5 && !/[.!?,]$/.test(sansHeure))
+      compte[sansHeure] = (compte[sansHeure]||0) + 1;
+  });
+  Object.entries(compte).forEach(([n,c])=>{ if(c >= 2) noms.add(n); });
+  // transcript très court : on accepte un nom vu une seule fois s'il a au moins deux mots
+  const capitalise = n => n.split(/\s+/).every(w => /^[A-ZÀ-Þ]/.test(w));
+  if(noms.size < 2) Object.keys(compte).forEach(n=>{
+    if(n.split(/\s+/).length >= 2 && capitalise(n)) noms.add(n);
+  });
+
+  // 2e passage : découpage réel
+  const brut = []; let courant = null;
+  lignes.forEach(l=>{
+    const m = l.match(nomTexte);
+    if(m && noms.has(m[1].trim())){
+      courant = {nom: m[1].trim(), text: m[2].trim()}; brut.push(courant); return;
+    }
+    const sansHeure = l.replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/, "").trim();
+    if(noms.has(sansHeure)){
+      courant = {nom: sansHeure, text: ""}; brut.push(courant); return;
+    }
+    if(courant) courant.text += (courant.text ? " " : "") + l;
+    else { courant = {nom:"?", text:l}; brut.push(courant); }
+  });
+
+  // fusion des tours consécutifs du même interlocuteur
+  const out = [];
+  brut.filter(x=>x.text.trim().length > 1).forEach(x=>{
+    const estMoi = x.nom !== "?" && x.nom.toLowerCase().includes(moi.toLowerCase());
+    const p = out[out.length-1];
+    if(p && p.nom === x.nom) p.text += " " + x.text;
+    else out.push({moi: estMoi, nom: x.nom, text: x.text.trim()});
+  });
+  return out;
+}
+
+function tourSuivant(){
+  if(RJ.i >= RJ.tours.length){
+    $("heardTxt").textContent = "Rejeu terminé. Tu peux cliquer sur Terminer le call pour le débrief.";
+    clearInterval(RJ.timer); return;
+  }
+  const t = RJ.tours[RJ.i++];
+  S.moiQuiParle = t.moi;
+  $("btnQui").textContent = t.moi ? "MOI qui parle" : "PROSPECT parle";
+  $("btnQui").classList.toggle("moi", t.moi);
+  S.lastSpeech = Date.now();
+  $("heard").className = "heard live";
+  $("heardTxt").textContent = t.nom + " : " + t.text;
+  handleUtterance(t.text);
+  if(!RJ.auto) $("fileTxt").textContent = `réplique ${RJ.i}/${RJ.tours.length}`;
+}
+
+/* ---- Ma progression : ce que tes calls disent de toi ---- */
+function renderProg(){
+  if(!HISTO.length){ $("progVide").style.display="block"; $("progContenu").innerHTML=""; return; }
+  $("progVide").style.display="none";
+  const reels = HISTO.filter(h=>!h.sparring);
+  const spars = HISTO.filter(h=>h.sparring);
+  const n = reels.length || 1, v = reels.filter(h=>h.resultat==="vendu").length;
+  const taux = Math.round(v/n*100);
+
+  // objections les plus fréquentes, et leur taux de réussite
+  const parObj = {};
+  reels.forEach(h=>[...new Set(h.objections||[])].forEach(o=>{
+    parObj[o] = parObj[o] || {n:0, v:0};
+    parObj[o].n++; if(h.resultat==="vendu") parObj[o].v++;
+  }));
+  const objs = Object.entries(parObj).sort((a,b)=>b[1].n-a[1].n).slice(0,8);
+
+  // étapes de la trame les plus souvent sautées
+  const sautees = TRAME.map(e=>({
+    n:e.n, c:reels.filter(h=>!(h.faites||[]).includes(e.c)).length
+  })).sort((a,b)=>b.c-a.c).slice(0,6);
+
+  const bar = (part, tot) => {
+    const pct = tot ? Math.round(part/tot*100) : 0;
+    return `<span style="font-family:'Archivo Narrow';font-weight:700">${pct}%</span>`;
+  };
+
+  $("progContenu").innerHTML = `
+    <div class="block"><h3>L'essentiel</h3><div class="grid">
+      <div class="stat"><div class="n">${reels.length}</div><div class="l">vrais calls</div></div>
+      <div class="stat"><div class="n" style="color:var(--steel)">${spars.length}</div><div class="l">sparrings</div></div>
+      <div class="stat"><div class="n">${taux}%</div><div class="l">conversion</div></div>
+      <div class="stat"><div class="n">${HISTO.reduce((s,h)=>s+(h.bons||0),0)}</div><div class="l">phrases validées</div></div>
+      <div class="stat"><div class="n">${FICHES.filter(f=>f.valide).length}</div><div class="l">fiches nées d'un call</div></div>
+    </div></div>
+
+    <div class="block"><h3>Tes objections, et ce qu'elles te coûtent</h3>
+      ${objs.map(([o,d])=>`<div class="metric"><span>${o} <span style="color:var(--muted)">· ${d.n} calls</span></span><span style="color:${d.v/d.n>=taux/100?"var(--sage)":"var(--clay)"}">${bar(d.v,d.n)} conclu</span></div>`).join("") || "<p style='color:var(--muted)'>Pas encore de données.</p>"}
+      <p style="font-size:12.5px;color:var(--muted);margin-top:12px">En rouge : les objections où tu convertis moins bien que ta moyenne. C'est là qu'il faut nourrir ta base.</p>
+    </div>
+
+    <div class="block"><h3>Étapes que tu sautes le plus</h3>
+      ${sautees.map(e=>`<div class="metric"><span>${e.n}</span><span style="color:${e.c>n/2?"var(--clay)":"var(--muted)"}">sautée ${e.c} fois sur ${n}</span></div>`).join("")}
+    </div>
+
+    <div class="block"><h3>Tes derniers calls</h3>
+      ${HISTO.slice(-12).reverse().map(h=>{
+        const c = h.resultat==="vendu"?"var(--sage)":h.resultat==="perdu"?"var(--clay)":"var(--amber)";
+        return `<div class="metric"><span>${h.date} — ${h.prospect} <span style="color:var(--muted)">${h.duree} min</span></span><span style="color:${c}">${h.resultat}</span></div>`;
+      }).join("")}
+    </div>`;
+}
+
+/* ============================================================
+   SPARRING — un prospect qui rend les coups.
+   Il a un vrai blocage, caché. Sans les bonnes questions, tu ne l'auras pas.
+   ============================================================ */
+let SPAR = null, sparProfil = "prix", sparNiveau = 2, sparRec = null;
+let sparCanal = "vocal", sparVoix = null, sparDernierMot = 0, sparVeille = null, sparParle = false;
+
+/* --- LA VOIX DU PROSPECT --- */
+function chargeVoix(){
+  const v = speechSynthesis.getVoices().filter(x => /^fr/i.test(x.lang));
+  const sel = $("sparVoix");
+  if(!v.length){ sel.innerHTML = '<option value="">Voix par défaut du système</option>'; return; }
+  sel.innerHTML = v.map((x,i)=>`<option value="${i}">${x.name.replace(/Microsoft |Google /,"")}</option>`).join("");
+  sel.onchange = () => { sparVoix = v[+sel.value] || null; };
+  sparVoix = v[0];
+}
+if("speechSynthesis" in window){
+  chargeVoix();
+  speechSynthesis.onvoiceschanged = chargeVoix;
+}
+
+function phase(txt, couleur, anim){
+  $("sparPhase").textContent = txt;
+  $("sparPastille").style.background = couleur;
+  $("sparPastille").classList.toggle("actif", !!anim);
+}
+
+/* Il parle. Le micro se coupe pendant ce temps, sinon il s'entend lui-même. */
+function faisParler(txt, apres){
+  if(sparCanal !== "vocal" || !("speechSynthesis" in window)){ if(apres) apres(); return; }
+  arreteSparMicro();
+  sparParle = true;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(txt);
+  if(sparVoix) u.voice = sparVoix;
+  u.lang = "fr-FR"; u.rate = 1.02; u.pitch = 1;
+  phase("il parle", "var(--steel)", true);
+  u.onend = () => { sparParle = false; if(apres) apres(); };
+  u.onerror = () => { sparParle = false; if(apres) apres(); };
+  speechSynthesis.speak(u);
+}
+
+/* Mains libres : ton micro s'ouvre, et dès que tu te tais, ça part. */
+function ouvreTonTour(){
+  if(sparCanal !== "vocal" || !SPAR) return;
+  lanceSparMicro();
+  phase("à toi", "var(--amber)", true);
+  sparDernierMot = Date.now();
+  clearInterval(sparVeille);
+  sparVeille = setInterval(()=>{
+    if(!sparRec || sparParle) return;
+    const dit = $("sparMoi").value.trim();
+    if(dit.length > 2 && Date.now() - sparDernierMot > 1700){
+      clearInterval(sparVeille);
+      phase("il réfléchit", "var(--muted)", true);
+      $("btnSparEnvoi").click();
+    }
+  }, 300);
+}
+
+document.querySelectorAll("#sparProfils [data-profil]").forEach(b=>{
+  b.onclick = () => { document.querySelectorAll("#sparProfils .pill").forEach(x=>x.classList.remove("on")); b.classList.add("on"); sparProfil = b.dataset.profil; };
+});
+document.querySelectorAll("#sparCanaux [data-canal]").forEach(b=>{
+  b.onclick = () => {
+    document.querySelectorAll("#sparCanaux .pill").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); sparCanal = b.dataset.canal;
+    $("sparVoixBloc").style.display = sparCanal === "vocal" ? "block" : "none";
+  };
+});
+document.querySelectorAll("#sparNiveaux [data-niveau]").forEach(b=>{
+  b.onclick = () => { document.querySelectorAll("#sparNiveaux .pill").forEach(x=>x.classList.remove("on")); b.classList.add("on"); sparNiveau = +b.dataset.niveau; };
+});
+
+/* ---- calibration : cinq secondes chacun ---- */
+async function mesureCinqSecondes(quoi){
+  const ok = await assureMicro();
+  if(!ok){ $("calEtat").innerHTML = '<span style="color:var(--clay)">Micro refusé.</span>'; return null; }
+  demarreMesure();
+  if(!ANALYSEUR){ $("calEtat").innerHTML = '<span style="color:var(--clay)">Ce navigateur ne sait pas mesurer le son.</span>'; return null; }
+  const depart = Date.now();
+  for(let s = 5; s > 0; s--){
+    $("calEtat").innerHTML = `<span style="color:var(--amber)">${quoi} — ${s}…</span>`;
+    await new Promise(r=>setTimeout(r,1000));
+  }
+  const n = niveauDe(depart);
+  const e = empreinteDe(depart);
+  if(n === null){ $("calEtat").innerHTML = '<span style="color:var(--clay)">Rien entendu. Recommence.</span>'; return null; }
+  return {niveau:n, empreinte:e};
+}
+
+$("btnCal").onclick = async () => {
+  const b = $("calBloc");
+  b.style.display = b.style.display === "none" ? "block" : "none";
+  const vx = await Store.get("voix");
+  if(CALIBRE && vx && vx.quand){
+    const j = Math.floor((Date.now() - vx.quand)/86400000);
+    const timbre = (EMPREINTE_MOI && EMPREINTE_LUI) ? "voix et volume" : "volume seul";
+    $("calEtat").innerHTML = `<span style="color:var(--sage)">Déjà réglé (${timbre}), il y a ${j===0?"aujourd'hui":j+" jour"+(j>1?"s":"")}.</span><br><span style="color:var(--muted)">Refais-le si tu changes de pièce, de micro ou de casque.</span>`;
+  } else {
+    $("calEtat").textContent = "Commence par ta voix. Parle cinq secondes, une vraie phrase.";
+  }
+};
+$("btnCalFermer").onclick = () => { $("calBloc").style.display = "none"; };
+
+$("btnCalMoi").onclick = async () => {
+  const r = await mesureCinqSecondes("Parle normalement, une phrase entière, comme pendant un call");
+  if(!r) return;
+  NIVEAU_MOI = r.niveau; EMPREINTE_MOI = r.empreinte;
+  $("calEtat").innerHTML = EMPREINTE_MOI
+    ? '<span style="color:var(--sage)">Ta voix est enregistrée, timbre compris. Maintenant celle du prospect.</span>'
+    : '<span style="color:var(--amber)">Volume enregistré, mais pas le timbre — parle plus longtemps la prochaine fois.</span>';
+  verifieCalibration();
+};
+$("btnCalLui").onclick = async () => {
+  const r = await mesureCinqSecondes("Fais parler ton haut-parleur, ou demande à quelqu'un");
+  if(!r) return;
+  NIVEAU_LUI = r.niveau; EMPREINTE_LUI = r.empreinte;
+  verifieCalibration();
+};
+function verifieCalibration(){
+  if(!NIVEAU_MOI || !NIVEAU_LUI) return;
+  const ecartVol = Math.abs(NIVEAU_MOI - NIVEAU_LUI);
+  const ecartTimbre = (EMPREINTE_MOI && EMPREINTE_LUI)
+    ? 1 - ressemblance(EMPREINTE_MOI, EMPREINTE_LUI) : 0;
+
+  const volOk = ecartVol >= 0.008;
+  const timbreOk = ecartTimbre >= 0.06;
+  CALIBRE = volOk || timbreOk;
+
+  Store.set("voix", {moi:NIVEAU_MOI, lui:NIVEAU_LUI,
+                     empMoi:EMPREINTE_MOI, empLui:EMPREINTE_LUI, quand:Date.now()});
+
+  const pct = Math.round(ecartTimbre * 100);
+  if(timbreOk && volOk){
+    $("calEtat").innerHTML = `<span style="color:var(--sage)">Réglé, et solidement. Vos voix diffèrent de ${pct} % et vos volumes aussi. Il ne se trompera quasiment pas.</span>`;
+  } else if(timbreOk){
+    $("calEtat").innerHTML = `<span style="color:var(--sage)">Réglé. Vos volumes se ressemblent, mais vos timbres diffèrent de ${pct} % — ça suffit pour vous distinguer.</span>`;
+  } else if(volOk){
+    $("calEtat").innerHTML = `<span style="color:var(--amber)">Réglé, mais uniquement sur le volume. Vos timbres se ressemblent (${pct} % d'écart). Si tu bouges pendant le call, il pourra se tromper.</span>`;
+  } else {
+    $("calEtat").innerHTML = `<span style="color:var(--clay)">Même volume et même timbre : impossible de vous séparer.<br>Éloigne le haut-parleur ou baisse-le, et recommence en parlant plus longtemps.</span>`;
+  }
+}
+
+$("btnMicroOk").onclick = async () => {
+  const ok = await assureMicro();
+  if(ok){
+    $("btnMicroOk").textContent = "Micro autorisé";
+    $("btnMicroOk").style.borderColor = "var(--sage)";
+    $("btnMicroOk").style.color = "var(--sage)";
+    toast("Micro ouvert pour toute la session");
+  } else {
+    toast("Refusé. Va dans les réglages du site, dans Chrome.");
+  }
+};
+
+$("btnSpar").onclick = async () => {
+  $("home").style.display = "none"; $("spar").classList.add("on");
+  if(PRET) { try{ await PRET }catch(e){} }
+  majEtatCle();
+  $("sparSetup").style.display = "block"; $("sparJeu").style.display = "none";
+  $("sparDebrief").innerHTML = ""; $("spar").scrollTop = 0;
+};
+function majEtatCle(){
+  const dansClaude = !!window.storage;
+  const ok = dansClaude || !!API_KEY;
+  $("sparCle").innerHTML = dansClaude
+    ? '<span style="color:var(--sage)">Tu es dans Claude : aucune clé nécessaire.</span>'
+    : (API_KEY ? '<span style="color:var(--sage)">Clé en place.</span>'
+               : '<span style="color:var(--clay)">Il manque ta clé. Colle-la juste en dessous.</span>');
+  $("sparCleBloc").style.display = ok ? "none" : "block";
+  if(!dansClaude && API_KEY) $("sparCleInput").value = API_KEY;
+}
+
+$("btnSparCle").onclick = async () => {
+  const k = $("sparCleInput").value.trim();
+  if(!k) return toast("Colle la clé d'abord");
+  if(!/^sk-ant-/.test(k)) $("sparCleEtat").innerHTML = '<span style="color:var(--amber)">Cette clé ne commence pas par sk-ant-. Je teste quand même.</span>';
+  API_KEY = k;
+  const gardee = await Store.set("apikey", k);
+  await Store.set("cle", k);
+  $("sparCleEtat").textContent = "Test en cours…";
+  try{
+    await callClaude("Réponds uniquement : ok");
+    $("sparCleEtat").innerHTML = gardee
+      ? '<span style="color:var(--sage)">Ça répond. Clé conservée pour les prochaines fois.</span>'
+      : '<span style="color:var(--amber)">Ça répond, mais rien ne se garde ici : il faudra la recoller à chaque ouverture.</span>';
+    setTimeout(majEtatCle, 1400);
+  }catch(e){
+    API_KEY = "";
+    $("sparCleEtat").innerHTML = '<span style="color:var(--clay)">'+e.message+'</span>';
+  }
+};
+
+$("btnDiag").onclick = async () => {
+  const d = $("diag");
+  d.style.display = "block";
+  d.innerHTML = "Je regarde…";
+  const lignes = [];
+  lignes.push("Adresse : " + location.protocol);
+  lignes.push("Dans Claude : " + (window.storage ? "oui" : "non"));
+  lignes.push("Clé en mémoire : " + (API_KEY ? "oui, "+API_KEY.length+" caractères" : "non"));
+  let ls = "non";
+  try{ localStorage.setItem("_t","1"); localStorage.removeItem("_t"); ls = "oui"; }catch(e){ ls = "bloqué par le navigateur"; }
+  lignes.push("Mémoire du navigateur : " + ls);
+  const vu = await Store.get("apikey"), vu2 = await Store.get("cle");
+  lignes.push("Clé retrouvée au démarrage : " + ((vu||vu2) ? "oui" : "non"));
+  lignes.push("Voix disponibles : " + (("speechSynthesis" in window) ? speechSynthesis.getVoices().filter(v=>/^fr/i.test(v.lang)).length + " en français" : "aucune"));
+  lignes.push("Micro : " + ((window.SpeechRecognition||window.webkitSpeechRecognition) ? "disponible" : "absent de ce navigateur"));
+  d.innerHTML = lignes.map(l=>"· "+l).join("<br>")
+    + "<br><br><b style='color:var(--ink)'>Si « Dans Claude » dit non et que tu n'as pas de clé :</b> le plus simple est de rouvrir cette application depuis Claude. Aucune clé n'y est nécessaire.";
+};
+
+$("btnSparBack").onclick = () => { arreteSparMicro(); if("speechSynthesis" in window) speechSynthesis.cancel(); $("spar").classList.remove("on"); $("home").style.display = "flex"; };
+
+const PROFILS = {
+  prix:     "il trouve que c'est cher et le répète",
+  temps:    "il dit que ce n'est pas le bon moment",
+  conjoint: "il dit devoir en parler à quelqu'un avant de décider",
+  tiede:    "il est poli, d'accord avec tout, et n'avance pas",
+  curieux:  "il pose beaucoup de questions techniques sans jamais parler de lui",
+  chaud:    "il en a très envie et ça l'effraie",
+  hasard:   "au choix parmi : prix, timing, conjoint, tiédeur, curiosité stérile, peur"
+};
+
+$("btnSparGo").onclick = async () => {
+  if(sparCanal === "vocal" && !("speechSynthesis" in window)){
+    sparCanal = "ecrit";
+    toast("Ce navigateur ne sait pas parler. On passe à l'écrit.");
+  }
+  if(sparCanal === "vocal") await assureMicro();
+  const offre = $("sparOffre").value.trim() || "un accompagnement";
+  const prix = $("sparPrix").value.trim() || "3000 €";
+  $("sparEtat").textContent = "Je fabrique ton prospect…";
+  $("btnSparGo").disabled = true;
+  try{
+    const txt = await callClaude(
+`Fabrique un prospect francophone crédible pour un entraînement au closing.
+
+L'offre du closer : ${offre}. Prix : ${prix}.
+Attitude de surface : ${PROFILS[sparProfil]}.
+Dureté : ${["","souple, il lâche vite","réaliste, il faut travailler","coriace, il ne lâche rien sans une vraie question"][sparNiveau]}.
+
+Donne-lui une vie : un métier, une situation d'argent précise, une famille ou pas, une histoire.
+
+LE PLUS IMPORTANT : son VRAI blocage, celui qu'il ne dira jamais spontanément et qu'il cachera derrière son objection de surface. Il ne le livre que si le closer pose une question qui touche juste. Exemple : il dit « c'est cher », mais en vérité il s'est fait avoir par une formation l'an dernier et il a honte de le dire.
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"prenom":"prenom",
+ "age":"age",
+ "metier":"son metier en quelques mots",
+ "situation":"sa situation, argent compris, 2 phrases",
+ "objectif":"ce qu'il veut vraiment atteindre",
+ "surface":"l'objection qu'il repete, ses mots",
+ "vrai":"son blocage reel, cache",
+ "cle":"le type de question qui le ferait lacher son blocage reel",
+ "budget_reel":"peut-il payer, oui ou non, et pourquoi",
+ "ouverture":"sa toute premiere phrase quand le call commence"}`);
+    const p = JSON.parse(txt.replace(/```json|```/g,"").trim());
+    SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false};
+    $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
+    $("sparQui").textContent = `${p.prenom}, ${p.age} — ${p.metier}`;
+    $("sparDit").textContent = "« " + (p.ouverture||"Bonjour.") + " »";
+    $("sparTon").textContent = "Il ne te dira pas tout. Creuse.";
+    $("sparHisto").innerHTML = "";
+    $("sparInfo").textContent = "";
+    SPAR.tours.push({qui:"PROSPECT", txt:p.ouverture||"Bonjour."});
+    rendSparHisto();
+    $("sparEtatVocal").classList.toggle("on", sparCanal === "vocal");
+    $("btnSparRedire").style.display = sparCanal === "vocal" ? "inline-block" : "none";
+    faisParler(p.ouverture || "Bonjour.", () => ouvreTonTour());
+  }catch(e){ $("sparEtat").innerHTML = '<span style="color:var(--clay)">'+e.message+'</span>'; }
+  $("btnSparGo").disabled = false;
+};
+
+function rendSparHisto(){
+  $("sparHisto").innerHTML = SPAR.tours.map(t=>
+    `<div class="tour ${t.qui==="MOI"?"moi":""}"><div class="q">${t.qui==="MOI"?"Toi":SPAR.p.prenom}</div>${t.txt}</div>`).join("");
+}
+
+$("btnSparEnvoi").onclick = async () => {
+  const m = $("sparMoi").value.trim();
+  if(!m || !SPAR) return;
+  arreteSparMicro();
+  if("speechSynthesis" in window) speechSynthesis.cancel();
+  phase("il réfléchit", "var(--muted)", true);
+  SPAR.tours.push({qui:"MOI", txt:m});
+  $("sparMoi").value = ""; rendSparHisto();
+  $("sparDit").textContent = "…";
+  $("sparTon").textContent = "Il réfléchit.";
+  const p = SPAR.p;
+  try{
+    const txt = await callClaude(
+`Tu joues un prospect dans un entraînement au closing. Tu n'es pas un assistant. Tu ne coaches jamais. Tu es ${p.prenom}.
+
+QUI TU ES
+${p.prenom}, ${p.age}, ${p.metier}. ${p.situation}
+Ce que tu veux : ${p.objectif}
+Ce que tu répètes à voix haute : ${p.surface}
+TON VRAI BLOCAGE, SECRET : ${p.vrai}
+Tu ne le lâches que si on te pose une question de ce genre : ${p.cle}
+Ta capacité à payer : ${p.budget_reel}
+
+COMMENT TU PARLES
+Comme au téléphone. Une à trois phrases, pas plus. Du français parlé, avec des hésitations. Tu ne fais jamais de liste.
+Tu ne livres jamais ton vrai blocage spontanément. Tu te caches derrière ton objection de surface.
+Si le closer te sert un argument sans t'avoir compris, tu deviens plus fermé.
+Si sa question touche vraiment juste, tu hésites, puis tu lâches un morceau — pas tout d'un coup.
+Si on te presse de conclure sans avoir résolu ton vrai blocage, tu esquives ou tu demandes à réfléchir.
+Si ton vrai blocage a été entendu et traité correctement, tu peux dire oui.
+Dureté : ${["","tu lâches assez vite","tu résistes normalement","tu es très fermé, il faut vraiment le mériter"][sparNiveau] || "tu résistes normalement"}
+
+LE CALL JUSQU'ICI
+${SPAR.tours.map(t=>(t.qui==="MOI"?"CLOSER":p.prenom.toUpperCase())+" : "+t.txt).join("\n")}
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"dit":"ta reponse a voix haute, 1 a 3 phrases",
+ "ton":"ce que ton langage corporel ou ta voix trahit, 8 mots max",
+ "lache":true si tu viens de reveler une part de ton vrai blocage sinon false,
+ "ferme":true si la derniere intervention du closer t a fait reculer sinon false,
+ "pret":true si tu es pret a dire oui maintenant sinon false}`);
+    const r = JSON.parse(txt.replace(/```json|```/g,"").trim());
+    SPAR.tours.push({qui:"PROSPECT", txt:r.dit});
+    if(r.lache) SPAR.lache = true;
+    $("sparDit").textContent = "« " + r.dit + " »";
+    $("sparTon").textContent = r.ton || "";
+    $("sparCarte").style.borderLeftColor = r.pret ? "var(--sage)" : r.ferme ? "var(--clay)" : r.lache ? "var(--amber)" : "var(--steel)";
+    $("sparInfo").textContent = r.pret ? "Il est prêt. Demande l'engagement maintenant."
+                              : r.ferme ? "Tu l'as fait reculer."
+                              : r.lache ? "Il vient de lâcher quelque chose. Reste dessus." : "";
+    rendSparHisto();
+    $("spar").scrollTop = 0;
+    faisParler(r.dit, () => ouvreTonTour());
+  }catch(e){
+    $("sparDit").textContent = "…";
+    $("sparInfo").innerHTML = '<span style="color:var(--clay)">'+e.message+'</span>';
+  }
+};
+
+$("btnSparIndice").onclick = () => {
+  if(!SPAR) return;
+  SPAR.indices++;
+  if(sparCanal === "vocal"){ clearInterval(sparVeille); phase("à toi", "var(--amber)", true); }
+  $("sparInfo").innerHTML = `<span style="color:var(--amber)">Piste : une question du genre « ${SPAR.p.cle} » le ferait parler.</span> <span style="color:var(--muted)">(${SPAR.indices} indice${SPAR.indices>1?"s":""} utilisé${SPAR.indices>1?"s":""})</span>`;
+};
+
+function arreteSparMicro(){
+  clearInterval(sparVeille);
+  if(sparRec){ const r = sparRec; sparRec = null; r.onend = null; try{ r.stop() }catch(e){} }
+  $("btnSparMicro").textContent = "Micro";
+}
+function lanceSparMicro(){
+  if(sparRec) return true;
+  assureMicro();
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ toast("Pas de micro dans ce navigateur. Passe à l'écrit."); return false; }
+  sparRec = new SR(); sparRec.lang = "fr-FR"; sparRec.continuous = true; sparRec.interimResults = true;
+  let fige = "";
+  sparRec.onresult = e => {
+    if(sparParle) return;                 // il parle : on ne note pas sa propre voix
+    let vol = "";
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const t = e.results[i][0].transcript;
+      if(e.results[i].isFinal) fige += t + " "; else vol += t;
+    }
+    const dit = (fige + vol).trim();
+    if(dit !== $("sparMoi").value){ $("sparMoi").value = dit; sparDernierMot = Date.now(); }
+  };
+  sparRec.onend = () => { if(sparRec && !sparParle){ try{ sparRec.start() }catch(e){} } };  // Chrome coupe seul
+  sparRec.onerror = e => {
+    if(e.error === "not-allowed"){ $("sparInfo").innerHTML = '<span style="color:var(--clay)">Micro refusé. Autorise-le, ou passe à l\'écrit.</span>'; arreteSparMicro(); }
+  };
+  try{ sparRec.start(); $("btnSparMicro").textContent = "Micro actif"; return true; }
+  catch(e){ sparRec = null; return false; }
+}
+$("btnSparMicro").onclick = () => { sparRec ? arreteSparMicro() : lanceSparMicro(); };
+$("btnSparRedire").onclick = () => {
+  if(!SPAR) return;
+  const d = SPAR.tours.filter(t=>t.qui==="PROSPECT").slice(-1)[0];
+  if(d) faisParler(d.txt, ()=>ouvreTonTour());
+};
+
+$("btnSparFin").onclick = async () => {
+  if(!SPAR) return;
+  arreteSparMicro();
+  if("speechSynthesis" in window) speechSynthesis.cancel();
+  phase("terminé", "var(--line)", false);
+  $("sparDebrief").innerHTML = '<div class="block"><p style="color:var(--muted)">Débrief en cours…</p></div>';
+  const p = SPAR.p;
+  try{
+    const txt = await callClaude(
+`Voici un sparring de closing. Le closer s'entraînait contre un prospect joué par une IA.
+
+CE QUE LE CLOSER NE SAVAIT PAS :
+Le vrai blocage du prospect était : ${p.vrai}
+La question qui le débloquait ressemblait à : ${p.cle}
+Sa capacité à payer : ${p.budget_reel}
+
+LE SPARRING :
+${SPAR.tours.map(t=>(t.qui==="MOI"?"CLOSER":"PROSPECT")+" : "+t.txt).join("\n")}
+
+Débriefe sans flatterie. Le closer veut progresser, pas être rassuré.
+Vérifie : a-t-il trouvé le vrai blocage ? A-t-il traité une objection sans en connaître la cause ? A-t-il isolé quand plusieurs freins coexistaient ? A-t-il justifié ? A-t-il conclu au bon moment ?
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"trouve":true ou false selon qu il a trouve le vrai blocage,
+ "quand":"a quel moment il aurait pu le trouver, cite ses mots, ou null",
+ "note":un entier sur 10,
+ "fort":"la meilleure chose qu il a faite, cite-la",
+ "faute":"sa faute principale, cite-la",
+ "aurait_du":"la phrase exacte qu il aurait du dire, et a quel moment",
+ "exercice":"un exercice concret pour la prochaine fois, une phrase"}`);
+    const j = JSON.parse(txt.replace(/```json|```/g,"").trim());
+    const c = j.trouve ? "var(--sage)" : "var(--clay)";
+    $("sparDebrief").innerHTML = `
+      <div class="block" style="border-left:2px solid ${c}">
+        <h3>Son vrai blocage</h3>
+        <p style="font-size:17px;line-height:1.45">${p.vrai}</p>
+        <p style="margin-top:10px;color:${c};font-weight:600">${j.trouve ? "Tu l'as trouvé." : "Tu es passé à côté."}</p>
+        ${j.quand ? `<p style="font-size:13.5px;color:var(--muted);margin-top:6px">${j.quand}</p>` : ""}
+      </div>
+      <div class="block">
+        <h3>Note</h3><p style="font-family:'Archivo Narrow';font-weight:700;font-size:40px">${j.note}/10</p>
+        <p style="margin-top:14px"><strong>Ce qui était bon</strong><br>${j.fort||""}</p>
+        <p style="margin-top:12px"><strong>Ta faute principale</strong><br>${j.faute||""}</p>
+        <p style="margin-top:12px"><strong>Il fallait dire</strong><br><em>« ${j.aurait_du||""} »</em></p>
+        <p style="margin-top:12px"><strong>Pour la prochaine fois</strong><br>${j.exercice||""}</p>
+        ${SPAR.indices ? `<p style="font-size:12.5px;color:var(--muted);margin-top:14px">${SPAR.indices} indice(s) utilisé(s). En vrai call, personne ne t'en donne.</p>` : ""}
+      </div>
+      <div class="row"><button class="pill" onclick="document.getElementById('btnSpar').click()">Un autre prospect</button></div>`;
+    HISTO.push({id:SPAR.debut, date:new Date().toISOString().slice(0,10),
+                prospect:"Sparring · "+p.prenom, duree:Math.round((Date.now()-SPAR.debut)/60000),
+                resultat: j.trouve ? "relance" : "perdu", sparring:true, note:j.note,
+                objections:[p.surface||""].filter(Boolean), faites:[], bons:0, mauvais:0});
+    if(HISTO.length > 300) HISTO = HISTO.slice(-300);
+    Store.set("historique", HISTO);
+    $("sparJeu").style.display = "none";
+    $("spar").scrollTop = 0;
+  }catch(e){ $("sparDebrief").innerHTML = '<div class="block"><p style="color:var(--clay)">'+e.message+'</p></div>'; }
+};
+
+$("btnProg").onclick = () => { $("home").style.display="none"; $("prog").classList.add("on"); renderProg(); };
+$("btnProgBack").onclick = () => { $("prog").classList.remove("on"); $("home").style.display="flex"; };
+
+$("btnAnalyseHisto").onclick = async () => {
+  if(HISTO.length < 3) return toast("Il faut au moins trois calls enregistrés");
+  $("progIA").innerHTML = '<div class="block"><p style="color:var(--muted)">Analyse en cours…</p></div>';
+  const resume = HISTO.slice(-40).map(h=>
+    `${h.date} ${h.resultat} | objections: ${(h.objections||[]).join(", ")||"-"} | étapes couvertes: ${(h.faites||[]).join(", ")||"-"}`).join("\n");
+  try{
+    const txt = await callClaude(
+`Voici l'historique des calls d'un closer francophone. Une ligne par call.
+
+${resume}
+
+Trouve les régularités qui expliquent ses ventes et ses échecs. Compare ce qu'il fait dans les calls conclus et dans les calls perdus. Sois franc, chiffré, sans flatterie. Ne dis rien que les données ne montrent pas.
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"constat":"le schema principal, en 2 phrases",
+ "gagnant":"ce qui revient dans les calls conclus",
+ "perdant":"ce qui revient dans les calls perdus",
+ "levier":"la seule chose a changer en priorite, et pourquoi"}`);
+    const j = JSON.parse(txt.replace(/```json|```/g,"").trim());
+    $("progIA").innerHTML = `<div class="block"><h3>Ce que tes calls disent</h3>
+      <p><strong>Constat</strong><br>${j.constat||""}</p>
+      <p style="margin-top:12px"><strong>Dans tes calls conclus</strong><br>${j.gagnant||""}</p>
+      <p style="margin-top:12px"><strong>Dans tes calls perdus</strong><br>${j.perdant||""}</p>
+      <p style="margin-top:12px"><strong>Le levier prioritaire</strong><br>${j.levier||""}</p></div>`;
+  }catch(e){
+    $("progIA").innerHTML = `<div class="block"><p style="color:var(--clay)">${e.message}</p></div>`;
+  }
+};
+
+$("btnRejouer").onclick = () => { $("home").style.display="none"; $("rejeu").classList.add("on"); };
+$("btnRjBack").onclick = () => { $("rejeu").classList.remove("on"); $("home").style.display="flex"; };
+
+$("btnRjGo").onclick = () => {
+  const tours = parseTranscript($("rjTexte").value, $("rjMoi").value.trim() || "Woidih");
+  if(tours.length < 2){
+    const ex = $("rjTexte").value.split(/\r?\n/).filter(x=>x.trim()).slice(0,3).join("  ⏎  ");
+    $("rjInfo").innerHTML = `Tours reconnus : ${tours.length}. Voici les trois premières lignes lues :<br><span style="color:var(--ink)">${ex.slice(0,300)||"(vide)"}</span><br>Vérifie aussi que le nom saisi correspond bien au tien dans le transcript.`;
+    return;
+  }
+  const moi = tours.filter(t=>t.moi).length;
+  $("rjInfo").textContent = `${tours.length} tours reconnus — ${moi} toi, ${tours.length-moi} le prospect.`;
+  RJ = {tours, i:0, timer:null, auto: +$("rjVitesse").value};
+  S.prospect = (tours.find(t=>!t.moi)||{}).nom || "Prospect";
+  S.running = true; S.t0 = Date.now(); S.lastSpeech = Date.now();
+  $("rejeu").classList.remove("on"); $("call").classList.add("on");
+  idleCard(); loop();
+  if(RJ.auto){ RJ.timer = setInterval(tourSuivant, RJ.auto); tourSuivant(); }
+  else {
+    RYTHME = RYTHMES.manuel;
+    $("selRythme").value = "manuel";
+    $("suivant").classList.add("on");
+    $("heardTxt").textContent = "Pas à pas : appuie sur Suivant (ou ⌥N) pour la première réplique.";
+  }
+};
+
+function nettoieSousTitres(txt){
+  const lignes = txt.split(/\r?\n/);
+  const seuls = lignes.filter(l=>/^\s*\d{1,2}:\d{2}(:\d{2})?\s*$/.test(l)).length;
+  // beaucoup d'horodatages isolés = sous-titres YouTube : on recolle le texte
+  if(seuls > 5){
+    return lignes.filter(l=>!/^\s*\d{1,2}:\d{2}(:\d{2})?\s*$/.test(l))
+                 .map(l=>l.trim()).filter(Boolean).join(" ")
+                 .replace(/\s{2,}/g," ");
+  }
+  return txt;
+}
+
+let ECOLE = "moi";
+document.querySelectorAll("#ecoleChoix [data-ecole]").forEach(b=>{
+  b.onclick = () => {
+    document.querySelectorAll("#ecoleChoix .pill").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); ECOLE = b.dataset.ecole;
+    $("ecoleNom").style.display = ECOLE === "autre" ? "block" : "none";
+  };
+});
+function ecoleChoisie(){
+  if(ECOLE !== "autre") return ECOLE;
+  return ($("ecoleNom").value.trim() || "autre").toLowerCase();
+}
+
+$("btnPaste").onclick = () => {
+  const t = nettoieSousTitres($("paste").value).trim();
+  if(t.length < 300) return toast("Texte trop court");
+  const nom = $("pasteName").value.trim() || ("Collé le "+new Date().toLocaleDateString("fr-FR"));
+  $("paste").value = "";
+  ingestTexts([{text:t, source:nom}]);
+};
+
+$("btnKb").onclick = () => { $("home").style.display="none"; $("kb").classList.add("on"); renderKb(); };
+$("btnBack").onclick = () => { $("kb").classList.remove("on"); $("home").style.display="flex"; };
+$("drop").onclick = () => $("files").click();
+$("files").onchange = e => ingest(e.target.files);
+$("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("over"); };
+$("drop").ondragleave = () => $("drop").classList.remove("over");
+$("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("over"); ingest(e.dataTransfer.files); };
+$("btnStop").onclick = () => { stopFlag = true; };
+$("btnWipe").onclick = () => { if(confirm("Effacer toutes les fiches ?")){ FICHES=[]; saveKb(); } };
+$("btnExport").onclick = () => {
+  const b = new Blob([JSON.stringify(FICHES,null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(b); a.download = "ma-methode.json"; a.click();
+};
+$("btnImportKb").onclick = () => $("kbFile").click();
+$("btnMergeKb").onclick = () => $("mergeFile").click();
+/* estimation grossière : léger ≈ 0,15 c l'analyse, puissant ≈ 1,8 c ; débrief ≈ 4 c */
+function majCout(){
+  const n = $("ecoNb"); if(!n) return;
+  const cLeger = 0.15, cLourd = (CACHE.relu > 2 ? 0.95 : 1.8);
+  let cts;
+  if(CHOIX_MODELE === "auto"){
+    const lourds = Math.min(COMPTE_LOURD, COMPTEUR.direct);
+    cts = lourds*cLourd + (COMPTEUR.direct-lourds)*cLeger + COMPTEUR.fond*4;
+  } else {
+    cts = COMPTEUR.direct * (/haiku/.test(CHOIX_MODELE) ? cLeger : cLourd) + COMPTEUR.fond*4;
+  }
+  const leger = CHOIX_MODELE === LEGER;
+  n.textContent = COMPTEUR.direct + COMPTEUR.fond;
+  const ec = $("ecoCache");
+  if(ec) ec.innerHTML = CACHE.relu
+    ? `<span style="color:var(--sage)">Consignes gardées en mémoire : ${CACHE.relu} relectures. Tu paies 10 % dessus.</span>`
+    : (leger ? "Le modèle léger ne peut pas mettre en mémoire (seuil trop haut). Sans importance : il est déjà bon marché."
+             : "Mémoire pas encore active. Elle démarre à la deuxième analyse.");
+  $("ecoCout").textContent = cts < 100 ? Math.round(cts)+" c" : (cts/100).toFixed(2)+" €";
+}
+let NEW_T = [];
+document.querySelectorAll("#newTerrains [data-t]").forEach(b=>{
+  b.onclick = () => {
+    b.classList.toggle("on");
+    NEW_T = [...document.querySelectorAll("#newTerrains .pill.on")].map(x=>x.dataset.t);
+  };
+});
+$("btnAddEcole").onclick = async () => {
+  const nom = $("newEcole").value.trim();
+  if(!nom) return toast("Mets un nom");
+  if(!NEW_T.length) return toast("Dis-moi sur quoi il est fort");
+  ECOLES[nom.toLowerCase()] = {nom, terrains:[...NEW_T]};
+  await Store.set("ecoles", ECOLES);
+  $("newEcole").value = ""; NEW_T = [];
+  document.querySelectorAll("#newTerrains .pill").forEach(x=>x.classList.remove("on"));
+  majListeEcoles(); toast(nom + " ajouté");
+};
+
+const TRAME_ORIGINE = TRAME.map(e=>e.n + " — " + e.but).join("\n");
+
+function trameEnTexte(){ return TRAME.map(e=>e.n + " — " + e.but).join("\n"); }
+
+function litTrame(txt){
+  const lignes = txt.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const out = [];
+  lignes.forEach(l=>{
+    const m = l.split(/\s+[—–-]\s+/);
+    const nom = (m[0]||"").trim();
+    const but = (m[1]||nom).trim();
+    if(!nom) return;
+    const code = nom.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+                    .replace(/[^A-Z0-9]/g,"_").slice(0,14);
+    out.push({c:code, n:nom, but});
+  });
+  return out;
+}
+
+$("btnTrameSave").onclick = async () => {
+  const t = litTrame($("trameTxt").value);
+  if(t.length < 3) return toast("Il faut au moins trois étapes");
+  if(t.length > 25) return toast("Vingt-cinq étapes maximum");
+  TRAME.length = 0; t.forEach(x=>TRAME.push(x));
+  await Store.set("trame", TRAME);
+  $("trameEtat").innerHTML = '<span style="color:var(--sage)">Enregistrée. ' + TRAME.length + ' étapes. Le copilote la suivra dès le prochain call.</span>';
+  try{ majTrame(S.etape); }catch(e){}
+};
+$("btnTrameReset").onclick = async () => {
+  $("trameTxt").value = TRAME_ORIGINE;
+  const t = litTrame(TRAME_ORIGINE);
+  TRAME.length = 0; t.forEach(x=>TRAME.push(x));
+  await Store.set("trame", null);
+  $("trameEtat").textContent = "Trame d'origine rétablie.";
+};
+
+function majListeEcoles(){
+  const d = $("listeEcoles"); if(!d) return;
+  d.innerHTML = Object.entries(ECOLES).map(([k,v])=>{
+    const t = (v.terrains||[]).map(x=>({cadrage:"Cadrage",decouverte:"Découverte",objection:"Objections",closing:"Closing"}[x]||x)).join(" · ");
+    const fixe = (k === "moi" || k === "sami");
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+      <div><div style="font-weight:600">${v.nom}</div>
+      <div style="font-size:12.5px;color:var(--muted)">${t || "aucun terrain"}${v.note ? " — "+v.note : ""}</div></div>
+      ${fixe ? "" : `<button class="pill" data-del="${k}" style="font-size:12px;padding:5px 11px">Retirer</button>`}
+    </div>`;
+  }).join("");
+  d.querySelectorAll("[data-del]").forEach(b=>{
+    b.onclick = async () => {
+      delete ECOLES[b.dataset.del];
+      await Store.set("ecoles", ECOLES);
+      majListeEcoles();
+    };
+  });
+}
+
+function majParEcole(){
+  const d = $("parEcole"); if(!d) return;
+  const c = {};
+  FICHES.forEach(f=>{ const e = f.ecole || "moi"; c[e] = (c[e]||0)+1; });
+  const total = FICHES.length || 1;
+  const nom = e => e === "moi" ? "Mes calls" : e === "sami" ? "Sami" : e;
+  const rangs = Object.entries(c).sort((a,b)=>b[1]-a[1]);
+  const miennes = (c.moi||0) + (c.sami||0);
+  d.innerHTML = rangs.map(([e,n])=>{
+    const pct = Math.round(n/total*100);
+    const col = (e==="moi") ? "var(--sage)" : (e==="sami") ? "var(--steel)" : "var(--amber)";
+    return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line)">
+      <span>${nom(e)}</span><span style="color:${col}">${n} · ${pct}%</span></div>`;
+  }).join("")
+  + (miennes < total/2
+      ? `<p style="color:var(--clay);margin-top:10px;font-size:13px">Attention : moins de la moitié de ta base vient de toi ou de Sami.</p>`
+      : "");
+}
+
+function majEcoDetail(){
+  const e = ECO;
+  $("ecoDetail").textContent = e.antic
+    ? `Il regarde ${e.tours} tours de parole, ${e.fiches} fiches, et se déclenche dès ${e.motsMin} mots.`
+    : `Il regarde ${e.tours} tours de parole, ${e.fiches} fiches, attend ${e.motsMin} mots, et n'anticipe pas. C'est le plus sobre, mais il répond un peu plus tard.`;
+}
+$("selEco").onchange = async e => {
+  ECO = ECOS[e.target.value] || ECOS.normal;
+  await Store.set("eco", e.target.value);
+  majEcoDetail();
+  toast("Réglage " + ECO.nom.toLowerCase());
+};
+
+function majModeleDetail(){
+  const d = $("modeleDetail"); if(!d) return;
+  d.textContent = CHOIX_MODELE === "auto"
+    ? "Le léger fait tourner le call. Le puissant prend la main quand une objection est ouverte, quand on parle d'argent, quand le prospect fait un long monologue, ou dans le dernier tiers du call."
+    : CHOIX_MODELE === LEGER
+      ? "Le moins cher. Suffisant pour suivre la trame et repérer ce qui manque."
+      : "Le plus fin sur les nuances, mais deux fois plus cher, même avec la mémoire.";
+}
+$("selModele").onchange = async e => {
+  CHOIX_MODELE = e.target.value;
+  MODELE_DIRECT = CHOIX_MODELE === "auto" ? LEGER : CHOIX_MODELE;
+  await Store.set("modele", CHOIX_MODELE);
+  majModeleDetail(); majCout(); toast("Réglage enregistré");
+};
+$("mergeFile").onchange = async e => {
+  try{
+    const arr = JSON.parse(await e.target.files[0].text());
+    if(!Array.isArray(arr)) return toast("Fichier non reconnu");
+    let n = 0;
+    arr.forEach(f=>{ if(f.phrase && !FICHES.some(x=>x.phrase===f.phrase)){ FICHES.push(f); n++; } });
+    saveKb(); toast(n+" fiches ajoutées");
+  }catch(_){ toast("Fichier illisible"); }
+};
+$("kbFile").onchange = async e => {
+  try{
+    const arr = JSON.parse(await e.target.files[0].text());
+    if(Array.isArray(arr)){ FICHES = arr; saveKb(); toast(arr.length+" fiches chargées"); }
+  }catch(_){ toast("Fichier illisible"); }
+};
+loadApprentissage();
+loadKb();
+
+/* =========================================================
+   8. FIN DE CALL + RAPPORT
+   ========================================================= */
+$("btnEnd").onclick = () => {
+  S.running=false;
+  try{rec.stop()}catch(_){}
+  const dur=(Date.now()-S.t0)/1000;
+  $("call").classList.remove("on");
+  $("report").classList.add("on");
+  Store.set("call_en_cours", null);   // le call est fini, plus rien à reprendre
+  const bq = rendQuatre();
+  if(bq){ const d = document.createElement("div"); d.innerHTML = bq;
+    const w = document.querySelector("#report .wrap");
+    if(w && w.firstChild) w.insertBefore(d, w.children[2] || null); }
+  rendSignaux();
+  rendJournal();
+  $("rTitle").textContent = S.prospect + " · " + fmt(dur);
+
+  const objs=S.events.filter(e=>e.type==="OBJ");
+  const buys=S.events.filter(e=>e.type==="BUY");
+
+  $("rStats").innerHTML = [
+    ["Durée",fmt(dur)],["Objections",objs.length],["Signaux d'achat",buys.length],
+    ["Questions",S.qCount],["Alertes dérive",S.driftCount],["Analyses IA",COMPTEUR.direct+COMPTEUR.fond]
+  ].map(([l,n])=>`<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+
+  $("rObj").innerHTML = objs.length
+    ? "<ul>"+objs.map(o=>`<li><strong>${fmt(o.t)} — ${o.label}</strong><br><span style="color:var(--muted)">« ${o.text} »</span></li>`).join("")+"</ul>"
+    : '<p style="color:var(--muted)">Aucune objection détectée.</p>';
+
+  $("rBuy").innerHTML = buys.length
+    ? "<ul>"+buys.map(b=>`<li>${fmt(b.t)} — « ${b.text} »</li>`).join("")+"</ul>"
+    : '<p style="color:var(--muted)">Aucun signal d\'achat détecté.</p>';
+
+  $("rTrame").innerHTML = TRAME.map(e=>{
+    const ok = S.faites.includes(e.c);
+    return `<div class="metric"><span style="color:${ok?"var(--ink)":"var(--muted)"}">${e.n}</span><span style="color:${ok?"var(--sage)":"var(--clay)"}">${ok?"couvert":"sauté"}</span></div>`;
+  }).join("") + `<p style="font-size:12.5px;color:var(--muted);margin-top:12px">Une étape sautée n'est pas forcément une faute — mais si le call a échoué, regarde d'abord là.</p>`;
+
+  $("rTrans").textContent = S.transcript.map(x=>fmt(x.t)+"  "+(x.qui||"?")+" : "+x.text).join("\n");
+  coachReport(objs,buys,dur);
+};
+
+async function coachReport(objs,buys,dur){
+  const tr = S.transcript.map(x=>fmt(x.t)+" "+(x.qui||"?")+" : "+x.text).join("\n").slice(-14000);
+  try{
+    const txt = await callClaude(
+`Voici la transcription brute d'un call de closing (micro unique, les deux voix sont mélangées, il y a des erreurs de transcription).
+
+${tr}
+
+Objections détectées : ${objs.map(o=>o.label).join(", ")||"aucune"}
+Alertes de dérive : ${S.driftCount}
+
+Étapes de la trame couvertes : ${S.faites.join(", ")||"aucune"}
+Étapes sautées : ${TRAME.filter(e=>!S.faites.includes(e.c)).map(e=>e.c).join(", ")||"aucune"}
+
+SIGNAUX ANNONCIATEURS REPÉRÉS PENDANT LE CALL :
+${S.signaux.length ? S.signaux.map(x=>`[${fmt(x.t)}] ${x.type} — « ${x.cite} » — ${x.sens}`).join("\n") : "aucun"}
+Regarde si le closer a exploité ces signaux ou s'il est passé dessus. Un signal repéré et jamais repris est une occasion manquée.
+
+LES ÉCOLES DE CE CLOSER ET LEUR TERRAIN :
+${Object.entries(ECOLES).map(([k,v])=>`${v.nom} : fort sur ${(v.terrains||[]).join(", ")}`).join("\n")}
+
+Tu dois juger CHAQUE PHASE avec les yeux de l'école qui la maîtrise. La découverte se juge sur la prévention des freins : un frein qui sort à la fin est un frein qui n'a pas été désamorcé au début. Les objections se jugent sur le diagnostic, l'isolation, puis le retournement. Le closing se juge sur la demande d'engagement et la sécurisation d'un acompte.
+
+Fais un débrief franc, sans flatterie. Suis le call du début à la fin, pas seulement la dernière minute.
+Vérifie en particulier : le closer a-t-il traité une objection dont la cause n'était pas certaine ? A-t-il traité alors que plusieurs freins coexistaient sans être isolés ? A-t-il justifié le prix ? A-t-il continué à pousser sans capacité financière démontrée ?
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"deroule":"le fil du call en 3 phrases, dans l ordre chronologique",
+ "objections":[{"quand":"mm:ss","quoi":"objection","traitee":"bien|mal|esquivee","commentaire":"une phrase"}],
+ "trame":"ce qui a manque dans la trame et ce que ca a coute",
+ "decouverte":{"note":7,"bien":"ce qui a marche","rate":"le frein sorti plus tard qui aurait du etre desamorce ici, cite ses mots","angle":"la question exacte qui l aurait desamorce"},
+ "objections":{"note":7,"bien":"ce qui a marche","rate":"a-t-il traite sans cause certaine, sans isoler, ou a-t-il justifie","angle":"la phrase exacte a dire a la place"},
+ "closing":{"note":7,"bien":"ce qui a marche","rate":"a-t-il demande l engagement, securise un acompte","angle":"la phrase exacte manquante"},
+ "erreur":"l erreur principale, avec le moment precis",
+ "a_dire":"ce qu il fallait dire a la place, mot pour mot",
+ "fort":"ce qui a bien marche, precisement",
+ "correctif":"une seule chose a corriger au prochain call"}`);
+    const j=JSON.parse(txt.replace(/```json|```/g,"").trim());
+    const objs2 = (j.objections||[]).map(o=>{
+      const c = o.traitee==="bien" ? "var(--sage)" : o.traitee==="mal" ? "var(--clay)" : "var(--amber)";
+      return `<div class="metric"><span>${o.quand||""} — ${o.quoi||""}</span><span style="color:${c}">${o.traitee||""}</span></div>
+              <p style="font-size:13px;color:var(--muted);margin:2px 0 10px">${o.commentaire||""}</p>`;
+    }).join("");
+    $("rCoach").innerHTML =
+      `<p><strong>Le déroulé</strong><br>${j.deroule||""}</p>
+       ${objs2 ? `<p style="margin-top:14px"><strong>Objection par objection</strong></p>${objs2}` : ""}
+       <p style="margin-top:12px"><strong>La trame</strong><br>${j.trame||""}</p>
+       ${["decouverte","objections","closing"].map(k=>{
+          const p = j[k]; if(!p) return "";
+          const titre = {decouverte:"Découverte", objections:"Objections", closing:"Closing"}[k];
+          const c = (p.note>=7) ? "var(--sage)" : (p.note>=5) ? "var(--amber)" : "var(--clay)";
+          return `<div style="border-left:2px solid ${c};padding-left:13px;margin:18px 0">
+            <div style="font-family:'Archivo Narrow';font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:${c}">${titre} · ${p.note}/10</div>
+            <p style="font-size:13.5px;margin-top:5px"><span style="color:var(--muted)">Bien :</span> ${p.bien||""}</p>
+            <p style="font-size:13.5px;margin-top:4px"><span style="color:var(--muted)">Raté :</span> ${p.rate||""}</p>
+            <p style="font-size:14.5px;margin-top:6px"><em>« ${p.angle||""} »</em></p>
+          </div>`;
+       }).join("")}
+       <p style="margin-top:12px"><strong>Erreur principale</strong><br>${j.erreur||""}</p>
+       <p style="margin-top:12px"><strong>Il fallait dire</strong><br><em>« ${j.a_dire||""} »</em></p>
+       <p style="margin-top:12px"><strong>Ce qui a bien marché</strong><br>${j.fort||""}</p>
+       <p style="margin-top:12px"><strong>À corriger au prochain call</strong><br>${j.correctif||""}</p>`;
+  }catch(e){
+    $("rCoach").innerHTML='<p style="color:var(--muted)">Analyse indisponible. La transcription et les objections restent ci-dessous.</p>';
+  }
+}
+
+document.querySelectorAll("[data-res]").forEach(b=>{
+  b.onclick = async () => {
+    const res = b.dataset.res;
+    const objs = S.events.filter(e=>e.type==="OBJ").map(e=>e.label);
+    const bons = S.events.filter(e=>e.type==="VOTE+").length;
+    const mauvais = S.events.filter(e=>e.type==="VOTE-").length;
+    HISTO = HISTO.filter(h=>h.id !== S.t0);
+    HISTO.push({id:S.t0, date:new Date().toISOString().slice(0,10), prospect:S.prospect,
+                duree:Math.round((Date.now()-S.t0)/60000), resultat:res,
+                objections:objs, faites:S.faites.slice(), bons, mauvais,
+                analyses:COMPTEUR.direct+COMPTEUR.fond});
+    if(HISTO.length > 300) HISTO = HISTO.slice(-300);
+    await Store.set("historique", HISTO);
+    document.querySelectorAll("[data-res]").forEach(x=>x.classList.remove("vote","on"));
+    b.classList.add("vote","on");
+    $("resEtat").textContent = "Enregistré. "+HISTO.length+" calls dans ton historique.";
+  };
+});
+
+/* AUDIT — le copilote juge le call sans connaître ton analyse.
+   C'est la seule façon de mesurer s'il vaut quelque chose. */
+function rendJournal(){
+  const b = $("journalBloc");
+  if(!JOURNAL.length){ b.style.display = "none"; return; }
+  b.style.display = "block";
+  const ok = JOURNAL.filter(x=>x.ok).length;
+  const raisons = {};
+  JOURNAL.filter(x=>!x.ok).forEach(x=>{ raisons[x.raison] = (raisons[x.raison]||0)+1; });
+  const top = Object.entries(raisons).sort((a,b)=>b[1]-a[1]);
+  $("journalTxt").innerHTML =
+    `<div style="font-family:'Archivo Narrow';font-size:14px;margin-bottom:12px">
+       ${ok} analysés sur ${JOURNAL.length} prises de parole
+     </div>
+     <div style="margin-bottom:14px">${top.map(([r,n])=>`<div style="color:var(--muted)">${n}× ignoré — ${r}</div>`).join("")}</div>`
+    + JOURNAL.map(x=>{
+        const c = x.ok ? "var(--sage)" : x.raison.startsWith("ERREUR") ? "var(--clay)" : "var(--muted)";
+        return `<div style="padding:3px 0;border-bottom:1px solid var(--line)">
+          <span style="color:var(--muted)">${fmt(x.t)}</span>
+          <span style="color:${x.qui==="MOI"?"var(--amber)":"var(--steel)"}"> ${x.qui||"—"}</span>
+          <span style="color:${c}"> ${x.ok?"✓":"·"} ${x.raison}</span>
+          <div style="color:var(--ink);opacity:.7;padding-left:14px">${(x.text||"").replace(/</g,"&lt;")}</div>
+        </div>`;
+      }).join("");
+  $("btnCopyJournal").onclick = () => {
+    const t = JOURNAL.map(x=>`${fmt(x.t)} ${x.qui||"-"} ${x.ok?"ANALYSE":"ignore"} (${x.raison}) : ${x.text}`).join("\n");
+    navigator.clipboard.writeText(t).then(()=>toast("Journal copié"), ()=>toast("Copie refusée"));
+  };
+}
+
+function rendQuatre(){
+  if(!S.manquantes) return "";
+  const noms = {probleme_brulant:"problème brûlant", desir_engagement:"désir et engagement",
+                aveu_incapacite:"aveu qu'il ne s'en sort pas seul", confiance:"confiance"};
+  const tous = Object.keys(noms);
+  return `<div class="block"><h3>Les quatre conditions avant de pitcher</h3>` +
+    tous.map(k=>{
+      const ok = !S.manquantes.includes(k);
+      return `<div class="metric"><span>${noms[k]}</span><span style="color:${ok?"var(--sage)":"var(--clay)"}">${ok?"obtenu":"jamais obtenu"}</span></div>`;
+    }).join("") +
+    `<p style="font-size:12.5px;color:var(--muted);margin-top:10px">Une objection en fin de call vient presque toujours d'une de ces quatre qui n'a jamais été obtenue.</p></div>`;
+}
+
+function rendSignaux(){
+  const b = $("signauxBloc");
+  if(!S.signaux.length){ b.style.display = "none"; return; }
+  b.style.display = "block";
+  $("signauxTxt").innerHTML = S.signaux.map(x=>
+    `<div class="sig"><div class="h">${fmt(x.t)} · ${x.type}</div>
+     <p style="font-size:14.5px;margin-top:3px">« ${x.cite} »</p>
+     <p style="font-size:13px;color:var(--muted);margin-top:3px">${x.sens}</p></div>`).join("");
+}
+
+$("btnAudit").onclick = async () => {
+  $("auditBloc").style.display = "block";
+  $("auditTxt").innerHTML = '<p style="color:var(--muted)">Relecture du call…</p>';
+  const tr = S.transcript.map(x=>fmt(x.t)+" "+(x.qui||"?")+" : "+x.text).join("\n").slice(-16000);
+  try{
+    const txt = await callClaude(
+`Voici la transcription horodatée d'un call de closing en français. CLOSER est le vendeur, PROSPECT le client.
+
+${tr}
+
+Relis ce call comme un coach de closing exigeant. Repère UNIQUEMENT les moments décisifs où le closer aurait dû agir autrement.
+
+Pour chaque moment, dis quelle était la bonne action parmi : ATTENDRE, DIAGNOSTIQUER, ISOLER, TRAITER, CLOSER, NE PLUS POUSSER.
+
+Applique ces règles :
+- Traiter une objection dont la cause n'est pas certaine est une faute.
+- Traiter alors que plusieurs freins coexistent sans être isolés est une faute.
+- Justifier le prix est une faute.
+- Continuer à pousser quand la capacité financière n'est pas démontrée est une faute.
+- Parler quand le prospect était sur le point de livrer quelque chose est une faute.
+
+Maximum 6 moments, les plus décisifs. Cite les mots exacts. Ne dis rien que la transcription ne montre pas.
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"moments":[{"quand":"mm:ss","cite":"mots exacts","fait":"ce que le closer a fait","attendu":"ATTENDRE|DIAGNOSTIQUER|ISOLER|TRAITER|CLOSER|NE PLUS POUSSER","dire":"la phrase exacte a dire a la place","pourquoi":"une phrase"}],
+ "bascule":"le moment precis ou le call a bascule, mm:ss et pourquoi",
+ "verdict":"ce call etait-il gagnable, et a quelle condition"}`);
+    const j = JSON.parse(txt.replace(/```json|```/g,"").trim());
+    $("auditTxt").innerHTML =
+      (j.moments||[]).map(m=>`
+        <div style="border-left:2px solid var(--amber);padding-left:12px;margin-bottom:16px">
+          <div class="eyebrow">${m.quand||""} · ${m.attendu||""}</div>
+          <p style="color:var(--muted);font-size:13.5px;margin:4px 0">« ${m.cite||""} »</p>
+          <p style="font-size:13.5px">Tu as : ${m.fait||""}</p>
+          <p style="font-size:14.5px;margin-top:6px"><em>« ${m.dire||""} »</em></p>
+          <p style="font-size:12.5px;color:var(--muted);margin-top:4px">${m.pourquoi||""}</p>
+        </div>`).join("")
+      + `<p style="margin-top:8px"><strong>Bascule</strong><br>${j.bascule||""}</p>
+         <p style="margin-top:12px"><strong>Verdict</strong><br>${j.verdict||""}</p>
+         <p style="font-size:12.5px;color:var(--muted);margin-top:14px">Compare avec ce que tu sais déjà de ce call. S'il tombe juste sur dix calls dont tu connais l'issue, il vaut quelque chose. Sinon, il reste à corriger.</p>`;
+  }catch(e){
+    $("auditTxt").innerHTML = `<p style="color:var(--clay)">${e.message}</p>`;
+  }
+};
+
+$("btnCopyReport").onclick = () => {
+  navigator.clipboard.writeText(document.querySelector("#report .wrap").innerText);
+  toast("Rapport copié");
+};
+$("btnNew").onclick = () => location.reload();
+</script>
+</body>
+</html>
