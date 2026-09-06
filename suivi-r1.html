@@ -185,6 +185,7 @@ a{color:var(--steel)}
       <p class="note" style="margin-bottom:14px">Mets ton téléphone sur <b style="color:var(--ink)">haut-parleur</b>, pose-le à côté de cet écran, et lance l'écoute. Préviens ton interlocuteur que tu enregistres : c'est la loi, et ça se dit en une phrase.</p>
       <div id="onde2" style="height:34px;display:flex;align-items:flex-end;gap:3px;margin:14px 0"></div>
       <div class="chrono" id="chrono2">0:00</div>
+      <p id="etatEcoute2" style="font-size:12.5px;color:var(--muted);margin-top:6px"></p>
       <div class="row" style="margin-top:14px">
         <button class="pill" id="btnEcoute">Lancer l'écoute</button>
         <button class="pill" id="btnStopEcoute" style="display:none">Arrêter et faire la synthèse</button>
@@ -393,14 +394,22 @@ function nouveauMicro(surTexte, surErreur){
   if(!R){ surErreur("Ce navigateur ne sait pas transcrire. Utilise Chrome, ou colle un texte."); return null; }
   const rec = new R();
   rec.lang = "fr-FR"; rec.continuous = true; rec.interimResults = true;
+  // Chrome jette régulièrement des erreurs passagères sur les longues écoutes :
+  // coupure réseau d'une seconde, silence, redémarrage interne. Elles ne doivent
+  // PAS arrêter un call de quinze minutes. Seules deux erreurs sont vraiment finales.
+  const FATALES = {"not-allowed":"Micro refusé. Autorise-le dans les réglages du navigateur.",
+                   "service-not-allowed":"Micro bloqué par le navigateur.",
+                   "audio-capture":"Aucun micro trouvé."};
   rec.onerror = e => {
-    const m = {"not-allowed":"Micro refusé. Autorise-le dans les réglages du navigateur.",
-               "no-speech":"Rien entendu.","audio-capture":"Aucun micro trouvé.",
-               "network":"La transcription a besoin d'Internet."};
-    surErreur(m[e.error] || ("Micro : "+e.error));
+    if(FATALES[e.error]){ rec._fatal = true; surErreur(FATALES[e.error]); return; }
+    // passagère : on note et on laisse le redémarrage automatique faire son travail
+    rec._passageres = (rec._passageres || 0) + 1;
+    if(rec._passageres > 40){ rec._fatal = true; surErreur("Trop de coupures. Vérifie ta connexion."); }
   };
   let fige = "";
+  rec._texte = () => fige;
   rec.onresult = e => {
+    rec._passageres = 0;                    // ça remarche, on repart de zéro
     let vol = "";
     for(let i = e.resultIndex; i < e.results.length; i++){
       const t = e.results[i][0].transcript;
@@ -455,16 +464,33 @@ $("btnEcoute").onclick = async () => {
   $("micErr2").textContent = "";
   recEcoute = nouveauMicro(t => $("ecoute").value = t, e => { $("micErr2").textContent = e; arreteEcoute(); });
   if(!recEcoute) return;
-  recEcoute.onend = () => { if(recEcoute){ try{ recEcoute.start() }catch(e){} } };  // les calls durent, le micro coupe seul
+  // Un R1 dure dix à quinze minutes. Chrome coupe la reconnaissance toutes les
+  // minutes environ, et parfois plusieurs fois d'affilée. On relance sans relâche,
+  // avec une petite pause pour éviter les rafales.
+  recEcoute.onend = () => {
+    if(!recEcoute || recEcoute._fatal) return;
+    setTimeout(()=>{
+      if(recEcoute && !recEcoute._fatal){
+        try{ recEcoute.start() }catch(e){}
+      }
+    }, 300);
+  };
   try{ recEcoute.start(); }catch(e){ $("micErr2").textContent = "Le micro est déjà pris."; return; }
   tEcoute = Date.now();
   $("btnEcoute").style.display="none"; $("btnStopEcoute").style.display="inline-block";
   animeOnde($("onde2"), ()=>!!recEcoute);
-  chr2 = setInterval(()=> $("chrono2").textContent = mmss((Date.now()-tEcoute)/1000), 300);
+  chr2 = setInterval(()=>{
+    $("chrono2").textContent = mmss((Date.now()-tEcoute)/1000);
+    const mots = ($("ecoute").value || "").split(/\s+/).filter(Boolean).length;
+    $("etatEcoute2").innerHTML = recEcoute
+      ? '<span style="color:var(--sage)">écoute en cours · ' + mots + ' mots transcrits</span>'
+      : "";
+  }, 500);
 };
 function arreteEcoute(){
   if(recEcoute){ const r = recEcoute; recEcoute = null; r.onend = null; try{r.stop()}catch(e){} }
   clearInterval(chr2);
+  if($("etatEcoute2")) $("etatEcoute2").textContent = "";
   $("btnEcoute").style.display="inline-block"; $("btnStopEcoute").style.display="none";
 }
 $("btnStopEcoute").onclick = () => { arreteEcoute(); $("btnSynthese").click(); };
