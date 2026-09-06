@@ -608,7 +608,7 @@ aside{
 
     <div class="block" id="keyBox">
       <h3>Clé API</h3>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Nécessaire uniquement si tu ouvres ce fichier depuis ton ordinateur. Dans Claude, laisse vide. Ta clé reste sur ta machine, elle n'est envoyée qu'à Anthropic.</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Nécessaire uniquement si tu ouvres ce fichier depuis ton ordinateur. Dans Claude, laisse vide. La clé reste seulement en mémoire jusqu'à la fermeture de l’onglet et n’est envoyée qu’à Anthropic.</p>
       <input id="apiKey" placeholder="sk-ant-..." style="background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:11px 14px;border-radius:9px;font-size:14px;width:100%;font-family:inherit">
       <button class="pill" id="btnKey" style="margin-top:10px">Enregistrer la clé</button>
       <select id="selModele" class="pill" style="background:var(--bg);margin-top:10px;width:100%">
@@ -1067,6 +1067,14 @@ let verrouJusqu = 0, carteEnFile = null;
 
 const $ = id => document.getElementById(id);
 const fmt = s => String(Math.floor(s/60)).padStart(2,'0')+":"+String(Math.floor(s%60)).padStart(2,'0');
+/* Toute donnée issue d'un prospect, d'un import ou du modèle est non fiable. */
+const escapeHTML = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+function parseModelJson(text){
+  const clean = String(text || "").replace(/```(?:json)?/gi, "").trim();
+  const start = clean.search(/[\[{]/), end = Math.max(clean.lastIndexOf("}"), clean.lastIndexOf("]"));
+  if(start < 0 || end < start) throw new Error("Réponse IA invalide.");
+  return JSON.parse(clean.slice(start, end + 1));
+}
 
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1800); }
 
@@ -1198,6 +1206,12 @@ function quiParle(niveau, empreinte){
 }
 
 let FLUX_MICRO = null;
+function stopAudio(){
+  clearInterval(mesureId); mesureId = null;
+  if(FLUX_MICRO){ FLUX_MICRO.getTracks().forEach(track => track.stop()); FLUX_MICRO = null; }
+  if(AUDIO){ try{ AUDIO.close(); }catch(_){} }
+  AUDIO = null; ANALYSEUR = null; DONNEES = null; SPECTRE = null; mesures = [];
+}
 async function assureMicro(){
   if(FLUX_MICRO && FLUX_MICRO.active) return true;
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
@@ -1313,6 +1327,14 @@ function initRec(){
 
 /* --- 2. CHAQUE PHRASE ENTENDUE --- */
 function nouvellePhrase(text, detecte){
+  /* Une recommandation fondée sur une phrase déjà dépassée est pire qu'aucune
+     recommandation. On invalide l'analyse dès qu'un nouveau tour arrive,
+     plutôt que d'attendre le délai avant la prochaine analyse. */
+  clearTimeout(ECOUTE.horloge);
+  if(ECOUTE.enCours && ECOUTE.annuleur){
+    try{ ECOUTE.annuleur.abort(); }catch(_){}
+    ECOUTE.enCours = false;
+  }
   const t = (Date.now() - S.t0) / 1000;
 
   // qui parle : la voix décide, ton bouton reste maître
@@ -1403,6 +1425,7 @@ async function lancerAnalyse(){
   if(!S.running) return;
   const derniers = S.transcript.slice(-1)[0];
   if(!derniers) return;
+  const tourAnalyse = S.transcript.length;
 
   // une analyse plus récente prime toujours sur celle qui tourne
   if(ECOUTE.enCours && ECOUTE.annuleur){
@@ -1433,8 +1456,13 @@ PHASE ACTUELLE : ${tr.terrain.toUpperCase()} — ${TERRAINS[tr.terrain]}
 ${specialistes.length ? "Écoles fortes sur cette phase : " + specialistes.join(", ") + "." : ""}
 À qualité égale, préfère toujours une fiche issue de ses propres calls, puis de son coach.`;
 
-  const dial = S.transcript.slice(-ECO.tours)
+  /* Six micro-phrases ne donnent presque jamais la raison d'un revirement.
+     On garde les derniers échanges complets, avec une limite de taille pour
+     rester rapide et ne pas gonfler les coûts. */
+  const dial = S.transcript.slice(-Math.max(ECO.tours, 10))
     .map(x => `[${fmt(x.t)}] ${x.qui} : ${x.text}`).join("\n");
+  const dernierProspect = [...S.transcript].reverse().find(x=>x.qui === "PROSPECT");
+  const dernierCloser = [...S.transcript].reverse().find(x=>x.qui === "CLOSER");
 
   try{
     const txt = await callClaudeStream(
@@ -1445,6 +1473,8 @@ DERNIÈRES MINUTES DE CONVERSATION
 ${dial}
 
 DERNIÈRE PHRASE ENTENDUE : "${derniers.text}" — dite par ${derniers.qui}
+SUJET À SUIVRE EN PRIORITÉ : ${dernierProspect ? `« ${dernierProspect.text} » (prospect)` : "pas encore de sujet exprimé"}
+DERNIÈRE QUESTION DU CLOSER : ${dernierCloser && estUneQuestion(dernierCloser.text) ? `« ${dernierCloser.text} »` : "aucune"}
 ${bloc}${lecons}
 ${orientation}
 
@@ -1453,10 +1483,11 @@ ${orientation}
 ${S.forceTraitement ? "\nLE CLOSER DEMANDE EXPLICITEMENT DE PASSER AU TRAITEMENT MAINTENANT. Donne-lui le meilleur reframe disponible, même si tu aurais préféré creuser davantage." : ""}
 
 Analyse maintenant, selon les consignes reçues.`,
-      afficheFlux, CONSIGNES(), monTour.signal);
+      txt => { if(ECOUTE.annuleur === monTour && !monTour.signal.aborted) afficheFlux(txt); }, CONSIGNES(), monTour.signal);
 
-    if(monTour.signal.aborted) return;
-    const j = JSON.parse(txt.replace(/```json|```/g, "").trim());
+    if(monTour.signal.aborted || ECOUTE.annuleur !== monTour || S.transcript.length !== tourAnalyse) return;
+    const j = parseModelJson(txt);
+    if(!j || typeof j !== "object" || Array.isArray(j)) throw new Error("Réponse IA hors format.");
     if(j.signal && j.signal.cite && !S.signaux.some(x => x.cite === j.signal.cite)){
       S.signaux.push({t:(Date.now()-S.t0)/1000, type:j.signal.type||"signal",
                       cite:j.signal.cite, sens:j.signal.sens||""});
@@ -1467,7 +1498,7 @@ Analyse maintenant, selon les consignes reçues.`,
     ECOUTE.derniereAnalyse = Date.now();
     ECOUTE.erreur = "";
   }catch(e){
-    if(monTour.signal.aborted || e.name === "AbortError"){ ECOUTE.enCours = false; return; }
+    if(monTour.signal.aborted || e.name === "AbortError"){ if(ECOUTE.annuleur === monTour) ECOUTE.enCours = false; return; }
     ECOUTE.erreur = e.message;
     JOURNAL.push({t:(Date.now()-S.t0)/1000, text:"", qui:"", ok:false, raison:"ERREUR — "+e.message});
     $("card").className = "card hot";
@@ -1476,8 +1507,7 @@ Analyse maintenant, selon les consignes reçues.`,
     $("phrase").className = "";
     $("phrase").textContent = e.message;
   }
-  ECOUTE.enCours = false;
-  majEtatMoteur();
+  if(ECOUTE.annuleur === monTour){ ECOUTE.enCours = false; majEtatMoteur(); }
 }
 
 /* Autre angle : on fait défiler les formulations disponibles pour la même objection */
@@ -1544,6 +1574,11 @@ function CONSIGNES(){
 TRAME DU CALL (ordre de référence, on peut revenir en arrière) :
 ${TRAME.map(e=>e.c+' — '+e.but).join('\n')}
 
+RÈGLE DE PRIORITÉ — SUIS LA CONVERSATION AVANT LA TRAME.
+Le dernier sujet réellement développé par le PROSPECT est prioritaire. Ne ramène jamais la discussion à une étape précédente simplement parce qu'elle manque dans la trame. La trame est une carte de vérification, pas un script à imposer.
+Si le prospect répond à une question, commence par l'aider à aller plus loin sur SA réponse. S'il change de sujet, abandonne le sujet précédent, sauf s'il le relie lui-même. Ne propose une nouvelle couche de découverte que lorsqu'il a fini son idée et qu'aucun sujet plus vivant n'est ouvert.
+Ne répète pas une question déjà posée, ne résume pas ce qu'il vient de dire pour le faire rentrer dans une catégorie, et n'invente jamais une objection parce qu'une étape de la trame reste vide.
+
 Analyse la situation RÉELLE, pas un mot-clé isolé. Demande-toi :
 - À quelle étape de la trame on se trouve maintenant ?
 - Qu'est-ce qui manque encore à cette étape avant de passer à la suite ?
@@ -1553,7 +1588,7 @@ Analyse la situation RÉELLE, pas un mot-clé isolé. Demande-toi :
 
 TON RÔLE PRINCIPAL N'EST PAS DE TRAITER DES OBJECTIONS. Il est de dire au closer OÙ CREUSER MAINTENANT.
 Un call de découverte se gagne en allant chercher, couche après couche, ce que le prospect n'a pas encore donné. Les objections ne sont qu'un cas particulier, et elles arrivent surtout quand la découverte a été bâclée.
-À CHAQUE tour de parole, tu dois pouvoir répondre à une seule question : quelle est la PROCHAINE CHOSE à aller chercher, et par quelle question exactement ?
+À CHAQUE tour de parole, tu dois pouvoir répondre à une seule question : quelle est la PROCHAINE CHOSE UTILE à faire à partir de ce qui vient d'être dit, et par quelle question exactement ?
 Tu donnes donc TOUJOURS une question à poser dans le champ "phrase", même quand l'action est d'attendre — dans ce cas c'est la question à poser dès qu'il aura fini.
 
 L'OUVERTURE, si le call vient de commencer :
@@ -1561,7 +1596,7 @@ L'OUVERTURE, si le call vient de commencer :
 Cinq éléments à préserver si tu la reformules : montrer qu'on a préparé, dire qu'on est curieux, demander SON avis personnel, demander LE PLUS GROS challenge et pas un problème parmi d'autres, et ancrer dans le présent.
 
 L'ORDRE DE CREUSAGE, quand rien d'urgent ne se présente :
-1. Le problème, en ses mots. Pas la situation : le problème.
+1. Le problème, en ses mots. Pas la situation : le problème. Cet ordre est un repère, jamais une obligation de changer de sujet.
 2. Depuis quand, et pourquoi c'est un problème pour lui.
 3. Le chiffre. Heures, mois, euros, clients perdus, années passées à y penser — quelque chose de mesurable. Adapte-le à sa situation : un prospect qui n'a pas encore lancé n'a pas de chiffre d'affaires, mais il a des mois ou des années perdues.
 4. Le calcul du coût, fait à voix haute avec lui.
@@ -1652,7 +1687,7 @@ Tu ne dois attribuer au prospect aucune émotion, peur, difficulté financière,
 Si une formulation numérotée ci-dessus colle vraiment, sers-t'en et indique son numéro. Sinon mets fiche à null. Ne force jamais une fiche hors sujet.
 
 Réponds uniquement avec ce JSON, dans cet ordre exact, sans markdown :
-{"temps":"attendre|creuser|isoler|traitement|closing","action":"consigne de 5 mots max, en majuscules","phrase":"ce que le closer dit, ou null si temps=attendre","certain":"ce que le prospect a dit, dans ses mots, ou null","incertain":"ce qui reste a verifier, 8 mots max, ou null","freins":["liste des freins encore ouverts"],"objection":"nom court ou null","etape":"code de la trame","manque":"ce qui reste a obtenir a cette etape, 10 mots max","cause":"cause certaine en 5 mots ou null","preuve":"mots exacts du prospect ou null","raison":"pourquoi, en une phrase","fiche":null}`;
+{"temps":"attendre|creuser|isoler|traitement|closing","action":"consigne de 5 mots max, en majuscules","phrase":"ce que le closer dit, ou null si temps=attendre","sujet":"le sujet vivant du prospect, 8 mots max","certain":"ce que le prospect a dit, dans ses mots, ou null","incertain":"ce qui reste a verifier, 8 mots max, ou null","freins":["liste des freins encore ouverts"],"objection":"nom court ou null","etape":"code de la trame le plus proche, ou null","manque":"ce qui reste a obtenir a cette etape, 10 mots max","cause":"cause certaine en 5 mots ou null","preuve":"mots exacts du prospect ou null","raison":"pourquoi, en une phrase","fiche":null}`;
 }
 
 
@@ -1706,13 +1741,10 @@ function libererCarte(){
 }
 
 function majTrame(code){
-  if(code && !S.faites.includes(code)){
-    const i = TRAME.findIndex(e=>e.c===code);
-    if(i>=0){
-      TRAME.slice(0,i).forEach(e=>{ if(!S.faites.includes(e.c)) S.faites.push(e.c); });
-      S.faites.push(code);
-    }
-  }
+  /* L'ancienne version considérait toutes les étapes précédentes comme
+     couvertes dès que l'IA en citait une plus avancée. Cela faisait croire au
+     moteur que la discussion était plus loin qu'elle ne l'était vraiment. */
+  if(code && TRAME.some(e=>e.c===code) && !S.faites.includes(code)) S.faites.push(code);
   if(code) S.etape = code;
   $("trame").innerHTML = TRAME.map(e=>{
     const cl = e.c===S.etape ? "ici" : S.faites.includes(e.c) ? "fait" : "";
@@ -1738,12 +1770,15 @@ function appliquer(j, cands){
     setTimeout(()=>{ if(carteEnFile) libererCarte(); }, RYTHME.tenue+50);
   }
 
-  majTrame(j.etape);
+  const etapeValide = TRAME.some(e=>e.c===j.etape) ? j.etape : S.etape;
+  if(etapeValide) majTrame(etapeValide);
+  S.sujetActuel = String(j.sujet || "").slice(0,120);
   if(j.manque){ $("manque").classList.add("on"); $("manque").textContent = "Il te manque encore : "+j.manque; }
   else $("manque").classList.remove("on");
 
   const temps = (j.temps||"").toLowerCase();
-  S.beat = temps === "traitement" ? 2 : (temps === "diagnostic" || temps === "isoler") ? 1 : 0;
+  const tempsValide = ["attendre","creuser","isoler","traitement","closing"].includes(temps) ? temps : "attendre";
+  S.beat = tempsValide === "traitement" ? 2 : (tempsValide === "creuser" || tempsValide === "isoler") ? 1 : 0;
 
   // pas de preuve dans ses mots = pas de cause affichée
   const cause = (j.cause && j.preuve) ? j.cause : "";
@@ -1751,11 +1786,11 @@ function appliquer(j, cands){
 
   // Si l'IA ne parle plus d'objection depuis quatre tours, c'est que le prospect
   // est passé à autre chose. On lâche l'ancienne au lieu de s'y accrocher.
-  if(S.current && temps === "attendre" && (S.transcript.length - (S.tourObjection||0)) > 4){
+  if(S.current && (tempsValide === "attendre" || tempsValide === "creuser") && (S.transcript.length - (S.tourObjection||0)) > 2){
     S.current = null; S.beat = 0; S.angleIdx = 0;
   }
 
-  if(temps === "attendre"){
+  if(tempsValide === "attendre"){
     if(j.certain){ $("certitude").classList.add("on"); $("certTxt").textContent = "« "+j.certain+" »"; $("incertTxt").textContent = j.incertain||"—"; }
     $("card").className = "card";
     $("tag").className = "tag blue"; $("tag").textContent = "Laisse-le parler";
@@ -1808,7 +1843,7 @@ function appliquer(j, cands){
     $("incertTxt").textContent = j.incertain || "—";
   } else $("certitude").classList.remove("on");
 
-  if(temps === "isoler"){
+  if(tempsValide === "isoler"){
     $("card").className = "card hot";
     $("tag").className = "tag"; $("tag").textContent = "OBJECTION NON ISOLÉE";
     $("cause").textContent = (j.freins && j.freins.length) ? "Freins ouverts : "+j.freins.join(" · ") : preuve;
@@ -1834,13 +1869,13 @@ function appliquer(j, cands){
     org.style.color = (e && e !== "moi" && e !== "sami") ? "var(--amber)" : "var(--muted)";
   }
 
-  const closing = temps === "closing";
+  const closing = tempsValide === "closing";
   $("card").className = closing ? "card good" : "card hot";
   $("tag").className = closing ? "tag green" : "tag";
-  const etape = closing ? "Closing" : temps === "traitement" ? "2. Traitement" : "1. Diagnostic";
+  const etape = closing ? "Closing" : tempsValide === "traitement" ? "2. Traitement" : "Découverte";
   $("tag").textContent = (j.objection ? j.objection + " · " : "") + etape;
   $("cause").textContent = [cause, preuve].filter(Boolean).join(" · ");
-  $("action").textContent = j.action || (temps==="traitement" ? "TRAITE MAINTENANT" : "FAIS PRÉCISER");
+  $("action").textContent = j.action || (tempsValide==="traitement" ? "TRAITE MAINTENANT" : "CREUSE CE SUJET");
   $("phrase").className = "";
   $("phrase").textContent = j.phrase ? "« "+j.phrase+" »" : "—";
 
@@ -1851,11 +1886,17 @@ function appliquer(j, cands){
   // angles de repli : le reste de ses fiches, puis la base intégrée
   const autres = (cands||[]).filter((c,k)=>k !== iFiche).map(c=>({n:c.f.type||"Ta base", p:c.f.phrase, why:c.f.pourquoi, src:c.f.source}));
   const id = Object.keys(TRAITE).find(k=>new RegExp(k,"i").test(j.objection||""));
-  const secours = (temps==="traitement" && id ? TRAITE[id] : []).map(a=>({n:a.n,p:a.p}));
-  S.tourObjection = S.transcript.length;   // on note quand elle a été posée
-  S.current = {id: id||"LIBRE", cause: j.cause||"", why: j.raison||"",
-               angles: [{n:"Recommandé", p:j.phrase||"", why:j.raison}].concat(autres, secours)};
-  S.angleIdx = 0;
+  const secours = (tempsValide==="traitement" && id ? TRAITE[id] : []).map(a=>({n:a.n,p:a.p}));
+  /* Une question de découverte ne doit pas laisser une « objection ouverte »
+     artificielle. Sinon les tours suivants restent coincés sur l'ancien frein. */
+  if(tempsValide === "traitement" || j.objection){
+    S.tourObjection = S.transcript.length;
+    S.current = {id: id||"LIBRE", cause:j.cause||"", why:j.raison||"",
+                 angles:[{n:"Recommandé", p:j.phrase||"", why:j.raison}].concat(autres, secours)};
+    S.angleIdx = 0;
+  }else{
+    S.current = null; S.angleIdx = 0;
+  }
 }
 /* =========================================================
    6. FIL + BOUCLE
@@ -1885,7 +1926,7 @@ async function reprendreCall(){
   b.style.borderColor = "var(--amber)";
   b.style.marginTop = "16px";
   b.innerHTML = `<h3>Un call n'a pas été terminé</h3>
-    <p style="font-size:13.5px">${c.prospect||"Prospect"} — ${c.transcript.length} échanges, il y a ${min} minute${min>1?"s":""}.</p>
+    <p style="font-size:13.5px">${escapeHTML(c.prospect||"Prospect")} — ${c.transcript.length} échanges, il y a ${min} minute${min>1?"s":""}.</p>
     <div class="row" style="margin-top:11px">
       <button class="pill" id="btnReprend">Reprendre ce call</button>
       <button class="pill" id="btnJette">Repartir de zéro</button>
@@ -1896,7 +1937,7 @@ async function reprendreCall(){
   if(rep) rep.onclick = () => {
     Object.assign(S, {t0:c.t0, prospect:c.prospect, transcript:c.transcript,
       events:c.events||[], faites:c.faites||[], signaux:c.signaux||[],
-      profile:c.profile||S.profile});
+      profile:c.profile||S.profile, reprise:true});
     c.transcript.forEach(x=>logLine(x.t, x.text, ""));
     $("mObj").textContent = S.events.filter(e=>e.type==="OBJ").length;
     $("carnetNb").textContent = S.signaux.length;
@@ -1910,7 +1951,7 @@ async function reprendreCall(){
 function logLine(t,text,cls){
   const d=document.createElement("div");
   d.className="line "+cls;
-  d.innerHTML='<span class="ts">'+fmt(t)+' · '+(S.moiQuiParle?'MOI':'PROSPECT')+'</span>'+text.replace(/</g,"&lt;");
+  d.innerHTML='<span class="ts">'+fmt(t)+' · '+escapeHTML(cls === "moi" ? "MOI" : "PROSPECT")+'</span>'+escapeHTML(text);
   $("log").appendChild(d);
   $("log").scrollTop = $("log").scrollHeight;
   $("mQ").textContent = S.qCount;
@@ -2017,17 +2058,22 @@ function ouvertureAdaptee(){
 }
 
 $("btnStart").onclick = async () => {
+  if(S.starting || S.running) return;
+  S.starting = true;
   await pretOuTantPis();
   if(!API_KEY && !window.storage){
+    S.starting = false;
     return alert("Il manque ta clé API.\n\nVa dans « Ma méthode » et colle-la, sinon le copilote ne pourra rien analyser pendant le call.");
   }
-  await assureMicro();
-  if(!initRec()) return;
+  const microOk = await assureMicro();
+  if(!microOk){ S.starting = false; return alert("Micro indisponible ou refusé. Tu peux utiliser la saisie manuelle, mais la reconnaissance vocale ne peut pas démarrer."); }
+  if(!initRec()){ S.starting = false; return; }
   S.prospect = $("pname").value.trim() || "Prospect";
   S.domaine = $("pdomaine").value.trim();
   S.situation = SITUATION;
   S.marche = MARCHE;
-  S.running = true; S.t0 = Date.now(); S.lastSpeech = Date.now();
+  const reprise = !!S.reprise;
+  S.running = true; if(!reprise) S.t0 = Date.now(); S.lastSpeech = Date.now(); S.reprise = false;
   $("home").style.display="none";
   $("call").classList.add("on");
   demarreMesure();
@@ -2039,6 +2085,7 @@ $("btnStart").onclick = async () => {
   idleCard();
   try{ rec.start(); }catch(_){}
   loop();
+  S.starting = false;
 };
 
 /* Démo : rejoue un vrai enchaînement de call, sans micro */
@@ -2281,6 +2328,11 @@ const Store = {
     try{ await idb("readwrite", s=>s.put({k,v})); MEM="navigateur"; return true }catch(e){}
     try{ localStorage.setItem("cc_"+k, JSON.stringify(v)); MEM="navigateur"; return true }catch(e){}
     MEM="aucune"; return false;
+  },
+  async remove(k){
+    if(window.storage){ try{ await window.storage.delete(k,false); }catch(e){} }
+    try{ await idb("readwrite", s=>s.delete(k)); }catch(e){}
+    try{ localStorage.removeItem("cc_"+k); }catch(e){}
   }
 };
 function idb(mode,fn){
@@ -2341,7 +2393,7 @@ function renderKb(){
   $("docs").innerHTML = names.length ? `
     <div class="block">
       <h3>Documents en mémoire · ${names.length}</h3>
-      ${names.map(n=>`<div class="metric"><span>${n}</span><span>${docs[n].n} fiches · ${Object.entries(docs[n].t).map(([k,v])=>k.slice(0,4)+" "+v).join(" / ")}</span></div>`).join("")}
+       ${names.map(n=>`<div class="metric"><span>${escapeHTML(n)}</span><span>${docs[n].n} fiches · ${Object.entries(docs[n].t).map(([k,v])=>escapeHTML(k.slice(0,4))+" "+v).join(" / ")}</span></div>`).join("")}
       <p style="font-size:12.5px;color:var(--muted);margin-top:14px">Un document absent de cette liste n'a rien donné d'exploitable : soit c'est un PDF scanné en image, soit il ne contient pas de formulation réutilisable.</p>
     </div>` : "";
 
@@ -2352,13 +2404,13 @@ function renderKb(){
   const byObj = {};
   FICHES.forEach((f,i)=>{ (byObj[f.label] = byObj[f.label]||[]).push({f,i}); });
   c.innerHTML = Object.entries(byObj).map(([lab,arr])=>
-    `<p class="eyebrow" style="margin:22px 0 10px">${lab} · ${arr.length}</p>` +
+    `<p class="eyebrow" style="margin:22px 0 10px">${escapeHTML(lab)} · ${arr.length}</p>` +
     arr.map(({f,i})=>`
       <div class="fiche">
-        <div class="top"><span class="eyebrow"><b style="color:var(--amber)">${f.type||"FICHE"}</b> · ${f.situation||""}</span><button class="del" data-i="${i}">×</button></div>
-        <div class="ph">« ${f.phrase} »</div>
-        ${f.pourquoi?`<div class="wy">${f.pourquoi}</div>`:""}
-        <div class="src">${f.source||""}</div>
+        <div class="top"><span class="eyebrow"><b style="color:var(--amber)">${escapeHTML(f.type||"FICHE")}</b> · ${escapeHTML(f.situation||"")}</span><button class="del" data-i="${i}">×</button></div>
+        <div class="ph">« ${escapeHTML(f.phrase)} »</div>
+        ${f.pourquoi?`<div class="wy">${escapeHTML(f.pourquoi)}</div>`:""}
+        <div class="src">${escapeHTML(f.source||"")}</div>
       </div>`).join("")
   ).join("");
   c.querySelectorAll(".del").forEach(b=>b.onclick=()=>{ FICHES.splice(+b.dataset.i,1); saveKb(); });
@@ -2737,6 +2789,8 @@ async function pretOuTantPis(){
   PRET = null;   // une fois passé, on ne réattend plus jamais
 }
 async function loadKey(){
+  // Migration de sécurité : les versions précédentes conservaient des secrets durables.
+  await Store.remove("apikey"); await Store.remove("cle");
   const m = await Store.get("modele");
   if(m){
     CHOIX_MODELE = m;
@@ -2744,7 +2798,6 @@ async function loadKey(){
     $("selModele").value = m;
   }
   majModeleDetail();
-  // "apikey" pour cette app, "cle" pour Suivi R1 : une clé posée dans l'une sert à l'autre
   const vx = await Store.get("voix");
   if(vx && vx.moi && vx.lui){
     NIVEAU_MOI = vx.moi; NIVEAU_LUI = vx.lui;
@@ -2761,24 +2814,17 @@ async function loadKey(){
   if(ecl && typeof ecl === "object"){ ECOLES = Object.assign(ECOLES, ecl); }
   majEcoDetail(); majCout(); majParEcole(); majListeEcoles();
   reprendreCall();
-  let k = await Store.get("apikey");
-  if(!k) k = await Store.get("cle");
-  if(k){
-    API_KEY = k; $("apiKey").value = k;
-    $("keyState").textContent = "Clé enregistrée.";
-    $("keyState").style.color = "var(--sage)";
-  }
+  $("keyState").textContent = "La clé API reste uniquement en mémoire jusqu'à la fermeture de l'onglet.";
+  $("keyState").style.color = "var(--muted)";
 }
 $("btnKey").onclick = async () => {
   API_KEY = $("apiKey").value.trim();
-  const saved = await Store.set("apikey", API_KEY);
-  await Store.set("cle", API_KEY);   // Suivi R1 la retrouvera aussi
   $("keyState").textContent = "Test en cours…";
   $("keyState").style.color = "var(--muted)";
   try{
     await callClaude("Réponds uniquement : ok");
-    $("keyState").textContent = saved ? "✓ Le cerveau répond. Clé conservée." : "✓ Le cerveau répond, mais la clé ne sera pas gardée.";
-    $("keyState").style.color = saved ? "var(--sage)" : "var(--amber)";
+    $("keyState").textContent = "✓ Le cerveau répond. La clé sera oubliée à la fermeture de l'onglet.";
+    $("keyState").style.color = "var(--sage)";
   }catch(e){
     $("keyState").textContent = "✗ " + e.message;
     $("keyState").style.color = "var(--clay)";
@@ -3126,18 +3172,14 @@ $("btnSparCle").onclick = async () => {
   if(!k) return toast("Colle la clé d'abord");
   if(!/^sk-ant-/.test(k)) $("sparCleEtat").innerHTML = '<span style="color:var(--amber)">Cette clé ne commence pas par sk-ant-. Je teste quand même.</span>';
   API_KEY = k;
-  const gardee = await Store.set("apikey", k);
-  await Store.set("cle", k);
   $("sparCleEtat").textContent = "Test en cours…";
   try{
     await callClaude("Réponds uniquement : ok");
-    $("sparCleEtat").innerHTML = gardee
-      ? '<span style="color:var(--sage)">Ça répond. Clé conservée pour les prochaines fois.</span>'
-      : '<span style="color:var(--amber)">Ça répond, mais rien ne se garde ici : il faudra la recoller à chaque ouverture.</span>';
+    $("sparCleEtat").innerHTML = '<span style="color:var(--sage)">Ça répond. La clé sera oubliée à la fermeture de l’onglet.</span>';
     setTimeout(majEtatCle, 1400);
   }catch(e){
     API_KEY = "";
-    $("sparCleEtat").innerHTML = '<span style="color:var(--clay)">'+e.message+'</span>';
+    $("sparCleEtat").innerHTML = '<span style="color:var(--clay)">'+escapeHTML(e.message)+'</span>';
   }
 };
 
@@ -3152,8 +3194,7 @@ $("btnDiag").onclick = async () => {
   let ls = "non";
   try{ localStorage.setItem("_t","1"); localStorage.removeItem("_t"); ls = "oui"; }catch(e){ ls = "bloqué par le navigateur"; }
   lignes.push("Mémoire du navigateur : " + ls);
-  const vu = await Store.get("apikey"), vu2 = await Store.get("cle");
-  lignes.push("Clé retrouvée au démarrage : " + ((vu||vu2) ? "oui" : "non"));
+  lignes.push("Clé sauvegardée sur le poste : non (choix de sécurité) ");
   lignes.push("Voix disponibles : " + (("speechSynthesis" in window) ? speechSynthesis.getVoices().filter(v=>/^fr/i.test(v.lang)).length + " en français" : "aucune"));
   lignes.push("Micro : " + ((window.SpeechRecognition||window.webkitSpeechRecognition) ? "disponible" : "absent de ce navigateur"));
   d.innerHTML = lignes.map(l=>"· "+l).join("<br>")
@@ -3205,7 +3246,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "cle":"le type de question qui le ferait lacher son blocage reel",
  "budget_reel":"peut-il payer, oui ou non, et pourquoi",
  "ouverture":"sa toute premiere phrase quand le call commence"}`);
-    const p = JSON.parse(txt.replace(/```json|```/g,"").trim());
+    const p = parseModelJson(txt);
     SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false};
     $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
     $("sparQui").textContent = `${p.prenom}, ${p.age} — ${p.metier}`;
@@ -3268,7 +3309,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "lache":true si tu viens de reveler une part de ton vrai blocage sinon false,
  "ferme":true si la derniere intervention du closer t a fait reculer sinon false,
  "pret":true si tu es pret a dire oui maintenant sinon false}`);
-    const r = JSON.parse(txt.replace(/```json|```/g,"").trim());
+    const r = parseModelJson(txt);
     SPAR.tours.push({qui:"PROSPECT", txt:r.dit});
     if(r.lache) SPAR.lache = true;
     $("sparDit").textContent = "« " + r.dit + " »";
@@ -3359,7 +3400,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "faute":"sa faute principale, cite-la",
  "aurait_du":"la phrase exacte qu il aurait du dire, et a quel moment",
  "exercice":"un exercice concret pour la prochaine fois, une phrase"}`);
-    const j = JSON.parse(txt.replace(/```json|```/g,"").trim());
+    const j = parseModelJson(txt);
     const c = j.trouve ? "var(--sage)" : "var(--clay)";
     $("sparDebrief").innerHTML = `
       <div class="block" style="border-left:2px solid ${c}">
@@ -3409,7 +3450,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "gagnant":"ce qui revient dans les calls conclus",
  "perdant":"ce qui revient dans les calls perdus",
  "levier":"la seule chose a changer en priorite, et pourquoi"}`);
-    const j = JSON.parse(txt.replace(/```json|```/g,"").trim());
+    const j = parseModelJson(txt);
     $("progIA").innerHTML = `<div class="block"><h3>Ce que tes calls disent</h3>
       <p><strong>Constat</strong><br>${j.constat||""}</p>
       <p style="margin-top:12px"><strong>Dans tes calls conclus</strong><br>${j.gagnant||""}</p>
@@ -3489,9 +3530,13 @@ $("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("over")
 $("btnStop").onclick = () => { stopFlag = true; };
 $("btnWipe").onclick = () => { if(confirm("Effacer toutes les fiches ?")){ FICHES=[]; saveKb(); } };
 $("btnExport").onclick = () => {
-  const b = new Blob([JSON.stringify(FICHES,null,2)],{type:"application/json"});
+  const base = {version:2, exportedAt:new Date().toISOString(), fiches:FICHES,
+    trame:TRAME, ecoles:ECOLES, historique:HISTO, rejets:REJETS,
+    eco:Object.keys(ECOS).find(k=>ECOS[k]===ECO) || "normal", modele:CHOIX_MODELE};
+  const b = new Blob([JSON.stringify(base,null,2)],{type:"application/json"});
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(b); a.download = "ma-methode.json"; a.click();
+  const url = URL.createObjectURL(b); a.href = url; a.download = "closing-copilot-base-v2.json"; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
 };
 $("btnImportKb").onclick = () => $("kbFile").click();
 $("btnMergeKb").onclick = () => $("mergeFile").click();
@@ -3637,7 +3682,8 @@ $("selModele").onchange = async e => {
 };
 $("mergeFile").onchange = async e => {
   try{
-    const arr = JSON.parse(await e.target.files[0].text());
+    const parsed = JSON.parse(await e.target.files[0].text());
+    const arr = Array.isArray(parsed) ? parsed : parsed.fiches;
     if(!Array.isArray(arr)) return toast("Fichier non reconnu");
     let n = 0;
     arr.forEach(f=>{ if(f.phrase && !FICHES.some(x=>x.phrase===f.phrase)){ FICHES.push(f); n++; } });
@@ -3646,8 +3692,17 @@ $("mergeFile").onchange = async e => {
 };
 $("kbFile").onchange = async e => {
   try{
-    const arr = JSON.parse(await e.target.files[0].text());
-    if(Array.isArray(arr)){ FICHES = arr; saveKb(); toast(arr.length+" fiches chargées"); }
+    const parsed = JSON.parse(await e.target.files[0].text());
+    const arr = Array.isArray(parsed) ? parsed : parsed.fiches;
+    if(!Array.isArray(arr)) return toast("Fichier non reconnu");
+    FICHES = arr.filter(f=>f && typeof f.phrase === "string");
+    if(!Array.isArray(parsed) && parsed.version === 2){
+      if(Array.isArray(parsed.trame) && parsed.trame.length >= 3){ TRAME.length=0; parsed.trame.forEach(x=>TRAME.push(x)); await Store.set("trame", TRAME); }
+      if(parsed.ecoles && typeof parsed.ecoles === "object"){ ECOLES = Object.assign(ECOLES, parsed.ecoles); await Store.set("ecoles", ECOLES); majListeEcoles(); }
+      if(Array.isArray(parsed.historique)){ HISTO=parsed.historique.slice(-300); await Store.set("historique", HISTO); }
+      if(Array.isArray(parsed.rejets)){ REJETS=parsed.rejets.slice(-300); await Store.set("rejets", REJETS); }
+    }
+    saveKb(); toast(FICHES.length+" fiches chargées");
   }catch(_){ toast("Fichier illisible"); }
 };
 loadApprentissage();
@@ -3659,6 +3714,10 @@ loadKb();
 $("btnEnd").onclick = () => {
   S.running=false;
   try{rec.stop()}catch(_){}
+  if(ECOUTE.annuleur) try{ ECOUTE.annuleur.abort(); }catch(_){}
+  clearTimeout(ECOUTE.horloge);
+  clearTimeout(horlogeSauve);
+  stopAudio();
   const dur=(Date.now()-S.t0)/1000;
   $("call").classList.remove("on");
   $("report").classList.add("on");
@@ -3680,16 +3739,16 @@ $("btnEnd").onclick = () => {
   ].map(([l,n])=>`<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
 
   $("rObj").innerHTML = objs.length
-    ? "<ul>"+objs.map(o=>`<li><strong>${fmt(o.t)} — ${o.label}</strong><br><span style="color:var(--muted)">« ${o.text} »</span></li>`).join("")+"</ul>"
+    ? "<ul>"+objs.map(o=>`<li><strong>${fmt(o.t)} — ${escapeHTML(o.label)}</strong><br><span style="color:var(--muted)">« ${escapeHTML(o.text)} »</span></li>`).join("")+"</ul>"
     : '<p style="color:var(--muted)">Aucune objection détectée.</p>';
 
   $("rBuy").innerHTML = buys.length
-    ? "<ul>"+buys.map(b=>`<li>${fmt(b.t)} — « ${b.text} »</li>`).join("")+"</ul>"
+    ? "<ul>"+buys.map(b=>`<li>${fmt(b.t)} — « ${escapeHTML(b.text)} »</li>`).join("")+"</ul>"
     : '<p style="color:var(--muted)">Aucun signal d\'achat détecté.</p>';
 
   $("rTrame").innerHTML = TRAME.map(e=>{
     const ok = S.faites.includes(e.c);
-    return `<div class="metric"><span style="color:${ok?"var(--ink)":"var(--muted)"}">${e.n}</span><span style="color:${ok?"var(--sage)":"var(--clay)"}">${ok?"couvert":"sauté"}</span></div>`;
+    return `<div class="metric"><span style="color:${ok?"var(--ink)":"var(--muted)"}">${escapeHTML(e.n)}</span><span style="color:${ok?"var(--sage)":"var(--clay)"}">${ok?"couvert":"sauté"}</span></div>`;
   }).join("") + `<p style="font-size:12.5px;color:var(--muted);margin-top:12px">Une étape sautée n'est pas forcément une faute — mais si le call a échoué, regarde d'abord là.</p>`;
 
   $("rTrans").textContent = S.transcript.map(x=>fmt(x.t)+"  "+(x.qui||"?")+" : "+x.text).join("\n");
@@ -3733,31 +3792,31 @@ Réponds uniquement avec ce JSON, sans markdown :
  "a_dire":"ce qu il fallait dire a la place, mot pour mot",
  "fort":"ce qui a bien marche, precisement",
  "correctif":"une seule chose a corriger au prochain call"}`);
-    const j=JSON.parse(txt.replace(/```json|```/g,"").trim());
+    const j = parseModelJson(txt);
     const objs2 = (j.objections||[]).map(o=>{
       const c = o.traitee==="bien" ? "var(--sage)" : o.traitee==="mal" ? "var(--clay)" : "var(--amber)";
-      return `<div class="metric"><span>${o.quand||""} — ${o.quoi||""}</span><span style="color:${c}">${o.traitee||""}</span></div>
-              <p style="font-size:13px;color:var(--muted);margin:2px 0 10px">${o.commentaire||""}</p>`;
+      return `<div class="metric"><span>${escapeHTML(o.quand)} — ${escapeHTML(o.quoi)}</span><span style="color:${c}">${escapeHTML(o.traitee)}</span></div>
+              <p style="font-size:13px;color:var(--muted);margin:2px 0 10px">${escapeHTML(o.commentaire)}</p>`;
     }).join("");
     $("rCoach").innerHTML =
-      `<p><strong>Le déroulé</strong><br>${j.deroule||""}</p>
+      `<p><strong>Le déroulé</strong><br>${escapeHTML(j.deroule)}</p>
        ${objs2 ? `<p style="margin-top:14px"><strong>Objection par objection</strong></p>${objs2}` : ""}
-       <p style="margin-top:12px"><strong>La trame</strong><br>${j.trame||""}</p>
+        <p style="margin-top:12px"><strong>La trame</strong><br>${escapeHTML(j.trame)}</p>
        ${["decouverte","objections","closing"].map(k=>{
           const p = j[k]; if(!p) return "";
           const titre = {decouverte:"Découverte", objections:"Objections", closing:"Closing"}[k];
           const c = (p.note>=7) ? "var(--sage)" : (p.note>=5) ? "var(--amber)" : "var(--clay)";
           return `<div style="border-left:2px solid ${c};padding-left:13px;margin:18px 0">
             <div style="font-family:'Archivo Narrow';font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:${c}">${titre} · ${p.note}/10</div>
-            <p style="font-size:13.5px;margin-top:5px"><span style="color:var(--muted)">Bien :</span> ${p.bien||""}</p>
-            <p style="font-size:13.5px;margin-top:4px"><span style="color:var(--muted)">Raté :</span> ${p.rate||""}</p>
-            <p style="font-size:14.5px;margin-top:6px"><em>« ${p.angle||""} »</em></p>
+            <p style="font-size:13.5px;margin-top:5px"><span style="color:var(--muted)">Bien :</span> ${escapeHTML(p.bien)}</p>
+            <p style="font-size:13.5px;margin-top:4px"><span style="color:var(--muted)">Raté :</span> ${escapeHTML(p.rate)}</p>
+            <p style="font-size:14.5px;margin-top:6px"><em>« ${escapeHTML(p.angle)} »</em></p>
           </div>`;
        }).join("")}
-       <p style="margin-top:12px"><strong>Erreur principale</strong><br>${j.erreur||""}</p>
-       <p style="margin-top:12px"><strong>Il fallait dire</strong><br><em>« ${j.a_dire||""} »</em></p>
-       <p style="margin-top:12px"><strong>Ce qui a bien marché</strong><br>${j.fort||""}</p>
-       <p style="margin-top:12px"><strong>À corriger au prochain call</strong><br>${j.correctif||""}</p>`;
+       <p style="margin-top:12px"><strong>Erreur principale</strong><br>${escapeHTML(j.erreur)}</p>
+       <p style="margin-top:12px"><strong>Il fallait dire</strong><br><em>« ${escapeHTML(j.a_dire)} »</em></p>
+       <p style="margin-top:12px"><strong>Ce qui a bien marché</strong><br>${escapeHTML(j.fort)}</p>
+       <p style="margin-top:12px"><strong>À corriger au prochain call</strong><br>${escapeHTML(j.correctif)}</p>`;
   }catch(e){
     $("rCoach").innerHTML='<p style="color:var(--muted)">Analyse indisponible. La transcription et les objections restent ci-dessous.</p>';
   }
@@ -3830,9 +3889,9 @@ function rendSignaux(){
   if(!S.signaux.length){ b.style.display = "none"; return; }
   b.style.display = "block";
   $("signauxTxt").innerHTML = S.signaux.map(x=>
-    `<div class="sig"><div class="h">${fmt(x.t)} · ${x.type}</div>
-     <p style="font-size:14.5px;margin-top:3px">« ${x.cite} »</p>
-     <p style="font-size:13px;color:var(--muted);margin-top:3px">${x.sens}</p></div>`).join("");
+    `<div class="sig"><div class="h">${fmt(x.t)} · ${escapeHTML(x.type)}</div>
+     <p style="font-size:14.5px;margin-top:3px">« ${escapeHTML(x.cite)} »</p>
+     <p style="font-size:13px;color:var(--muted);margin-top:3px">${escapeHTML(x.sens)}</p></div>`).join("");
 }
 
 $("btnAudit").onclick = async () => {
@@ -3862,21 +3921,21 @@ Réponds uniquement avec ce JSON, sans markdown :
 {"moments":[{"quand":"mm:ss","cite":"mots exacts","fait":"ce que le closer a fait","attendu":"ATTENDRE|DIAGNOSTIQUER|ISOLER|TRAITER|CLOSER|NE PLUS POUSSER","dire":"la phrase exacte a dire a la place","pourquoi":"une phrase"}],
  "bascule":"le moment precis ou le call a bascule, mm:ss et pourquoi",
  "verdict":"ce call etait-il gagnable, et a quelle condition"}`);
-    const j = JSON.parse(txt.replace(/```json|```/g,"").trim());
+    const j = parseModelJson(txt);
     $("auditTxt").innerHTML =
       (j.moments||[]).map(m=>`
         <div style="border-left:2px solid var(--amber);padding-left:12px;margin-bottom:16px">
-          <div class="eyebrow">${m.quand||""} · ${m.attendu||""}</div>
-          <p style="color:var(--muted);font-size:13.5px;margin:4px 0">« ${m.cite||""} »</p>
-          <p style="font-size:13.5px">Tu as : ${m.fait||""}</p>
-          <p style="font-size:14.5px;margin-top:6px"><em>« ${m.dire||""} »</em></p>
-          <p style="font-size:12.5px;color:var(--muted);margin-top:4px">${m.pourquoi||""}</p>
+          <div class="eyebrow">${escapeHTML(m.quand)} · ${escapeHTML(m.attendu)}</div>
+          <p style="color:var(--muted);font-size:13.5px;margin:4px 0">« ${escapeHTML(m.cite)} »</p>
+          <p style="font-size:13.5px">Tu as : ${escapeHTML(m.fait)}</p>
+          <p style="font-size:14.5px;margin-top:6px"><em>« ${escapeHTML(m.dire)} »</em></p>
+          <p style="font-size:12.5px;color:var(--muted);margin-top:4px">${escapeHTML(m.pourquoi)}</p>
         </div>`).join("")
-      + `<p style="margin-top:8px"><strong>Bascule</strong><br>${j.bascule||""}</p>
-         <p style="margin-top:12px"><strong>Verdict</strong><br>${j.verdict||""}</p>
+      + `<p style="margin-top:8px"><strong>Bascule</strong><br>${escapeHTML(j.bascule)}</p>
+         <p style="margin-top:12px"><strong>Verdict</strong><br>${escapeHTML(j.verdict)}</p>
          <p style="font-size:12.5px;color:var(--muted);margin-top:14px">Compare avec ce que tu sais déjà de ce call. S'il tombe juste sur dix calls dont tu connais l'issue, il vaut quelque chose. Sinon, il reste à corriger.</p>`;
   }catch(e){
-    $("auditTxt").innerHTML = `<p style="color:var(--clay)">${e.message}</p>`;
+    $("auditTxt").innerHTML = `<p style="color:var(--clay)">${escapeHTML(e.message)}</p>`;
   }
 };
 
