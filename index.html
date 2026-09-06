@@ -337,6 +337,7 @@ aside{
     <div id="timer">00:00</div>
     <button class="ghost" id="btnQui" style="font-weight:700">PROSPECT parle</button>
     <button class="ghost" id="btnCarnet">Carnet <span id="carnetNb">0</span></button>
+    <span id="etatMoteur" style="font-size:11.5px;color:var(--muted);align-self:center;font-family:'Archivo Narrow',sans-serif;letter-spacing:.04em">—</span>
     <span id="quatre" style="font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);align-self:center"></span>
     <div id="who">—</div>
     <div class="grow"></div>
@@ -1211,6 +1212,48 @@ async function assureMicro(){
   }catch(e){ FLUX_MICRO = null; return false; }
 }
 
+/* =========================================================
+   MOTEUR D'ÉCOUTE — réécrit au propre.
+   Trois principes, et rien d'autre :
+   1. Tout ce qui est dit entre dans la transcription. Toujours.
+   2. On analyse la DERNIÈRE phrase, jamais une phrase périmée.
+   3. Si quelque chose ne marche pas, ça s'affiche à l'écran.
+   ========================================================= */
+
+let ECOUTE = {
+  actif: false,
+  debutPhrase: 0,      // quand la phrase en cours a commencé (pour mesurer la voix)
+  horloge: null,       // minuterie avant analyse
+  annuleur: null,      // pour abandonner une analyse dépassée
+  enCours: false,
+  entendues: 0,
+  derniereAnalyse: 0,
+  erreur: ""
+};
+
+function etatEcoute(msg, classe){
+  const h = $("heard"), t = $("heardTxt");
+  if(!h || !t) return;
+  h.className = "heard " + (classe || "live");
+  t.textContent = msg;
+}
+
+/* --- barre d'état permanente : on voit toujours ce que fait le moteur --- */
+function majEtatMoteur(){
+  const e = $("etatMoteur"); if(!e) return;
+  const depuis = ECOUTE.derniereAnalyse ? Math.round((Date.now()-ECOUTE.derniereAnalyse)/1000) : null;
+  const bouts = [];
+  bouts.push(ECOUTE.actif ? "micro actif" : "micro coupé");
+  bouts.push(ECOUTE.entendues + " phrase" + (ECOUTE.entendues>1?"s":""));
+  if(ECOUTE.enCours) bouts.push("analyse…");
+  else if(depuis !== null) bouts.push("analysé il y a " + depuis + " s");
+  if(ECOUTE.erreur) bouts.push(ECOUTE.erreur);
+  e.textContent = bouts.join(" · ");
+  e.style.color = ECOUTE.erreur ? "var(--clay)" : ECOUTE.actif ? "var(--muted)" : "var(--clay)";
+}
+setInterval(majEtatMoteur, 1000);
+
+/* --- 1. LA CAPTURE --- */
 function initRec(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR){ alert("Ce navigateur ne gère pas la reconnaissance vocale. Ouvre l'app dans Chrome."); return false; }
@@ -1220,129 +1263,257 @@ function initRec(){
   rec.interimResults = true;
 
   rec.onstart = () => {
-    $("heard").className = "heard live";
-    $("heardTxt").textContent = "Micro actif. Parle, le texte s'affiche ici.";
+    ECOUTE.actif = true; ECOUTE.erreur = "";
+    etatEcoute("Micro actif. Parle, le texte s'affiche ici.");
+    majEtatMoteur();
   };
+
   rec.onresult = e => {
-    if(!debutPhrase) debutPhrase = Date.now() - 400;   // la phrase avait commencé un peu avant
     S.lastSpeech = Date.now();
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      if(!debutPhrase) debutPhrase = Date.now() - 200;   // phrase suivante dans le même événement
-      const txt = e.results[i][0].transcript.trim();
+    if(!ECOUTE.debutPhrase) ECOUTE.debutPhrase = Date.now() - 400;
+
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const txt = (e.results[i][0].transcript || "").trim();
       if(!txt) continue;
-      $("heard").className = "heard live";
-      $("heardTxt").textContent = txt;
+      etatEcoute(txt);
       if(e.results[i].isFinal){
-        const n = niveauDe(debutPhrase);
-        debutPhrase = 0;
-        handleUtterance(txt, quiParle(n, empreinteDe(debutPhrase)));
+        // ORDRE CRITIQUE : on mesure la voix AVANT d'effacer le repère de début
+        const debut = ECOUTE.debutPhrase || (Date.now() - 3000);
+        const qui = quiParle(niveauDe(debut), empreinteDe(debut));
+        ECOUTE.debutPhrase = 0;
+        nouvellePhrase(txt, qui);
       }
-      else anticipe(txt);
     }
   };
+
   rec.onerror = e => {
-    $("heard").className = "heard err";
     const m = {
-      "not-allowed":"Micro bloqué. Ouvre ce fichier dans Chrome sur ordinateur et autorise le micro.",
-      "service-not-allowed":"Micro bloqué par le navigateur. Ouvre le fichier dans Chrome sur ordinateur.",
-      "audio-capture":"Aucun micro trouvé. Vérifie ton entrée audio.",
-      "network":"Pas de réseau. La reconnaissance vocale a besoin d'Internet.",
-      "no-speech":"Rien entendu. Rapproche-toi du micro."
+      "not-allowed":"micro refusé",
+      "service-not-allowed":"micro bloqué par le navigateur",
+      "audio-capture":"aucun micro trouvé",
+      "network":"pas de réseau",
+      "no-speech":""
     };
-    $("heardTxt").textContent = m[e.error] || ("Erreur micro : "+e.error);
+    const msg = (e.error in m) ? m[e.error] : ("erreur micro : " + e.error);
+    ECOUTE.erreur = msg;
+    if(msg) etatEcoute(msg, "err");
+    majEtatMoteur();
   };
-  // Chrome coupe la reconnaissance toutes les minutes environ. On la relance,
-  // mais on espace un peu pour éviter les redémarrages en rafale.
-  let dernierRedemarrage = 0;
+
+  // Chrome coupe la reconnaissance environ toutes les minutes. On relance.
   rec.onend = () => {
+    ECOUTE.actif = false;
+    majEtatMoteur();
     if(!S.running || S.muted) return;
-    const maintenant = Date.now();
-    const attente = (maintenant - dernierRedemarrage < 800) ? 900 : 60;
-    dernierRedemarrage = maintenant;
-    setTimeout(()=>{ if(S.running && !S.muted){ try{ rec.start() }catch(_){} } }, attente);
+    setTimeout(()=>{ if(S.running && !S.muted){ try{ rec.start() }catch(_){} } }, 250);
   };
+
   return true;
 }
 
-/* =========================================================
-   4. MOTEUR — que faire de chaque phrase entendue
-   ========================================================= */
-/* Anticipation : on n'attend pas la fin de la phrase pour afficher la carte */
-let peeked = null;
-function peek(txt){
-  if(txt.split(/\s+/).length < 3) return;
-  const hit = KB.find(o => o.patterns.some(r=>r.test(txt)));
-  if(!hit) return;
-  if(peeked === hit.id) return;
-  if(S.current && S.current.id === hit.id) return;
-  peeked = hit.id;
-  provisoire(hit);
-}
+/* --- 2. CHAQUE PHRASE ENTENDUE --- */
+function nouvellePhrase(text, detecte){
+  const t = (Date.now() - S.t0) / 1000;
 
-let debutPhrase = 0;
-function handleUtterance(text, detecte){
-  const t = (Date.now()-S.t0)/1000;
-  // le volume tranche ; le bouton manuel reste maître si tu t'en sers
+  // qui parle : la voix décide, ton bouton reste maître
   let qui = S.moiQuiParle ? "CLOSER" : "PROSPECT";
   if(detecte && detecte.surete > 0.35 && !S.manuelRecent){
     qui = detecte.qui;
     S.moiQuiParle = (qui === "CLOSER");
     majBoutonQui(detecte.surete);
   }
+
   S.transcript.push({t, text, qui});
+  ECOUTE.entendues++;
+  logLine(t, text, qui === "CLOSER" ? "moi" : "");
   sauveCallEnCours();
 
   const duProspect = (qui === "PROSPECT");
-  const words = text.split(/\s+/).length;
-  if(!duProspect && (/\?$/.test(text) || /^(qu'?est|comment|pourquoi|quand|combien|qui|où|est-ce)/i.test(text))) S.qCount++;
+  const mots = text.split(/\s+/).length;
 
-  // capture de l'objectif chiffré
-  const g = duProspect ? text.match(/(?:objectif|j'?aimerais|je veux|mon but|viser|atteindre)[^.]{0,60}/i) : null;
-  if(g && !S.profile.objectif && /\d/.test(g[0])) S.profile.objectif = g[0].trim();
+  // repères pour le rapport et les alertes
+  if(!duProspect && estUneQuestion(text)) S.qCount++;
 
-  // une objection ne peut venir que du PROSPECT. Si c'est toi qui dis "cher",
-  // ce n'est pas une objection, c'est toi qui parles de prix.
-  const hit = duProspect ? KB.find(o => o.patterns.some(r=>r.test(text))) : null;
-  const buy = duProspect && BUY.some(r=>r.test(text));
-  if(hit){
-    S.events.push({t,type:"OBJ",id:hit.id,label:hit.label,text});
-    $("mObj").textContent = S.events.filter(e=>e.type==="OBJ").length;
-    logLine(t,text,"flag");
-  } else if(buy){
-    S.events.push({t,type:"BUY",text});
-    $("mBuy").textContent = S.events.filter(e=>e.type==="BUY").length;
-    logLine(t,text,"buy");
-  } else {
-    logLine(t,text,"");
+  const hit = duProspect ? KB.find(o => o.patterns.some(r => r.test(text))) : null;
+  if(hit && (!S.current || S.current.id !== hit.id)){
+    S.events.push({t, type:"OBJ", label:hit.label, id:hit.id, text});
+    $("mObj").textContent = S.events.filter(x => x.type === "OBJ").length;
   }
-  peeked = null;
+  if(duProspect && BUY.some(r => r.test(text))) S.events.push({t, type:"BUY", text});
 
-  // dérive : tu justifies, ou tu monologues
-  // ces deux alertes ne concernent QUE toi. Un prospect qui monologue, c'est une bonne nouvelle.
   if(!duProspect){
-    if(S.beat && JUSTIF.some(r=>r.test(text)) && words > 12){
-      fireDrift("TU JUSTIFIES.","Arrête l'argumentaire. Repose une question ouverte et rends-lui la parole.");
-    } else if(words > 45 && !/\?/.test(text)){
-      fireDrift("TU PARLES TROP.","Plus de 45 mots sans une seule question. Reprends la main en lui redonnant la parole.");
+    if(S.beat && JUSTIF.some(r => r.test(text)) && mots > 12){
+      fireDrift("TU JUSTIFIES.", "Arrête l'argumentaire. Repose une question ouverte et rends-lui la parole.");
+    } else if(mots > 45 && !/\?/.test(text)){
+      fireDrift("TU PARLES TROP.", "Plus de 45 mots sans une seule question. Reprends la main.");
     }
   }
+  if(duProspect && !S.profile.objectif){
+    const g = text.match(/(?:objectif|j'?aimerais|je veux|mon but|viser|atteindre)[^.]{0,60}/i);
+    if(g && /\d/.test(g[0])) S.profile.objectif = g[0].trim();
+  }
 
-  // l'IA lit toute la conversation et décide
-  if(vautLeCoup(text)){ derniereAnticipation = ""; programmerAnalyse(text); }
+  planifierAnalyse(text, qui, mots);
 }
 
-/* affichage immédiat pendant que l'IA réfléchit */
-function provisoire(o){
-  $("card").className = "card hot";
-  $("tag").className = "tag"; $("tag").textContent = o.label;
-  $("cause").textContent = "Analyse en cours…";
-  $("action").textContent = o.action;
+/* --- 3. FAUT-IL ANALYSER ? --- */
+const BAVARDAGE = /^(oui|ouais|d'?accord|ok|okay|hmm|mmh|voila|voilà|exactement|tout à fait|je vois|bien sûr|super|parfait|merci|bonjour|salut|au revoir|ça marche|nickel|top)[\s.!?]*$/i;
+// les salutations d'ouverture : rien à analyser, et ça coûte
+const POLITESSE = /^(bonjour|bonsoir|salut|allô|allo|oui)\b[^?]{0,60}(ça va|ca va|bien merci|très bien|tres bien|et vous|et toi|comment allez|comment vas)[^?]{0,25}[.!]?$/i;
+
+/* Une question ne finit pas toujours par un point d'interrogation à l'oral,
+   et ne commence pas toujours par un mot interrogatif. On cherche partout. */
+const MOTS_QUESTION = /\b(qu'?est-ce|comment|pourquoi|quand|combien|où|quel|quelle|lequel|est-ce que|c'?est quoi|dis-moi|raconte|explique|parle-moi|tu penses|tu dirais|ça fait|ça dure|depuis quand|à ton avis)\b/i;
+function estUneQuestion(t){
+  return /\?/.test(t) || MOTS_QUESTION.test(t);
+}
+
+function planifierAnalyse(text, qui, mots){
+  const brut = text.trim();
+
+  if(!API_KEY && !window.storage){
+    ECOUTE.erreur = "il manque ta clé API";
+    $("card").className = "card hot";
+    $("tag").textContent = "IMPOSSIBLE D'ANALYSER";
+    $("action").textContent = "IL MANQUE TA CLÉ";
+    $("phrase").className = "";
+    $("phrase").textContent = "Va dans Ma méthode et colle ta clé API.";
+    return note(brut, qui, false, "pas de clé API");
+  }
+  if(BAVARDAGE.test(brut))       return note(brut, qui, false, "simple acquiescement");
+  if(POLITESSE.test(brut))       return note(brut, qui, false, "politesse d'ouverture");
+  if(mots < ECO.motsMin)         return note(brut, qui, false, "trop court (" + mots + " mots)");
+
+  // On analyse ce que dit le prospect ET tes questions.
+  // Ton pitch, non : il n'apprend rien au copilote et il coûte.
+  if(qui === "CLOSER" && !estUneQuestion(brut)){
+    return note(brut, qui, false, "ton pitch, pas une question");
+  }
+
+  note(brut, qui, true, "analysé");
+
+  // On attend un court silence, puis on analyse. Une phrase de plus annule la précédente.
+  clearTimeout(ECOUTE.horloge);
+  ECOUTE.horloge = setTimeout(() => lancerAnalyse(), RYTHME.pause);
+  return true;
+}
+
+/* --- 4. L'ANALYSE --- */
+async function lancerAnalyse(){
+  if(!S.running) return;
+  const derniers = S.transcript.slice(-1)[0];
+  if(!derniers) return;
+
+  // une analyse plus récente prime toujours sur celle qui tourne
+  if(ECOUTE.enCours && ECOUTE.annuleur){
+    try{ ECOUTE.annuleur.abort() }catch(e){}
+    JOURNAL.push({t:(Date.now()-S.t0)/1000, text:"", qui:"", ok:false,
+                  raison:"analyse abandonnée, le call a avancé"});
+  }
+  ECOUTE.annuleur = new AbortController();
+  const monTour = ECOUTE.annuleur;
+  ECOUTE.enCours = true;
+  majEtatMoteur();
+
+  const cands = candidats();
+  const bloc = cands.length
+    ? "\nFICHES CANDIDATES, numérotées à partir de 1 :\n" +
+      cands.map((c,k) => `${k+1}. [${c.f.ecole||"moi"}] ${c.f.situation||""} → « ${c.f.phrase} »`).join("\n")
+    : "";
+
+  const evites = REJETS.slice(-5).map(r => "- « " + r.phrase + " »").join("\n");
+  const lecons = evites ? "\nDÉJÀ REFUSÉ PAR CE CLOSER, ne le propose plus :\n" + evites : "";
+
+  const tr = ecolesPour(S.beat === 2 ? "traitement" : S.beat === 1 ? "diagnostic" : "attendre", S.etape);
+  TERRAIN_ACTUEL = tr;
+  const specialistes = tr.bonnes.filter(e => e !== "moi" && e !== "sami")
+                              .map(e => (ECOLES[e] && ECOLES[e].nom) || e);
+  const orientation = `
+PHASE ACTUELLE : ${tr.terrain.toUpperCase()} — ${TERRAINS[tr.terrain]}
+${specialistes.length ? "Écoles fortes sur cette phase : " + specialistes.join(", ") + "." : ""}
+À qualité égale, préfère toujours une fiche issue de ses propres calls, puis de son coach.`;
+
+  const dial = S.transcript.slice(-ECO.tours)
+    .map(x => `[${fmt(x.t)}] ${x.qui} : ${x.text}`).join("\n");
+
+  try{
+    const txt = await callClaudeStream(
+`ÉTAT DU CALL
+${etatDuCall()}
+
+DERNIÈRES MINUTES DE CONVERSATION
+${dial}
+
+DERNIÈRE PHRASE ENTENDUE : "${derniers.text}" — dite par ${derniers.qui}
+${bloc}${lecons}
+${orientation}
+
+Étapes déjà couvertes : ${S.faites.join(", ") || "aucune"}
+
+${S.forceTraitement ? "\nLE CLOSER DEMANDE EXPLICITEMENT DE PASSER AU TRAITEMENT MAINTENANT. Donne-lui le meilleur reframe disponible, même si tu aurais préféré creuser davantage." : ""}
+
+Analyse maintenant, selon les consignes reçues.`,
+      afficheFlux, CONSIGNES(), monTour.signal);
+
+    if(monTour.signal.aborted) return;
+    const j = JSON.parse(txt.replace(/```json|```/g, "").trim());
+    if(j.signal && j.signal.cite && !S.signaux.some(x => x.cite === j.signal.cite)){
+      S.signaux.push({t:(Date.now()-S.t0)/1000, type:j.signal.type||"signal",
+                      cite:j.signal.cite, sens:j.signal.sens||""});
+      montreSignal(j.signal);
+    }
+    appliquer(j, cands);
+    S.forceTraitement = false;
+    ECOUTE.derniereAnalyse = Date.now();
+    ECOUTE.erreur = "";
+  }catch(e){
+    if(monTour.signal.aborted || e.name === "AbortError"){ ECOUTE.enCours = false; return; }
+    ECOUTE.erreur = e.message;
+    JOURNAL.push({t:(Date.now()-S.t0)/1000, text:"", qui:"", ok:false, raison:"ERREUR — "+e.message});
+    $("card").className = "card hot";
+    $("tag").textContent = "PROBLÈME";
+    $("action").textContent = "LE COPILOTE NE RÉPOND PAS";
+    $("phrase").className = "";
+    $("phrase").textContent = e.message;
+  }
+  ECOUTE.enCours = false;
+  majEtatMoteur();
+}
+
+/* Autre angle : on fait défiler les formulations disponibles pour la même objection */
+function renderAngle(){
+  const c = S.current;
+  if(!c || !c.angles || !c.angles.length) return;
+  const a = c.angles[S.angleIdx % c.angles.length];
   $("phrase").className = "";
-  $("phrase").textContent = "« "+o.angles[0].p+" »";
-  $("why").textContent = o.why; $("why").classList.remove("on");
-  S.current = JSON.parse(JSON.stringify(o));
-  S.angleIdx = 0;
+  $("phrase").textContent = "« " + (a.p || "") + " »";
+  if(a.n) $("tag").textContent = a.n;
+  if(a.why) $("why").textContent = a.why;
 }
+
+/* affichage au fil de l'eau : la phrase apparaît dès qu'elle est complète */
+function afficheFlux(txt){
+  const m = txt.match(/"phrase"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if(m && m[1] && m[1].length > 8){
+    const p = m[1].replace(/\\"/g, '"').replace(/\\n/g, " ");
+    const el = $("phrase");
+    if(el && el.textContent !== "« " + p + " »"){
+      el.className = "";
+      el.textContent = "« " + p + " »";
+    }
+  }
+  const a = txt.match(/"action"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if(a && a[1]) $("action").textContent = a[1];
+}
+
+/* --- journal : pourquoi chaque phrase a été analysée ou non --- */
+let JOURNAL = [];
+function note(text, qui, ok, raison){
+  JOURNAL.push({t:S.t0 ? (Date.now()-S.t0)/1000 : 0, text:String(text).slice(0,90), qui, ok, raison});
+  if(JOURNAL.length > 400) JOURNAL = JOURNAL.slice(-300);
+  return ok;
+}
+
 
 function fireDrift(title,desc){
   S.driftCount++;
@@ -1355,6 +1526,7 @@ function fireDrift(title,desc){
   fireDrift._to = setTimeout(()=>$("drift").classList.remove("on"), 14000);
 }
 
+
 function idleCard(){
   S.current = null; S.beat = 0;
   $("card").className = "card";
@@ -1366,88 +1538,6 @@ function idleCard(){
   $("why").classList.remove("on");
 }
 
-/* FILTRE — la moitié des appels ne servent à rien. On les coupe. */
-const BAVARDAGE = /^(oui|ouais|d'?accord|ok|okay|hmm|mmh|voila|voilà|exactement|tout à fait|je vois|bien sûr|super|parfait|merci|bonjour|salut|au revoir|ça marche|nickel|top)[\s.!?]*$/i;
-// les salutations du début : rien à analyser, et ça coûte de l'argent pour rien
-const POLITESSE = /^(bonjour|bonsoir|salut|allô|allo|oui)\b[^?]{0,60}(ça va|ca va|bien merci|très bien|tres bien|et vous|et toi|comment allez|comment vas)[^?]{0,25}[.!]?$/i;
-
-let JOURNAL = [];
-function note(text, qui, ok, raison){
-  JOURNAL.push({t:S.t0?(Date.now()-S.t0)/1000:0, text:text.slice(0,90), qui, ok, raison});
-  if(JOURNAL.length > 400) JOURNAL = JOURNAL.slice(-300);
-  return ok;
-}
-
-function vautLeCoup(text, force){
-  if(force) return true;
-  if(!API_KEY && !window.storage){
-    // c'était le défaut : sans clé, l'app ne faisait rien DU TOUT, sans rien dire
-    $("card").className = "card hot";
-    $("tag").textContent = "IMPOSSIBLE D'ANALYSER";
-    $("action").textContent = "IL MANQUE TA CLÉ";
-    $("phrase").className = "";
-    $("phrase").textContent = "Va dans Ma méthode et colle ta clé API. Sans elle, le copilote ne peut pas réfléchir.";
-    $("cause").textContent = "";
-    $("why").textContent = "";
-    return false;
-  }
-  const mots = text.trim().split(/\s+/).length;
-  const brut = text.trim();
-  const qui0 = S.moiQuiParle ? "MOI" : "PROSPECT";
-  if(BAVARDAGE.test(brut)) return note(brut, qui0, false, "simple acquiescement");
-  if(POLITESSE.test(brut)) return note(brut, qui0, false, "politesse d'ouverture");
-  if(mots < ECO.motsMin) return note(brut, qui0, false, "trop court ("+mots+" mots, seuil "+ECO.motsMin+")");
-  if(S.moiQuiParle){
-    const q = /\?\s*$/.test(brut) || /^(qu'?est|comment|pourquoi|quand|combien|qui\b|où|est-ce|dis-moi|raconte|explique)/i.test(brut);
-    return note(brut, qui0, q, q ? "ta question" : "c'est toi qui parles, pas une question");
-  }
-  return note(brut, qui0, true, "analysé");
-}
-
-/* ANTICIPATION : on lance l'analyse pendant que le prospect finit sa phrase.
-   La réponse arrive donc au moment où il se tait, pas 5 secondes après. */
-let derniereAnticipation = "", horlogeAnticipe = null;
-function anticipe(partiel){
-  // on ne se fie pas à l'étiquette de la phrase précédente : on mesure MAINTENANT
-  if(CALIBRE){
-    const dep = debutPhrase || (Date.now()-2500);
-    const d = quiParle(niveauDe(dep), empreinteDe(dep));
-    if(d && d.surete > 0.35 && d.qui === "CLOSER") return;   // c'est toi, on n'anticipe pas
-    if(!d && S.moiQuiParle) return;                          // dans le doute, on garde l'étiquette
-  } else if(S.moiQuiParle) return;
-  if(BAVARDAGE.test(partiel.trim())) return;
-  const mots = partiel.trim().split(/\s+/).length;
-  if(!ECO.antic) return;
-  if(mots < ECO.motsAntic) return;
-  if(partiel === derniereAnticipation) return;
-  derniereAnticipation = partiel;
-  clearTimeout(horlogeAnticipe);
-  // la phrase s'est stabilisée : il marque une pause, on part maintenant
-  horlogeAnticipe = setTimeout(()=>{
-    if(!enCours) analyse(partiel, true);
-  }, ECO.attente);
-}
-
-/* on attend la fin du tour de parole avant d'analyser */
-let tampon = [], finTour = null;
-function programmerAnalyse(text){
-  tampon.push(text);
-  clearTimeout(finTour);
-  finTour = setTimeout(()=>{
-    const bloc = tampon.join(" ");
-    tampon = [];
-    if(!vautLeCoup(bloc)) return;
-    // si l'anticipation a déjà couvert presque tout, on ne refait pas le travail
-    const couvert = derniereAnticipation && bloc.length - derniereAnticipation.length < 12
-                    && bloc.startsWith(derniereAnticipation.slice(0, Math.min(40, derniereAnticipation.length)));
-    if(!couvert) analyse(bloc);
-  }, RYTHME.pause);
-}
-
-/* =========================================================
-   MOTEUR D'ANALYSE — l'IA lit la conversation entière et décide
-   ========================================================= */
-/* Ce texte ne change jamais d'une analyse à l'autre. C'est lui qu'on met en cache. */
 function CONSIGNES(){
   return `Tu es le copilote d'un closer francophone, en direct pendant un appel de vente. Chaque tour de parole est étiqueté CLOSER (le vendeur que tu assistes) ou PROSPECT (le client). Ces étiquettes sont posées à la main par le closer : fie-toi à elles. Une étiquette "?" signifie qu'elle est inconnue. Ne conseille jamais sur la base d'une phrase dite par le CLOSER comme si c'était une objection du PROSPECT.
 
@@ -1565,7 +1655,7 @@ Réponds uniquement avec ce JSON, dans cet ordre exact, sans markdown :
 {"temps":"attendre|creuser|isoler|traitement|closing","action":"consigne de 5 mots max, en majuscules","phrase":"ce que le closer dit, ou null si temps=attendre","certain":"ce que le prospect a dit, dans ses mots, ou null","incertain":"ce qui reste a verifier, 8 mots max, ou null","freins":["liste des freins encore ouverts"],"objection":"nom court ou null","etape":"code de la trame","manque":"ce qui reste a obtenir a cette etape, 10 mots max","cause":"cause certaine en 5 mots ou null","preuve":"mots exacts du prospect ou null","raison":"pourquoi, en une phrase","fiche":null}`;
 }
 
-let enCours = false, enAttente = null;
+
 
 /* les fiches les plus proches de ce qui se dit, toutes objections confondues */
 let TERRAIN_ACTUEL = {terrain:"decouverte", bonnes:["moi","sami"]};
@@ -1603,91 +1693,6 @@ CARNET DES SIGNAUX repérés depuis le début : ${
 }`;
 }
 
-let ANNULEUR = null;
-async function analyse(dernier, anticipation){
-  // Le prospect vient de dire autre chose : l'analyse en cours porte sur du passé.
-  // On l'abandonne au lieu de faire la queue. Mieux vaut une réponse juste en retard
-  // qu'une réponse à côté au bon moment.
-  if(enCours){
-    if(anticipation) return;              // une anticipation ne bouscule jamais une vraie analyse
-    if(ANNULEUR){ try{ ANNULEUR.abort() }catch(e){} }
-    JOURNAL.push({t:(Date.now()-S.t0)/1000, text:String(dernier).slice(0,60), qui:"", ok:false,
-                  raison:"analyse précédente abandonnée, le prospect a repris la parole"});
-  }
-  ANNULEUR = new AbortController();
-  const monTour = ANNULEUR;
-  verrouJusqu = 0;                        // une phrase neuve périme toujours la carte affichée
-  enCours = true;
-  const cands = candidats();
-  const bloc = cands.length
-    ? "\nSES PROPRES FORMULATIONS DISPONIBLES (numérotées) :\n" + cands.map((c,k)=>`${k+1}. [${c.f.type||"?"} · ${c.f.label||c.f.objection}] « ${c.f.phrase} »`).join("\n")
-    : "";
-  const evites = REJETS.filter(r=>!S.current || r.objection===S.current.id || REJETS.length<10)
-                       .slice(-6).map(r=>"- « "+r.phrase+" »").join("\n");
-  const lecons = evites ? "\nDÉJÀ REFUSÉ PAR CE CLOSER — ne propose jamais ces formulations ni de simples variantes :\n"+evites : "";
-  window.__ecoles = {};   // pour afficher d'où vient la fiche retenue
-  const tr = ecolesPour(S.beat === 2 ? "traitement" : S.beat === 1 ? "diagnostic" : "attendre", S.etape);
-  const specialistes = tr.bonnes.filter(e=>e!=="moi"&&e!=="sami").map(e=>(ECOLES[e]&&ECOLES[e].nom)||e);
-  const orientation = `
-PHASE ACTUELLE : ${tr.terrain.toUpperCase()} — ${TERRAINS[tr.terrain]}
-${specialistes.length ? `Écoles spécialistes de cette phase, dont des fiches te sont proposées : ${specialistes.join(", ")}. Sur cette phase, leurs angles sont les plus solides — mais la formulation doit rester celle d'un closer français.` : ""}
-Rappel de hiérarchie : à qualité égale, préfère toujours une fiche issue de ses propres calls, puis de son coach, puis des autres écoles.`;
-  const dial = S.transcript.slice(-ECO.tours).map(x=>`[${fmt(x.t)}] ${x.qui||"?"} : ${x.text}`).join("\n");
-
-  const th = $("heardTxt");
-  const avant = th ? th.textContent : "";
-  if(th) th.textContent = "Analyse en cours…";
-  const dejaVu = {a:false, p:false};
-  const affiche = (partiel)=>{
-    const ma = partiel.match(/"action"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    if(ma && !dejaVu.a){ dejaVu.a = true; $("action").textContent = ma[1]; }
-    const mp = partiel.match(/"phrase"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    if(mp && !dejaVu.p){
-      dejaVu.p = true;
-      if(Date.now() >= verrouJusqu){
-        $("phrase").className = "";
-        $("phrase").textContent = "« "+mp[1].replace(/\\"/g,'"')+" »";
-      }
-    }
-  };
-
-  try{
-    const txt = await callClaudeStream(
-`ÉTAT DU CALL
-${etatDuCall()}
-
-DERNIÈRES MINUTES DE CONVERSATION
-${dial}
-
-DERNIÈRE PHRASE ENTENDUE : "${dernier}"
-${bloc}${lecons}
-${orientation}
-
-Étapes déjà couvertes : ${S.faites.join(', ')||'aucune'}
-
-Analyse maintenant, selon les consignes reçues.`, affiche, CONSIGNES(), monTour.signal);
-    if(monTour.signal.aborted) return;      // une analyse plus récente a pris la main
-    const j = JSON.parse(txt.replace(/```json|```/g,"").trim());
-    if(j.signal && j.signal.cite && !S.signaux.some(x=>x.cite === j.signal.cite)){
-      S.signaux.push({t:(Date.now()-S.t0)/1000, type:j.signal.type||"signal",
-                      cite:j.signal.cite, sens:j.signal.sens||""});
-      montreSignal(j.signal);
-    }
-    appliquer(j, cands);
-  }catch(e){
-    if(monTour.signal.aborted || e.name === "AbortError"){ enCours = false; return; }
-    JOURNAL.push({t:(Date.now()-S.t0)/1000, text:"", qui:"", ok:false, raison:"ERREUR — "+e.message});
-    $("cause").textContent = "Analyse indisponible · " + e.message;
-    $("card").className = "card hot";
-    $("tag").textContent = "PROBLÈME";
-    $("action").textContent = "LE COPILOTE NE RÉPOND PAS";
-    $("phrase").className = "";
-    $("phrase").textContent = e.message;
-  }
-  if(th && th.textContent === "Analyse en cours…") th.textContent = avant;
-  enCours = false;
-}
-
 function majFile(){
   const box = $("suivant");
   if(carteEnFile){ box.classList.add("on"); $("fileTxt").textContent = "nouvelle analyse prête"; }
@@ -1721,15 +1726,13 @@ function appliquer(j, cands){
   const org0 = $("origine"); if(org0) org0.textContent = "";   // on repart propre à chaque carte
   // La carte reste lisible — mais seulement tant que rien de neuf n'a été dit.
   // Une carte qui parle d'une phrase déjà dépassée ne sert à rien.
-  const perimee = S.transcript.length > (S.tourAffiche || 0);
-  if(Date.now() < verrouJusqu && !perimee && RYTHME.tenue !== Infinity){
+  // En manuel, c'est toi qui fais défiler. Sinon la carte la plus récente gagne
+  // toujours : une carte qui parle du passé ne sert à rien pendant un call.
+  if(RYTHME.tenue === Infinity && Date.now() < verrouJusqu){
     carteEnFile = {j, cands}; majFile(); return;
   }
-  if(RYTHME.tenue === Infinity && Date.now() < verrouJusqu){
-    carteEnFile = {j, cands}; majFile(); return;      // en manuel, c'est toi qui décides
-  }
   S.tourAffiche = S.transcript.length;
-  verrouJusqu = RYTHME.tenue === Infinity ? Infinity : Date.now() + RYTHME.tenue;
+  verrouJusqu = RYTHME.tenue === Infinity ? Infinity : 0;
   carteEnFile = null; majFile();
   if(RYTHME.tenue !== Infinity){
     setTimeout(()=>{ if(carteEnFile) libererCarte(); }, RYTHME.tenue+50);
@@ -2060,8 +2063,8 @@ $("btnDemo").onclick = () => {
     setTimeout(()=>{
       if(!S.running) return;
       S.lastSpeech = Date.now();
-      $("heard").className="heard live"; $("heardTxt").textContent = line;
-      handleUtterance(line);
+      etatEcoute(line);
+      nouvellePhrase(line, null);
     }, d);
   });
 };
@@ -2080,10 +2083,8 @@ $("typed").onkeydown = e => {
   if(!t) return;
   e.target.value = "";
   S.lastSpeech = Date.now();
-  $("heard").className="heard live"; $("heardTxt").textContent = t;
-  peeked = null;
-  handleUtterance(t);
-  if(!vautLeCoup(t)) analyse(t, true);
+  etatEcoute(t);
+  nouvellePhrase(t, null);
 };
 
 /* mini-fenêtre flottante, toujours au-dessus de ton call */
@@ -2200,7 +2201,14 @@ $("btnQui").onclick = () => {
 };
 $("btnSuivant").onclick = () => { if(carteEnFile) libererCarte(); else if(RJ.tours.length && !RJ.auto) tourSuivant(); };
 
-$("btnTreat").onclick = () => { const d=S.transcript.slice(-1)[0]; if(d){ $("action").textContent="ANALYSE…"; verrouJusqu=0; analyse(d.text+" [le closer demande de passer au traitement maintenant]"); } };
+$("btnTreat").onclick = () => {
+  const d = S.transcript.slice(-1)[0];
+  if(!d) return toast("Rien à traiter pour l'instant");
+  $("action").textContent = "ANALYSE…";
+  verrouJusqu = 0;
+  S.forceTraitement = true;      // lu par l'analyse suivante
+  lancerAnalyse();
+};
 $("btnAngle").onclick = () => { if(S.current){ S.angleIdx++; renderAngle(); } };
 $("btnWhy").onclick   = () => $("why").classList.toggle("on");
 $("btnClear").onclick = () => { $("drift").classList.remove("on"); idleCard(); };
@@ -2879,9 +2887,9 @@ function tourSuivant(){
   $("btnQui").textContent = t.moi ? "MOI qui parle" : "PROSPECT parle";
   $("btnQui").classList.toggle("moi", t.moi);
   S.lastSpeech = Date.now();
-  $("heard").className = "heard live";
-  $("heardTxt").textContent = t.nom + " : " + t.text;
-  handleUtterance(t.text);
+  etatEcoute(t.nom + " : " + t.text);
+  // en rejeu on connaît qui parle : on l'impose au lieu de deviner
+  nouvellePhrase(t.text, {qui: t.moi ? "CLOSER" : "PROSPECT", surete: 1});
   if(!RJ.auto) $("fileTxt").textContent = `réplique ${RJ.i}/${RJ.tours.length}`;
 }
 
