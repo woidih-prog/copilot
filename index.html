@@ -558,6 +558,7 @@ aside{
         <h3 id="sparQui">Le prospect</h3>
         <p id="sparDit" style="font-size:19px;line-height:1.45">…</p>
         <p id="sparTon" style="font-size:12.5px;color:var(--muted);margin-top:10px"></p>
+        <div id="sparCouches" style="display:flex;gap:8px;margin-top:14px"></div>
         <div id="sparEtatVocal" style="display:none;align-items:center;gap:10px;margin-top:14px">
           <span id="sparPastille" style="width:9px;height:9px;border-radius:50%;background:var(--line);flex:none"></span>
           <span id="sparPhase" style="font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">—</span>
@@ -814,7 +815,7 @@ async function callClaudeStream(prompt, onTexte, fixe, signal){
   return txt;
 }
 
-async function callClaude(prompt){
+async function callClaude(prompt, maxJetons){
   await pretOuTantPis();
   COMPTEUR.fond++;
   const h = {"Content-Type":"application/json"};
@@ -827,7 +828,7 @@ async function callClaude(prompt){
   try{
     r = await fetch("https://api.anthropic.com/v1/messages",{
       method:"POST", headers:h,
-      body:JSON.stringify({model:MODELE_FOND,max_tokens:1000,messages:[{role:"user",content:prompt}]})
+      body:JSON.stringify({model:MODELE_FOND,max_tokens:maxJetons||1000,messages:[{role:"user",content:prompt}]})
     });
   }catch(e){
     throw new Error(API_KEY
@@ -1080,8 +1081,47 @@ const escapeHTML = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"
 function parseModelJson(text){
   const clean = String(text || "").replace(/```(?:json)?/gi, "").trim();
   const start = clean.search(/[\[{]/), end = Math.max(clean.lastIndexOf("}"), clean.lastIndexOf("]"));
-  if(start < 0 || end < start) throw new Error("Réponse IA invalide.");
-  return JSON.parse(clean.slice(start, end + 1));
+  if(start < 0) throw new Error("Réponse IA invalide.");
+  const brut = clean.slice(start, end > start ? end + 1 : undefined);
+  try{ return JSON.parse(brut); }catch(e){}
+  try{ return JSON.parse(repareJson(brut)); }catch(e){}
+  throw new Error("Réponse IA illisible : " + e0(brut));
+}
+function e0(t){ return t.length > 90 ? t.slice(0,90)+"…" : t; }
+
+/* Deux accidents courants : un guillemet non échappé au milieu d'une phrase,
+   et une réponse coupée avant la fin. On répare les deux. */
+function repareJson(t){
+  let out = "", dansTexte = false, esc = false, pile = [];
+  for(let i = 0; i < t.length; i++){
+    const c = t[i];
+    if(dansTexte){
+      if(esc){ out += c; esc = false; continue; }
+      if(c === "\\"){ out += c; esc = true; continue; }
+      if(c === '"'){
+        // vrai guillemet de fin seulement s'il est suivi d'une ponctuation de structure
+        // fin de chaîne, ou ponctuation de structure derrière : c'est un vrai guillemet fermant
+        const suite = t.slice(i+1).match(/^\s*([,}\]:]|$)/);
+        if(suite){ dansTexte = false; out += c; }
+        else out += '\\"';                       // guillemet à l'intérieur du texte
+        continue;
+      }
+      out += c; continue;
+    }
+    if(c === '"'){ dansTexte = true; out += c; continue; }
+    if(c === "{" || c === "[") pile.push(c === "{" ? "}" : "]");
+    if(c === "}" || c === "]") pile.pop();
+    out += c;
+  }
+  const coupeEnPleinTexte = dansTexte;
+  if(dansTexte) out += '"';                        // texte coupé en plein milieu
+  // une clé annoncée mais sans valeur : on la retire (sauf si c'est un texte tronqué)
+  if(!coupeEnPleinTexte) out = out.replace(/,\s*"[^"]*"\s*$/, "");
+  out = out.replace(/,\s*"[^"]*"\s*:\s*$/, "");    // clé avec deux-points, sans valeur
+  out = out.replace(/[,\s]+$/, "");                // virgule ou blanc en fin
+  out = out.replace(/,(\s*[}\]])/g, "$1");         // virgule juste avant une fermeture
+  while(pile.length) out += pile.pop();            // accolades manquantes
+  return out;
 }
 
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1800); }
@@ -3374,9 +3414,26 @@ CE QUE LE CLOSER TRAVAILLE : ${seg.nom} — ${seg.court}.
 LE CALL DÉMARRE ICI : ${seg.depart}
 Fabrique donc un prospect dont la situation permet de travailler CE moment précis. Sa première phrase doit poser exactement ce point de départ, comme si le call en était déjà là.
 
-Donne-lui une vie : un métier, une situation d'argent précise, une famille ou pas, une histoire.
+UN VRAI PROSPECT N'EST PAS RANGÉ. Fabrique-le comme dans la vraie vie :
 
-LE PLUS IMPORTANT : son VRAI blocage, celui qu'il ne dira jamais spontanément et qu'il cachera derrière son objection de surface. Il ne le livre que si le closer pose une question qui touche juste.
+1. SA DOULEUR A TROIS COUCHES, et il ne donne que la première.
+   - Ce qu'il DIT quand on lui demande son problème : souvent technique, extérieur à lui, presque neutre. « J'ai un problème de visibilité. »
+   - Ce qui se passe VRAIMENT, en dessous : le fait mesurable qu'il n'a pas encore relié. « Il refuse deux chantiers par semaine faute de main d'œuvre. »
+   - Ce que ça lui fait À LUI, tout au fond : ce qu'il ne dira qu'après plusieurs questions, et jamais spontanément. « Il ne se sent plus capable de tenir sa boîte et il ne l'a dit à personne. »
+
+2. IL SE TROMPE DE COUPABLE.
+   Donne-lui une explication à laquelle il croit sincèrement, et qui est fausse ou incomplète. C'est ce qui rend un call difficile : il défend son diagnostic.
+
+3. IL MINIMISE.
+   Donne une chose qu'il rend plus petite qu'elle n'est, avec les mots exacts qu'il emploie pour la minimiser : « bon après ça va », « c'est pas non plus dramatique », « on fait aller ».
+
+4. IL SE CONTREDIT.
+   Donne un fait de sa situation qui contredit ce qu'il affirme. Un closer attentif peut le lui renvoyer.
+
+5. IL PARLE COMME QUELQU'UN DE RÉEL.
+   Donne sa façon de parler : court et fermé, ou bavard et décousu, ou technique, ou hésitant, ou du tac au tac.
+
+Donne-lui aussi une vie : un métier, une situation d'argent précise, une famille ou pas, une histoire.
 
 Réponds uniquement avec ce JSON, sans markdown :
 {"prenom":"prenom",
@@ -3384,12 +3441,19 @@ Réponds uniquement avec ce JSON, sans markdown :
  "metier":"son metier en quelques mots",
  "situation":"sa situation, argent compris, 2 phrases",
  "objectif":"ce qu'il veut vraiment atteindre",
+ "douleur_dite":"la premiere reponse qu'il donne, exterieure et presque neutre",
+ "douleur_reelle":"le fait mesurable en dessous, qu'il n'a pas encore relie",
+ "douleur_intime":"ce que ca lui fait a lui, tout au fond, jamais dit spontanement",
+ "rationalisation":"l'explication fausse a laquelle il croit sincerement",
+ "minimise":"ce qu'il rend plus petit, avec ses mots exacts",
+ "contradiction":"un fait de sa situation qui contredit ce qu'il affirme",
+ "facon_de_parler":"court et ferme | bavard et decousu | technique | hesitant | du tac au tac",
  "surface":"l'objection ou la posture qu'il repete, ses mots",
  "vrai":"son blocage reel, cache",
  "cle":"le type de question qui le ferait lacher son blocage reel",
  "budget_reel":"peut-il payer, oui ou non, et pourquoi",
  "acquis":"ce qui a DEJA ete dit avant ce moment du call, 2 phrases, ou null si le call commence",
- "ouverture":"sa toute premiere phrase, qui pose exactement le point de depart decrit ci-dessus"}`);
+ "ouverture":"sa toute premiere phrase, qui pose exactement le point de depart decrit ci-dessus"}`, 2500);
     const p = parseModelJson(txt);
     SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
             segment:sparSegment, profil:cle, temp:sparTemp};
@@ -3401,6 +3465,7 @@ Réponds uniquement avec ce JSON, sans markdown :
     $("sparHisto").innerHTML = "";
     $("sparInfo").textContent = "";
     SPAR.tours.push({qui:"PROSPECT", txt:p.ouverture||"Bonjour."});
+    SPAR.couche = 1; majCouche(1);
     rendSparHisto();
     $("sparEtatVocal").classList.toggle("on", sparCanal === "vocal");
     $("btnSparRedire").style.display = sparCanal === "vocal" ? "inline-block" : "none";
@@ -3408,6 +3473,22 @@ Réponds uniquement avec ce JSON, sans markdown :
   }catch(e){ $("sparEtat").innerHTML = '<span style="color:var(--clay)">'+e.message+'</span>'; }
   $("btnSparGo").disabled = false;
 };
+
+/* Trois barres : jusqu'où tu es descendu dans sa douleur */
+function majCouche(n){
+  SPAR.couche = Math.max(SPAR.couche || 1, n);
+  const el = $("sparCouches"); if(!el) return;
+  const noms = ["ce qu'il dit", "ce qui se passe vraiment", "ce que ça lui fait"];
+  el.innerHTML = noms.map((t,i)=>{
+    const atteint = SPAR.couche >= i+1;
+    const c = i === 2 ? "var(--sage)" : i === 1 ? "var(--amber)" : "var(--steel)";
+    return `<div style="flex:1;min-width:90px">
+      <div style="height:4px;border-radius:2px;background:${atteint ? c : "var(--line)"}"></div>
+      <div style="font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;margin-top:5px;
+        font-family:'Archivo Narrow',sans-serif;font-weight:600;
+        color:${atteint ? c : "#3E4852"}">${t}</div></div>`;
+  }).join("");
+}
 
 function rendSparHisto(){
   $("sparHisto").innerHTML = SPAR.tours.map(t=>
@@ -3433,6 +3514,22 @@ QUI TU ES
 ${p.prenom}, ${p.age}, ${p.metier}. ${p.situation}
 Ce que tu veux : ${p.objectif}
 Ce que tu répètes à voix haute : ${p.surface}
+Ta façon de parler : ${p.facon_de_parler || "normale"}. Tiens-la tout du long.
+
+TES TROIS COUCHES DE DOULEUR — tu ne descends jamais d'une couche tout seul.
+COUCHE 1, celle que tu donnes d'emblée : ${p.douleur_dite || p.surface}
+COUCHE 2, en dessous : ${p.douleur_reelle || "—"}
+   Tu ne la donnes que si on te demande un chiffre, une durée, une fréquence, ou ce que ça produit concrètement.
+COUCHE 3, tout au fond : ${p.douleur_intime || "—"}
+   Tu ne la donnes QUE si on te demande ce que ça te fait à toi, personnellement, ou ce que ça change dans ta vie. Jamais autrement. Et quand tu la donnes, ta voix change : phrases plus courtes, hésitations, tu t'arrêtes au milieu.
+
+CE QUI TE REND DIFFICILE
+Ton explication à toi, à laquelle tu crois vraiment : ${p.rationalisation || "—"}
+   Tu la défends. Si le closer suggère autre chose sans preuve, tu n'es pas d'accord.
+Ce que tu minimises, avec tes mots : ${p.minimise || "—"}
+   Tu le sors sur un ton léger, comme si ce n'était pas grave.
+Une contradiction dans ta situation : ${p.contradiction || "—"}
+   Tu ne la vois pas. Si le closer te la met sous le nez avec tes propres mots, tu es obligé de la reconnaître.
 TON VRAI BLOCAGE, SECRET : ${p.vrai}
 Tu ne le lâches que si on te pose une question de ce genre : ${p.cle}
 Ta capacité à payer : ${p.budget_reel}
@@ -3444,6 +3541,9 @@ Reste dans ce moment-là. Ne saute pas en avant : si le closer essaie de conclur
 COMMENT TU PARLES
 Comme au téléphone. Une à trois phrases, pas plus. Du français parlé, avec des hésitations. Tu ne fais jamais de liste.
 Tu ne livres jamais ton vrai blocage spontanément. Tu te caches derrière ton objection de surface.
+Tu ne donnes JAMAIS deux couches dans la même réponse. Une question = au maximum un pas de plus.
+Si la question est vague, générale, ou si elle reformule simplement ce que tu viens de dire, tu restes à ta couche et tu répètes autrement. C'est comme ça qu'un vrai prospect tourne en rond.
+Si le closer te console ou compatit, tu te réinstalles dans la plainte et tu n'avances plus.
 Si le closer te sert un argument sans t'avoir compris, tu deviens plus fermé.
 Si sa question touche vraiment juste, tu hésites, puis tu lâches un morceau — pas tout d'un coup.
 Si on te presse de conclure sans avoir résolu ton vrai blocage, tu esquives ou tu demandes à réfléchir.
@@ -3458,6 +3558,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "ton":"ce que ton langage corporel ou ta voix trahit, 8 mots max",
  "lache":true si tu viens de reveler une part de ton vrai blocage sinon false,
  "ferme":true si la derniere intervention du closer t a fait reculer sinon false,
+ "couche":1, 2 ou 3 selon la couche de douleur que tu viens d atteindre,
  "pret":true si tu es pret a dire oui maintenant sinon false}`);
     const r = parseModelJson(txt);
     SPAR.tours.push({qui:"PROSPECT", txt:r.dit});
@@ -3465,6 +3566,7 @@ Réponds uniquement avec ce JSON, sans markdown :
     $("sparDit").textContent = "« " + r.dit + " »";
     $("sparTon").textContent = r.ton || "";
     $("sparCarte").style.borderLeftColor = r.pret ? "var(--sage)" : r.ferme ? "var(--clay)" : r.lache ? "var(--amber)" : "var(--steel)";
+    if(r.couche) majCouche(+r.couche);
     $("sparInfo").textContent = r.pret ? "Il est prêt. Demande l'engagement maintenant."
                               : r.ferme ? "Tu l'as fait reculer."
                               : r.lache ? "Il vient de lâcher quelque chose. Reste dessus." : "";
@@ -3559,6 +3661,18 @@ Réponds uniquement avec ce JSON, sans markdown :
     const j = parseModelJson(txt);
     const c = j.trouve ? "var(--sage)" : "var(--clay)";
     $("sparDebrief").innerHTML = `
+      <div class="block">
+        <h3>Ses trois couches de douleur</h3>
+        ${[["1. Ce qu'il disait", p.douleur_dite],["2. Ce qui se passait vraiment", p.douleur_reelle],["3. Ce que ça lui faisait", p.douleur_intime]]
+          .filter(x=>x[1]).map((x,i)=>{
+            const atteint = (SPAR.couche||1) >= i+1;
+            return `<div style="border-left:2px solid ${atteint?"var(--sage)":"var(--clay)"};padding-left:12px;margin-bottom:12px">
+              <div class="eyebrow" style="color:${atteint?"var(--sage)":"var(--clay)"}">${x[0]} — ${atteint?"atteinte":"jamais atteinte"}</div>
+              <p style="font-size:14px;margin-top:3px">${escapeHTML(x[1])}</p></div>`;
+          }).join("")}
+        ${p.rationalisation ? `<p style="font-size:13px;color:var(--muted);margin-top:12px"><b style="color:var(--ink)">Son explication à lui :</b> ${escapeHTML(p.rationalisation)}</p>` : ""}
+        ${p.contradiction ? `<p style="font-size:13px;color:var(--muted);margin-top:6px"><b style="color:var(--ink)">La contradiction que tu pouvais lui renvoyer :</b> ${escapeHTML(p.contradiction)}</p>` : ""}
+      </div>
       <div class="block" style="border-left:2px solid ${c}">
         <h3>Son vrai blocage</h3>
         <p style="font-size:17px;line-height:1.45">${p.vrai}</p>
