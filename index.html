@@ -997,6 +997,17 @@ const KB = [
   ]
 },
 {
+  id:"PAIEMENT", label:"Esquive du paiement", cause:"Cause probable : un pas de plus qu'il n'avait pas prévu",
+  patterns:[/pas ma carte/i,/carte bleue/i,/pas ma cb/i,/j'?ai pas la carte/i,/jamais par téléphone/i,/envoie[- ]moi le lien/i,/je le fais ce soir/i,/je le ferai (?:ce soir|demain|plus tard)/i,/plafond/i,/virement/i,/c'?est ma femme qui a la carte/i,/mon mari a la carte/i],
+  action:"RESTE EN LIGNE. Rends le geste minuscule.",
+  why:"Il a dit oui. Ce n'est pas un refus, c'est un pas de plus qu'il n'avait pas prévu. Accepter de rappeler demain, c'est perdre la vente avec le sourire.",
+  angles:[
+    {n:"Rester en ligne", p:"Va la chercher, je reste en ligne. On finit ça ensemble, deux minutes."},
+    {n:"Petit montant", p:"On bloque ta place avec cent euros maintenant, et on règle le reste ce soir."},
+    {n:"Vérification", p:"La décision est prise et tu le fais ce soir, ou il te reste un doute ?"}
+  ]
+},
+{
   id:"DOC", label:"Objection · Demande de doc", cause:"Cause probable : fuite polie",
   patterns:[/envoie[- ]moi/i,/tu peux m'?envoyer/i,/par mail/i,/de la documentation/i,/une plaquette/i,/un pdf/i,/des infos par/i],
   action:"N'envoie rien. Trouve la question derrière.",
@@ -1771,11 +1782,19 @@ function candidats(n){
   return FICHES.map((f,i)=>{
     const hay = ((f.situation||"")+" "+(f.label||"")+" "+f.phrase).toLowerCase();
     let sc = mots.reduce((s,w)=>s+(hay.includes(w)?1:0),0);
-    sc += (f.valide||0) * 1.5;                              // ce que tu as validé remonte
-    if(f.ecole === "moi" || !f.ecole) sc += 2;              // ta voix d'abord
-    else if(f.ecole === "sami") sc += 1;                    // puis ton coach
-    // une école sur son terrain remonte : Walsh sur l'objection, Josh sur la découverte
-    if(TERRAIN_ACTUEL.bonnes.includes(f.ecole)) sc += 1.5;
+    sc += (f.valide||0) * 1.5;                              // ce que tu as validé en call remonte
+    if(f.ecole === "moi" || !f.ecole) sc += 1;              // ta voix, pour les formulations
+    else if(f.ecole === "sami") sc += 0.5;
+    /* Le spécialiste du moment passe devant : Josh sur la découverte,
+       Walsh sur l'objection. C'est le cœur du système. */
+    /* Le bonus de terrain ne vaut que pour les spécialistes. Tes calls et ceux
+       de Sami couvrent tout le call : ce sont des généralistes, ils ne peuvent
+       pas rafler la mise à chaque phase. */
+    const generaliste = (f.ecole === "moi" || !f.ecole || f.ecole === "sami");
+    if(!generaliste){
+      if(TERRAIN_ACTUEL.bonnes.includes(f.ecole)) sc += 3;   // Josh en découverte, Walsh en objection
+      else sc -= 1.5;                                        // hors de son terrain, il recule
+    }
     return {i, f, score: sc};
   }).sort((a,b)=>b.score-a.score).slice(0,n).filter(x=>x.score>0 || FICHES.length<20);
 }
@@ -2355,8 +2374,10 @@ const TERRAINS = {
 };
 
 let ECOLES = {
-  moi:  {nom:"Mes calls", terrains:["cadrage","decouverte","objection","closing"], note:"ta voix, toujours prioritaire"},
-  sami: {nom:"Sami",      terrains:["decouverte","objection","closing"], note:"ton coach"}
+  moi:          {nom:"Mes calls",   terrains:["cadrage","decouverte","objection","closing"], note:"tes formulations, ta façon de parler"},
+  sami:         {nom:"Sami",        terrains:["decouverte","objection","closing"], note:"ton coach"},
+  "josh lyons": {nom:"Josh Lyons",  terrains:["cadrage","decouverte"], note:"creuser pour qu'aucune objection ne sorte"},
+  "bill walsh": {nom:"Bill Walsh",  terrains:["objection","closing"],  note:"traiter l'objection quand elle est là"}
 };
 
 /* Quelle école appeler, selon où on en est */
@@ -3064,6 +3085,7 @@ const SEGMENTS = {
     depart:"Le call commence. Le prospect vient de décrocher.",
     objectif:"Mener le call du début à la fin.",
     criteres:["A-t-il ouvert par le challenge, sans vendre le futur ?","A-t-il obtenu une douleur ressentie et chiffrée ?","A-t-il isolé avant de traiter ?","A-t-il demandé l'engagement ?"],
+    regle:"Le call se déroule normalement, dans son ordre naturel.",
     terrain:"decouverte"
   },
   ouverture: {
@@ -3072,6 +3094,7 @@ const SEGMENTS = {
     depart:"Le call vient de commencer. Rien n'a encore été dit sur son activité.",
     objectif:"Poser le cadre et obtenir son plus gros challenge, dans ses mots.",
     criteres:["A-t-il montré qu'il avait préparé ?","A-t-il demandé SON avis personnel ?","A-t-il demandé LE plus gros challenge, pas un problème parmi d'autres ?","A-t-il évité de chercher la sympathie ?","A-t-il ancré dans le présent, pas dans le futur souhaité ?"],
+    regle:"INTERDIT : tu n'as entendu ni offre ni prix. Tu ne poses AUCUNE objection commerciale — ni prix, ni délai, ni conjoint, ni « je vais réfléchir ». Ce n'est pas le moment du call.\nAUTORISÉ : être vague, poli, court, ne pas savoir quoi répondre.",
     terrain:"cadrage"
   },
   douleur: {
@@ -3080,6 +3103,7 @@ const SEGMENTS = {
     depart:"Le prospect vient d'énoncer son problème principal, calmement, sans émotion. Il le décrit de loin.",
     objectif:"L'amener à ressentir sa douleur, pas à la raconter. Puis s'arrêter au bon moment.",
     criteres:["Est-il passé de la description au ressenti ?","A-t-il posé la question de trop après une réponse polie ?","A-t-il élargi au-delà du business ?","S'est-il arrêté quand le prospect a craqué, ou a-t-il insisté jusqu'à l'anesthésier ?","A-t-il évité de consoler et d'en faire une victime ?"],
+    regle:"INTERDIT : tu n'as entendu ni offre ni prix. AUCUNE objection commerciale. Pas de « c'est cher », pas de « je dois en parler à ma femme », pas de « je vais réfléchir ».\nAUTORISÉ ET MÊME SOUHAITABLE : laisser filtrer un signal faible — une phrase glissée au passage qui annonce ton futur frein, sur le ton de la confidence. Mais un signal se glisse, il ne se pose pas et il ne se défend pas. Si le closer rebondit dessus, tu ne développes pas : tu reviens à ta situation.",
     terrain:"decouverte"
   },
   cout: {
@@ -3088,6 +3112,7 @@ const SEGMENTS = {
     depart:"Le prospect a donné son problème et un ordre de grandeur : des heures, une durée, un objectif jamais atteint. Rien n'a encore été calculé.",
     objectif:"Faire le calcul avec lui, à voix haute, puis lui demander ce que ça lui fait.",
     criteres:["A-t-il fait le calcul AVEC lui, à voix haute ?","A-t-il pris l'hypothèse la plus basse, incontestable ?","A-t-il demandé « c'est exact ? » avant « ça te fait quoi ? »","A-t-il saisi la surprise si elle est apparue ?","A-t-il évité de gonfler le chiffre ?"],
+    regle:"INTERDIT : ni offre ni prix entendus, donc aucune objection commerciale.\nAUTORISÉ : résister au calcul, contester un chiffre, minimiser le résultat obtenu.",
     terrain:"decouverte"
   },
   vision: {
@@ -3096,6 +3121,7 @@ const SEGMENTS = {
     depart:"La douleur est posée et chiffrée. Le prospect est lucide sur sa situation, mais il ne voit pas de sortie.",
     objectif:"Lui faire décrire lui-même ce que devient sa vie une fois le problème réglé.",
     criteres:["Est-ce le prospect qui décrit, ou le closer qui projette à sa place ?","A-t-il obtenu du concret, pas des généralités ?","La vision touche-t-elle sa vie, pas seulement ses chiffres ?","A-t-il relié cette vision à la douleur d'avant ?"],
+    regle:"INTERDIT : ni offre ni prix entendus, donc aucune objection commerciale.\nAUTORISÉ : avoir du mal à te projeter, rester vague, retomber sur ta plainte. Se projeter demande un effort que tu ne fais pas spontanément.",
     terrain:"decouverte"
   },
   transition: {
@@ -3104,6 +3130,7 @@ const SEGMENTS = {
     depart:"La découverte est faite. Le prospect a donné sa douleur et son objectif. Il attend, un peu silencieux.",
     objectif:"Vérifier les quatre conditions, résumer avec ses mots, et demander l'autorisation de présenter.",
     criteres:["Les quatre conditions étaient-elles réunies avant de basculer ?","A-t-il résumé la douleur la plus forte en premier ?","A-t-il repris les mots du prospect, pas les chiffres logistiques ?","A-t-il demandé l'autorisation de présenter ?","L'énergie était-elle sobre, ou enthousiaste au mauvais moment ?"],
+    regle:"INTERDIT : le prix n'a pas encore été annoncé. Ton objection viendra APRÈS le prix, pas avant.\nAUTORISÉ : être silencieux, attentiste, demander où il veut en venir.",
     terrain:"decouverte"
   },
   objection: {
@@ -3112,7 +3139,17 @@ const SEGMENTS = {
     depart:"L'offre et le prix viennent d'être annoncés. Le prospect va poser son objection.",
     objectif:"Trouver la vraie cause, l'isoler des autres freins, puis seulement retourner.",
     criteres:["A-t-il diagnostiqué avant de traiter ?","A-t-il isolé quand plusieurs freins coexistaient ?","A-t-il justifié le prix ?","A-t-il trouvé le frein réel derrière l'écran de fumée ?"],
+    regle:"C'est ici que tu poses ton objection et que tu la défends. C'est le moment prévu pour ça.",
     terrain:"objection"
+  },
+  paiement: {
+    nom:"Sécuriser le paiement",
+    court:"Le dernier mètre, celui où tout se perd",
+    depart:"Le prospect vient de dire oui. Il est d'accord sur le fond, sur le prix, sur les modalités. Il ne reste qu'à encaisser.",
+    objectif:"Transformer le oui en paiement effectif, maintenant, pendant l'appel.",
+    criteres:["A-t-il traité l'esquive au lieu de l'accepter ?","A-t-il proposé un montant plus petit plutôt que de tout reporter ?","Est-il resté sur la ligne pendant que le prospect payait ?","A-t-il évité de rouvrir la vente après le oui ?","A-t-il fixé un moment précis si le paiement était vraiment impossible ?"],
+    regle:"TU AS DIT OUI. Tu es sincèrement d'accord, tu n'as plus d'objection sur le fond.\nMAIS tu vas esquiver le paiement au moins une fois, avec une raison plausible et banale : ta carte n'est pas sur toi, elle est dans l'autre sac, tu ne fais jamais de paiement au téléphone, ton plafond est atteint, tu préfères faire un virement ce soir, tu veux le lien par mail, ton mari a la carte.\nCe n'est pas de la mauvaise foi. Tu es d'accord, mais payer maintenant te demande un pas de plus que tu n'avais pas prévu.\nS'il traite bien ton esquive — s'il te propose un montant plus petit, s'il reste avec toi, s'il te rend ça simple — tu paies. S'il te dit d'accord et qu'il te rappelle demain, tu acceptes avec soulagement, et tu ne paieras jamais.",
+    terrain:"closing"
   },
   closing: {
     nom:"Closing",
@@ -3120,6 +3157,7 @@ const SEGMENTS = {
     depart:"Le prospect est convaincu sur le fond. Il ne dit pas non, mais il ne s'engage pas non plus.",
     objectif:"Demander l'engagement clairement et sécuriser un premier paiement.",
     criteres:["A-t-il demandé l'engagement, ou attendu que le prospect le fasse ?","A-t-il sécurisé un acompte plutôt qu'un oui verbal ?","A-t-il tenu le silence après avoir demandé ?","A-t-il évité de rouvrir la vente après le oui ?"],
+    regle:"Tu ne dis pas non, mais tu ne t'engages pas. Tu esquives, tu temporises, tu demandes un délai — jusqu'à ce qu'on te demande clairement de t'engager.",
     terrain:"closing"
   }
 };
@@ -3154,13 +3192,33 @@ let SPAR = null, sparProfil = "prix", sparNiveau = 2, sparRec = null;
 let sparCanal = "vocal", sparVoix = null, sparDernierMot = 0, sparVeille = null, sparParle = false;
 
 /* --- LA VOIX DU PROSPECT --- */
+/* Toutes les voix ne se valent pas. Les voix dites neuronales sonnent
+   nettement plus humaines : on les remonte en tête de liste. */
+function qualiteVoix(v){
+  const n = (v.name || "") + " " + (v.voiceURI || "");
+  let q = 0;
+  if(/neural|natural/i.test(n)) q += 10;      // génération récente, la meilleure
+  if(/google/i.test(n)) q += 6;               // bonnes voix, très fluides
+  if(/denise|henri|rémy|remy|vivienne|yves|éloise|eloise/i.test(n)) q += 4;  // voix FR soignées
+  if(/microsoft/i.test(n)) q += 2;
+  if(/compact|eloquence|espeak/i.test(n)) q -= 8;   // les métalliques
+  if(v.localService === false) q += 3;        // voix serveur, souvent meilleures
+  return q;
+}
+let VOIX_FR = [];
 function chargeVoix(){
-  const v = speechSynthesis.getVoices().filter(x => /^fr/i.test(x.lang));
+  VOIX_FR = speechSynthesis.getVoices()
+    .filter(x => /^fr/i.test(x.lang))
+    .sort((a,b) => qualiteVoix(b) - qualiteVoix(a));
   const sel = $("sparVoix");
-  if(!v.length){ sel.innerHTML = '<option value="">Voix par défaut du système</option>'; return; }
-  sel.innerHTML = v.map((x,i)=>`<option value="${i}">${x.name.replace(/Microsoft |Google /,"")}</option>`).join("");
-  sel.onchange = () => { sparVoix = v[+sel.value] || null; };
-  sparVoix = v[0];
+  if(!VOIX_FR.length){ sel.innerHTML = '<option value="">Voix par défaut du système</option>'; return; }
+  sel.innerHTML = VOIX_FR.map((x,i)=>{
+    const q = qualiteVoix(x);
+    const etiq = q >= 10 ? " — la plus naturelle" : q >= 6 ? " — bonne" : q < 0 ? " — métallique" : "";
+    return `<option value="${i}">${x.name.replace(/Microsoft |Google /,"")}${etiq}</option>`;
+  }).join("");
+  sel.onchange = () => { sparVoix = VOIX_FR[+sel.value] || null; };
+  sparVoix = VOIX_FR[0];
 }
 if("speechSynthesis" in window){
   chargeVoix();
@@ -3174,18 +3232,61 @@ function phase(txt, couleur, anim){
 }
 
 /* Il parle. Le micro se coupe pendant ce temps, sinon il s'entend lui-même. */
+/* Personne ne parle sur un seul rythme. Le débit et la hauteur bougent
+   selon la façon de parler du personnage et selon ce qu'il est en train de vivre. */
+function reglageVoix(){
+  const p = (SPAR && SPAR.p) || {};
+  const f = (p.facon_de_parler || "").toLowerCase();
+  let r = 1.0, h = 1.0;
+  if(/court|ferme/.test(f))      { r = 1.06; h = 0.96; }   // sec, un peu bas
+  else if(/bavard|decousu|décousu/.test(f)) { r = 1.12; h = 1.04; }   // ça déborde
+  else if(/technique/.test(f))   { r = 0.98; h = 0.98; }   // posé, appliqué
+  else if(/hesitant|hésitant/.test(f)) { r = 0.90; h = 1.02; }   // traîne, cherche ses mots
+  else if(/tac/.test(f))         { r = 1.15; h = 1.00; }   // vif
+
+  // plus il descend dans sa douleur, plus il ralentit et baisse la voix
+  const c = (SPAR && SPAR.couche) || 1;
+  if(c === 2){ r -= 0.05; h -= 0.02; }
+  if(c === 3){ r -= 0.12; h -= 0.05; }
+  return {rate: Math.max(0.7, Math.min(1.25, r)), pitch: Math.max(0.85, Math.min(1.15, h))};
+}
+
+/* On découpe la phrase et on marque de vraies respirations.
+   Un bloc de texte lu d'une traite, c'est ce qui sonne robot. */
+function morceaux(txt){
+  return String(txt)
+    .split(/(?<=[.!?…])\s+|(?<=,)\s+(?=(?:mais|enfin|parce|donc|après|puis|et puis|voilà|je veux dire|en fait))/i)
+    .map(x => x.trim()).filter(Boolean);
+}
+
 function faisParler(txt, apres){
   if(sparCanal !== "vocal" || !("speechSynthesis" in window)){ if(apres) apres(); return; }
   arreteSparMicro();
   sparParle = true;
   speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(txt);
-  if(sparVoix) u.voice = sparVoix;
-  u.lang = "fr-FR"; u.rate = 1.02; u.pitch = 1;
   phase("il parle", "var(--steel)", true);
-  u.onend = () => { sparParle = false; if(apres) apres(); };
-  u.onerror = () => { sparParle = false; if(apres) apres(); };
-  speechSynthesis.speak(u);
+
+  const base = reglageVoix();
+  const bouts = morceaux(txt);
+  let i = 0;
+  const suite = () => {
+    if(i >= bouts.length){ sparParle = false; if(apres) apres(); return; }
+    const bout = bouts[i++];
+    const u = new SpeechSynthesisUtterance(bout);
+    if(sparVoix) u.voice = sparVoix;
+    u.lang = "fr-FR";
+    // micro-variation d'un morceau à l'autre : c'est ça qui enlève le côté machine
+    u.rate  = base.rate  * (0.97 + Math.random()*0.06);
+    u.pitch = base.pitch * (0.98 + Math.random()*0.04);
+    u.onend = () => {
+      // une respiration après un point, plus courte après une virgule
+      const pause = /[.!?…]$/.test(bout) ? 260 + Math.random()*180 : 110 + Math.random()*90;
+      setTimeout(suite, i < bouts.length ? pause : 0);
+    };
+    u.onerror = () => { sparParle = false; if(apres) apres(); };
+    speechSynthesis.speak(u);
+  };
+  suite();
 }
 
 /* Mains libres : ton micro s'ouvre, et dès que tu te tais, ça part. */
@@ -3282,6 +3383,9 @@ Réponds uniquement avec ce JSON, sans markdown :
  "minimise":"ce qu'il a minimise, avec ses mots",
  "contradiction":"un fait qui contredisait ce qu'il affirmait, ou null",
  "facon_de_parler":"court et ferme | bavard et decousu | technique | hesitant | du tac au tac",
+ "son_but":"ce qu'il vient chercher lui, sans le dire, en une phrase",
+ "contrainte_temps":"ce qui le presse ou non, en quelques mots",
+ "ce_qui_le_ferme":"le genre de phrase du closer qui le ferait reculer, en une phrase",
  "surface":"l'objection qu'il a repetee, ses mots exacts",
  "vrai":"ce qui a REELLEMENT bloque la vente",
  "cle":"la question qui l'aurait fait parler, et qui n'a pas ete posee",
@@ -3591,7 +3695,8 @@ $("btnSparGo").onclick = async () => {
       if(!advActif){ $("sparEtat").innerHTML = '<span style="color:var(--clay)">Choisis un adversaire, ou dépose des calls plus bas.</span>'; $("btnSparGo").disabled = false; return; }
       const p = JSON.parse(JSON.stringify(advActif));
       SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
-              segment:sparSegment, profil:"reel", temp:"reel", reel:true};
+              segment:sparSegment, profil:"reel", temp:"reel", reel:true,
+              etat:{couche:1, confiance:4, patience:9, but_obtenu:false}};
       $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
       $("sparQui").textContent = `${p.prenom}${p.age?", "+p.age:""} — ${p.metier||""}  ·  vrai call`;
       $("sparDit").textContent = "« " + (p.ouverture||"Bonjour.") + " »";
@@ -3599,7 +3704,7 @@ $("btnSparGo").onclick = async () => {
       $("sparHisto").innerHTML = "";
       $("sparInfo").innerHTML = '<span style="color:var(--muted)">Tu l\'as déjà eu au téléphone. Cette fois tu sais qu\'il y a quelque chose que tu n\'as pas trouvé.</span>';
       SPAR.tours.push({qui:"PROSPECT", txt:p.ouverture||"Bonjour."});
-      SPAR.couche = 1; majCouche(1);
+      SPAR.couche = 1; majJauges();
       rendSparHisto();
       $("sparEtatVocal").classList.toggle("on", sparCanal === "vocal");
       $("btnSparRedire").style.display = sparCanal === "vocal" ? "inline-block" : "none";
@@ -3641,7 +3746,13 @@ UN VRAI PROSPECT N'EST PAS RANGÉ. Fabrique-le comme dans la vraie vie :
 4. IL SE CONTREDIT.
    Donne un fait de sa situation qui contredit ce qu'il affirme. Un closer attentif peut le lui renvoyer.
 
-5. IL PARLE COMME QUELQU'UN DE RÉEL.
+5. IL VIENT AVEC SON PROPRE BUT.
+Un vrai prospect ne vient pas pour se faire vendre quelque chose. Il vient chercher un truc précis, souvent sans le dire : être rassuré, être écouté, avoir un chiffre, vérifier qu'il ne se fait pas avoir, ou juste raccrocher poliment. Donne-lui ce but. Tant qu'il ne l'a pas obtenu, il ne s'ouvre pas vraiment.
+
+6. IL A UNE CONTRAINTE DE TEMPS.
+Donne-lui une raison plausible d'être pressé ou pas : un rendez-vous après, des enfants à récupérer, une journée calme. Ça change tout son comportement.
+
+7. IL PARLE COMME QUELQU'UN DE RÉEL.
    Donne sa façon de parler : court et fermé, ou bavard et décousu, ou technique, ou hésitant, ou du tac au tac.
 
 Donne-lui aussi une vie : un métier, une situation d'argent précise, une famille ou pas, une histoire.
@@ -3659,6 +3770,9 @@ Réponds uniquement avec ce JSON, sans markdown :
  "minimise":"ce qu'il rend plus petit, avec ses mots exacts",
  "contradiction":"un fait de sa situation qui contredit ce qu'il affirme",
  "facon_de_parler":"court et ferme | bavard et decousu | technique | hesitant | du tac au tac",
+ "son_but":"ce qu'il vient chercher lui, sans le dire, en une phrase",
+ "contrainte_temps":"ce qui le presse ou non, en quelques mots",
+ "ce_qui_le_ferme":"le genre de phrase du closer qui le ferait reculer, en une phrase",
  "surface":"l'objection ou la posture qu'il repete, ses mots",
  "vrai":"son blocage reel, cache",
  "cle":"le type de question qui le ferait lacher son blocage reel",
@@ -3666,8 +3780,11 @@ Réponds uniquement avec ce JSON, sans markdown :
  "acquis":"ce qui a DEJA ete dit avant ce moment du call, 2 phrases, ou null si le call commence",
  "ouverture":"sa toute premiere phrase, qui pose exactement le point de depart decrit ci-dessus"}`, 2500);
     const p = parseModelJson(txt);
+    // la confiance de départ dépend de sa température : un froid ne t'accorde rien
+    const confDepart = sparTemp === "chaud" ? 6 : sparTemp === "tiede" ? 4 : 2;
     SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
-            segment:sparSegment, profil:cle, temp:sparTemp};
+            segment:sparSegment, profil:cle, temp:sparTemp,
+            etat:{couche:1, confiance:confDepart, patience:9, but_obtenu:false}};
     $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
     $("sparQui").textContent = `${p.prenom}, ${p.age} — ${p.metier}`;
     $("sparDit").textContent = "« " + (p.ouverture||"Bonjour.") + " »";
@@ -3676,7 +3793,7 @@ Réponds uniquement avec ce JSON, sans markdown :
     $("sparHisto").innerHTML = "";
     $("sparInfo").textContent = "";
     SPAR.tours.push({qui:"PROSPECT", txt:p.ouverture||"Bonjour."});
-    SPAR.couche = 1; majCouche(1);
+    SPAR.couche = 1; majJauges();
     rendSparHisto();
     $("sparEtatVocal").classList.toggle("on", sparCanal === "vocal");
     $("btnSparRedire").style.display = sparCanal === "vocal" ? "inline-block" : "none";
@@ -3685,20 +3802,61 @@ Réponds uniquement avec ce JSON, sans markdown :
   $("btnSparGo").disabled = false;
 };
 
+/* L'état du prospect, tenu d'un tour à l'autre. Il monte ET il descend. */
+function majEtat(r){
+  if(!SPAR) return;
+  const e = SPAR.etat;
+  const avant = {c:e.couche, f:e.confiance};
+
+  if(r.couche)    e.couche = Math.max(1, Math.min(3, +r.couche));
+  if(r.confiance !== undefined && r.confiance !== null) e.confiance = Math.max(0, Math.min(10, +r.confiance));
+  if(r.patience !== undefined && r.patience !== null)   e.patience  = Math.max(0, Math.min(10, +r.patience));
+  else e.patience = Math.max(0, e.patience - 0.4);          // le temps passe de toute façon
+  if(r.but_obtenu) e.but_obtenu = true;
+
+  // le plus profond atteint dans tout le sparring, pour le débrief
+  SPAR.coucheMax = Math.max(SPAR.coucheMax || 1, e.couche);
+
+  majJauges();
+  if(e.couche < avant.c){
+    $("sparInfo").innerHTML = '<span style="color:var(--clay)">Il s\'est refermé. Tu l\'avais amené plus loin, tu viens de le perdre.</span>';
+  } else if(e.confiance < avant.f - 1.5){
+    $("sparInfo").innerHTML = '<span style="color:var(--clay)">Sa confiance vient de chuter. Ce que tu as dit ne passe pas.</span>';
+  }
+  if(r.initiative){
+    $("sparTon").textContent = ($("sparTon").textContent + " · il reprend la main : " + r.initiative).trim();
+  }
+  if(r.abrege){
+    $("sparInfo").innerHTML = '<span style="color:var(--clay)">Il met fin à l\'appel. Termine et regarde le débrief.</span>';
+  }
+}
+
+/* Les jauges à l'écran : profondeur, confiance, patience */
+function majJauges(){
+  const el = $("sparCouches"); if(!el || !SPAR) return;
+  const e = SPAR.etat;
+  const barre = (titre, val, max, coul) => {
+    const pct = Math.round(val/max*100);
+    return `<div style="flex:1;min-width:88px">
+      <div style="height:4px;border-radius:2px;background:var(--line);overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${coul};transition:width .4s"></div></div>
+      <div style="font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;margin-top:5px;
+        font-family:'Archivo Narrow',sans-serif;font-weight:600;color:var(--muted)">${titre}</div></div>`;
+  };
+  const cCouche = e.couche >= 3 ? "var(--sage)" : e.couche === 2 ? "var(--amber)" : "var(--steel)";
+  const cConf   = e.confiance >= 7 ? "var(--sage)" : e.confiance >= 4 ? "var(--amber)" : "var(--clay)";
+  const cPat    = e.patience  >= 7 ? "var(--sage)" : e.patience  >= 4 ? "var(--amber)" : "var(--clay)";
+  el.innerHTML =
+    barre("profondeur " + e.couche + "/3", e.couche, 3, cCouche) +
+    barre("confiance " + Math.round(e.confiance) + "/10", e.confiance, 10, cConf) +
+    barre("patience " + Math.round(e.patience) + "/10", e.patience, 10, cPat);
+}
+
 /* Trois barres : jusqu'où tu es descendu dans sa douleur */
 function majCouche(n){
+  if(SPAR && SPAR.etat) SPAR.etat.couche = Math.max(1, Math.min(3, n));
   SPAR.couche = Math.max(SPAR.couche || 1, n);
-  const el = $("sparCouches"); if(!el) return;
-  const noms = ["ce qu'il dit", "ce qui se passe vraiment", "ce que ça lui fait"];
-  el.innerHTML = noms.map((t,i)=>{
-    const atteint = SPAR.couche >= i+1;
-    const c = i === 2 ? "var(--sage)" : i === 1 ? "var(--amber)" : "var(--steel)";
-    return `<div style="flex:1;min-width:90px">
-      <div style="height:4px;border-radius:2px;background:${atteint ? c : "var(--line)"}"></div>
-      <div style="font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;margin-top:5px;
-        font-family:'Archivo Narrow',sans-serif;font-weight:600;
-        color:${atteint ? c : "#3E4852"}">${t}</div></div>`;
-  }).join("");
+  majJauges();
 }
 
 function rendSparHisto(){
@@ -3721,17 +3879,35 @@ $("btnSparEnvoi").onclick = async () => {
     const txt = await callClaude(
 `Tu joues un prospect dans un entraînement au closing. Tu n'es pas un assistant. Tu ne coaches jamais. Tu es ${p.prenom}.
 
+═══ RÈGLE LA PLUS IMPORTANTE — LE MOMENT DU CALL ═══
+Vous ne rejouez PAS un call entier. Vous rejouez UN SEUL MOMENT : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).nom.toUpperCase()}.
+Où en est le call : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).depart}
+${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).regle||""}
+
+Tu restes dans ce moment quoi qu'il arrive. Tu ne sautes jamais en avant dans le call, même si ce serait réaliste, même si le closer te tend la perche. Un prospect qui saute à l'objection alors qu'on travaille la douleur rend l'exercice inutile.
+Si le closer lui-même essaie d'aller plus loin que ce moment, tu ne le suis pas : tu réponds comme quelqu'un qui n'y est pas encore.
+═══════════════════════════════════════════════════
+${SPAR.reel ? `
+TU N'ES PAS UN ENREGISTREMENT.
+Ce personnage vient d'un vrai call, mais tu ne rejoues pas ce call. Tu réponds à ce que le closer dit MAINTENANT.
+S'il pose une meilleure question que celle qu'il avait posée ce jour-là, tu vas plus loin que ce jour-là. S'il fait pire, tu te referme davantage.
+Ce qui est fixe : qui tu es, ta situation, tes chiffres, ta façon de parler, ce qui te bloque au fond.
+Ce qui est libre : tout ce que tu dis. Ne récite jamais des phrases du transcript d'origine.
+` : ""}
+
 QUI TU ES
 ${p.prenom}, ${p.age}, ${p.metier}. ${p.situation}
 Ce que tu veux : ${p.objectif}
-Ce que tu répètes à voix haute : ${p.surface}
+${["objection","closing","complet"].includes(SPAR.segment)
+  ? "Ce que tu répètes à voix haute : "+p.surface
+  : "Ton futur frein, que tu ne poses PAS encore à ce stade du call : "+p.surface+" — garde-le pour toi, il n'a pas lieu d'être maintenant."}
 Ta façon de parler : ${p.facon_de_parler || "normale"}. Tiens-la tout du long.
 
 TES TROIS COUCHES DE DOULEUR — tu ne descends jamais d'une couche tout seul.
 COUCHE 1, celle que tu donnes d'emblée : ${p.douleur_dite || p.surface}
-COUCHE 2, en dessous : ${p.douleur_reelle || "—"}
+COUCHE 2, en dessous : ${p.douleur_reelle && !/jamais|non atteinte|null|—/i.test(p.douleur_reelle) ? p.douleur_reelle : "jamais obtenue lors du vrai call. Invente un fait mesurable cohérent avec sa situation."}
    Tu ne la donnes que si on te demande un chiffre, une durée, une fréquence, ou ce que ça produit concrètement.
-COUCHE 3, tout au fond : ${p.douleur_intime || "—"}
+COUCHE 3, tout au fond : ${p.douleur_intime && !/jamais|non atteinte|null|—/i.test(p.douleur_intime) ? p.douleur_intime : "JAMAIS ATTEINTE lors du vrai call. Invente-la toi-même : quelque chose de cohérent avec tout le reste de sa vie, jamais dit à personne. Si le closer pose enfin la bonne question, il DOIT être récompensé — sinon l'exercice ne sert à rien."}
    Tu ne la donnes QUE si on te demande ce que ça te fait à toi, personnellement, ou ce que ça change dans ta vie. Jamais autrement. Et quand tu la donnes, ta voix change : phrases plus courtes, hésitations, tu t'arrêtes au milieu.
 
 CE QUI TE REND DIFFICILE
@@ -3746,11 +3922,17 @@ Tu ne le lâches que si on te pose une question de ce genre : ${p.cle}
 Ta capacité à payer : ${p.budget_reel}
 ${p.acquis ? "CE QUI A DÉJÀ ÉTÉ DIT avant ce moment du call : "+p.acquis : ""}
 
-LE MOMENT DU CALL QUE VOUS JOUEZ : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).nom}. ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).depart}
-Reste dans ce moment-là. Ne saute pas en avant : si le closer essaie de conclure alors qu'on travaille la découverte, réponds comme quelqu'un qui n'y est pas encore.
 
 COMMENT TU PARLES
 Comme au téléphone. Une à trois phrases, pas plus. Du français parlé, avec des hésitations. Tu ne fais jamais de liste.
+${sparCanal === "vocal" ? `
+TA RÉPONSE VA ÊTRE LUE À VOIX HAUTE. Écris-la pour l'oreille, pas pour l'œil :
+- Des phrases courtes, coupées par des virgules et des points. Jamais de longue phrase d'un seul tenant.
+- Garde les tics de l'oral : euh, ben, enfin, bon, voilà, tu vois, je sais pas, franchement. Ils font le naturel.
+- Des points de suspension quand tu hésites vraiment ou que tu cherches tes mots.
+- Aucun tiret, aucune parenthèse, aucun guillemet, aucun symbole. Ça se lit mal à voix haute.
+- Écris les nombres en toutes lettres : "trois mille euros", pas "3000 €".
+- Coupe-toi parfois au milieu d'une idée et reprends autrement, comme les gens font vraiment.` : ""}
 Tu ne livres jamais ton vrai blocage spontanément. Tu te caches derrière ton objection de surface.
 Tu ne donnes JAMAIS deux couches dans la même réponse. Une question = au maximum un pas de plus.
 Si la question est vague, générale, ou si elle reformule simplement ce que tu viens de dire, tu restes à ta couche et tu répètes autrement. C'est comme ça qu'un vrai prospect tourne en rond.
@@ -3758,8 +3940,34 @@ Si le closer te console ou compatit, tu te réinstalles dans la plainte et tu n'
 Si le closer te sert un argument sans t'avoir compris, tu deviens plus fermé.
 Si sa question touche vraiment juste, tu hésites, puis tu lâches un morceau — pas tout d'un coup.
 Si on te presse de conclure sans avoir résolu ton vrai blocage, tu esquives ou tu demandes à réfléchir.
+QUAND TU DIS ENFIN OUI, TU N'AS PAS ENCORE PAYÉ. Comme presque tout le monde, tu vas esquiver le paiement une fois, avec une raison ordinaire : ta carte n'est pas là, tu ne paies jamais par téléphone, tu préfères virer ce soir, envoie-moi plutôt le lien. Ce n'est pas un refus, c'est le pas de trop. Si le closer te rend ça simple et reste avec toi, tu paies. S'il accepte de te rappeler demain, tu acceptes avec soulagement — et tu ne paieras pas.
 Si ton vrai blocage a été entendu et traité correctement, tu peux dire oui.
 Dureté : ${["","tu lâches assez vite","tu résistes normalement","tu es très fermé, il faut vraiment le mériter"][sparNiveau] || "tu résistes normalement"}
+
+CE QUE TU VIENS CHERCHER, TOI, SANS LE DIRE : ${p.son_but || "être compris avant d'être vendu"}
+Tant que tu ne l'as pas obtenu, tu restes sur tes gardes. Si le closer te le donne, tu t'ouvres nettement.
+TA CONTRAINTE DE TEMPS : ${p.contrainte_temps || "rien de particulier"}
+CE QUI TE FAIT RECULER : ${p.ce_qui_le_ferme || "qu'on te vende avant de t'avoir écouté"}
+
+═══ OÙ TU EN ES MAINTENANT — ton état vivant ═══
+CONFIANCE en ce closer : ${SPAR.etat.confiance}/10 ${SPAR.etat.confiance<=3?"(tu es fermé, tu réponds court et tu ne donnes rien)":SPAR.etat.confiance<=6?"(tu es correct mais prudent)":"(tu te livres facilement)"}
+PATIENCE restante : ${SPAR.etat.patience}/10 ${SPAR.etat.patience<=3?"(tu regardes l'heure, tu veux en finir, tu peux écourter)":SPAR.etat.patience<=6?"(tu commences à trouver ça long)":"(tu as le temps)"}
+COUCHE ATTEINTE : ${SPAR.etat.couche}/3
+TON BUT : ${SPAR.etat.but_obtenu ? "tu as obtenu ce que tu venais chercher" : "tu ne l'as toujours pas obtenu"}
+
+CES VALEURS BOUGENT, DANS LES DEUX SENS.
+La confiance monte quand il t'écoute vraiment, reprend tes mots, ou touche juste. Elle descend quand il argumente sans t'avoir compris, te contredit, te presse, ou fait exactement ce qui te fait reculer.
+La patience baisse à chaque tour, plus vite s'il monologue ou s'il répète une question déjà posée.
+LA COUCHE PEUT REDESCENDRE : si tu t'étais ouvert et qu'il te blesse ou te presse juste après, tu te refermes et tu reviens à une couche inférieure. C'est ce que font les vraies personnes.
+Si ta confiance tombe à 2 ou moins, ou ta patience à 1, tu abrèges l'appel poliment.
+═══════════════════════════════════════════════
+
+TU PEUX AUSSI PRENDRE L'INITIATIVE, comme quelqu'un de réel :
+- lui poser une question directe qui le met en difficulté
+- reprendre une chose qu'il a dite plus tôt et qui te reste en travers
+- le couper s'il parle trop longtemps
+- lui demander où il veut en venir
+Fais-le seulement quand c'est naturel, pas à chaque tour.
 
 LE CALL JUSQU'ICI
 ${SPAR.tours.map(t=>(t.qui==="MOI"?"CLOSER":p.prenom.toUpperCase())+" : "+t.txt).join("\n")}
@@ -3769,7 +3977,13 @@ Réponds uniquement avec ce JSON, sans markdown :
  "ton":"ce que ton langage corporel ou ta voix trahit, 8 mots max",
  "lache":true si tu viens de reveler une part de ton vrai blocage sinon false,
  "ferme":true si la derniere intervention du closer t a fait reculer sinon false,
- "couche":1, 2 ou 3 selon la couche de douleur que tu viens d atteindre,
+ "couche":1, 2 ou 3 — la couche ou tu es MAINTENANT, elle peut redescendre si tu t es referme,
+ "confiance":0 a 10 — ta confiance en lui apres ce qu il vient de dire,
+ "patience":0 a 10 — ce qu il te reste de patience,
+ "but_obtenu":true si tu as enfin obtenu ce que tu venais chercher sinon false,
+ "initiative":"si tu prends l initiative (question directe, rappel, coupure), dis laquelle en 5 mots, sinon null",
+ "abrege":true si tu decides de mettre fin a l appel maintenant sinon false,
+ "hors_segment":true si ta reponse sort du moment de call travaille sinon false,
  "pret":true si tu es pret a dire oui maintenant sinon false}`);
     const r = parseModelJson(txt);
     SPAR.tours.push({qui:"PROSPECT", txt:r.dit});
@@ -3777,7 +3991,13 @@ Réponds uniquement avec ce JSON, sans markdown :
     $("sparDit").textContent = "« " + r.dit + " »";
     $("sparTon").textContent = r.ton || "";
     $("sparCarte").style.borderLeftColor = r.pret ? "var(--sage)" : r.ferme ? "var(--clay)" : r.lache ? "var(--amber)" : "var(--steel)";
-    if(r.couche) majCouche(+r.couche);
+    majEtat(r);
+    // garde-fou : si le prospect saute en avant, on le voit et on le dit
+    if(r.hors_segment && SPAR.segment !== "complet"){
+      SPAR.sauts = (SPAR.sauts||0) + 1;
+      $("sparInfo").innerHTML = '<span style="color:var(--clay)">Il vient de sortir du moment travaillé (' +
+        escapeHTML((SEGMENTS[SPAR.segment]||SEGMENTS.complet).nom) + '). Ramène-le dessus, ou change de segment.</span>';
+    }
     $("sparInfo").textContent = r.pret ? "Il est prêt. Demande l'engagement maintenant."
                               : r.ferme ? "Tu l'as fait reculer."
                               : r.lache ? "Il vient de lâcher quelque chose. Reste dessus." : "";
@@ -3849,6 +4069,7 @@ Le vrai blocage du prospect était : ${p.vrai}
 La question qui le débloquait ressemblait à : ${p.cle}
 Sa capacité à payer : ${p.budget_reel}
 
+${SPAR.reel && (!p.douleur_intime || /jamais|non atteinte/i.test(p.douleur_intime||"")) ? "ATTENTION : lors du vrai call, la couche profonde n'avait jamais été atteinte. Si le closer l'a obtenue cette fois-ci, dis-le-lui clairement : c'est un progrès réel par rapport à ce qu'il avait fait." : ""}
 ${SPAR.reel ? `CE CALL A VRAIMENT EU LIEU. Dans la réalité : ${{vendu:"le prospect a signé",perdu:"le prospect n'a pas signé",relance:"le call s'est terminé en relance"}[p.issue]||"issue inconnue"}.
 Ce que le closer avait raté ce jour-là : ${p.rate||"non renseigné"}.
 Compare ce qu'il vient de faire en simulation avec ce qu'il avait fait en vrai. Dis-lui clairement s'il a corrigé son erreur ou s'il l'a refaite.` : ""}
@@ -3861,6 +4082,11 @@ OBJECTIF DE CET EXERCICE : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).objectif
 
 JUGE-LE SUR CES CRITÈRES-LÀ, ET SUR RIEN D'AUTRE :
 ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
+
+ÉTAT DU PROSPECT À LA FIN : confiance ${SPAR.etat.confiance}/10, patience ${SPAR.etat.patience}/10, couche atteinte ${SPAR.etat.couche}/3 (le plus profond atteint dans tout l'échange : ${SPAR.coucheMax||1}/3).
+Ce qu'il venait chercher sans le dire : ${p.son_but || "non renseigné"} — ${SPAR.etat.but_obtenu ? "il l'a obtenu" : "il ne l'a jamais obtenu"}.
+${(SPAR.coucheMax||1) > SPAR.etat.couche ? "ATTENTION : il s'était ouvert jusqu'à la couche "+SPAR.coucheMax+" puis s'est REFERMÉ. Dis au closer précisément à quel moment et pourquoi." : ""}
+${SPAR.etat.confiance <= 3 ? "Sa confiance est au plancher. Explique ce qui l'a fait chuter, en citant les mots du closer." : ""}
 
 Débriefe sans flatterie. Le closer veut progresser, pas être rassuré. Ne lui reproche pas ce qui ne relève pas de ce moment du call.
 
