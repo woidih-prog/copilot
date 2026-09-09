@@ -505,6 +505,18 @@ aside{
       </div>
 
       <div class="block">
+        <h3>Contre qui</h3>
+        <div class="row" id="sparSource">
+          <button class="pill on" data-src="invente">Un prospect inventé</button>
+          <button class="pill" data-src="reel">Un de tes vrais prospects <span id="advNb"></span></button>
+        </div>
+        <div id="blocReel" style="display:none;margin-top:12px">
+          <select id="advChoix" style="width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)"></select>
+          <p id="advDetail" style="font-size:13px;color:var(--muted);margin-top:10px;line-height:1.5"></p>
+        </div>
+      </div>
+
+      <div class="block" id="blocInvente">
         <h3>Qui tu as en face</h3>
         <p style="font-size:12.5px;color:var(--muted);margin-bottom:9px">Sa température</p>
         <div class="row" id="sparTemp">
@@ -532,6 +544,25 @@ aside{
           <button class="pill on" data-niveau="2">Réaliste</button>
           <button class="pill" data-niveau="3">Coriace</button>
         </div>
+      </div>
+
+      <div class="block">
+        <h3>Ta banque d'adversaires</h3>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:11px">Dépose tes transcripts de vrais calls. Chacun devient un adversaire que tu peux réaffronter autant de fois que tu veux, jusqu'à trouver ce que tu as raté.</p>
+        <div id="advDrop" style="border:1.5px dashed var(--line);border-radius:11px;padding:22px;text-align:center;cursor:pointer">
+          <strong style="font-size:15px">Dépose tes calls ici</strong><br>
+          <span style="font-size:12.5px;color:var(--muted)">TXT, PDF, ou plusieurs d'un coup</span>
+          <input type="file" id="advFiles" multiple hidden>
+        </div>
+        <textarea id="advColle" placeholder="Ou colle un transcript ici…" style="width:100%;min-height:90px;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:11px 13px;color:var(--ink);margin-top:10px;font-family:inherit;font-size:13.5px"></textarea>
+        <div class="row" style="margin-top:10px">
+          <button class="pill" id="btnAdvColle">Créer un adversaire</button>
+          <button class="pill" id="btnAdvExport">Sauvegarder la banque</button>
+          <button class="pill" id="btnAdvImport">Charger une banque</button>
+          <input type="file" id="advImportFile" accept=".json" hidden>
+        </div>
+        <p id="advEtat" style="font-size:13px;color:var(--muted);margin-top:11px"></p>
+        <div id="advListe" style="margin-top:12px"></div>
       </div>
 
       <div class="row">
@@ -3175,6 +3206,163 @@ function ouvreTonTour(){
   }, 300);
 }
 
+
+/* =========================================================
+   BANQUE D'ADVERSAIRES — de vrais prospects, tirés de tes calls
+   ========================================================= */
+let ADVERSAIRES = [];
+let sparSource = "invente", advActif = null;
+
+async function loadAdversaires(){
+  const a = await Store.get("adversaires");
+  ADVERSAIRES = Array.isArray(a) ? a : [];
+  majListeAdv();
+}
+function saveAdversaires(){ Store.set("adversaires", ADVERSAIRES); majListeAdv(); }
+
+function majListeAdv(){
+  const n = $("advNb"); if(n) n.textContent = ADVERSAIRES.length ? "· " + ADVERSAIRES.length : "";
+  const sel = $("advChoix");
+  if(sel){
+    sel.innerHTML = ADVERSAIRES.length
+      ? ADVERSAIRES.map((a,i)=>`<option value="${i}">${escapeHTML(a.prenom||"Prospect")} — ${escapeHTML(a.metier||"")} — ${escapeHTML({vendu:"a signé",perdu:"perdu",relance:"relance"}[a.issue]||"issue inconnue")}</option>`).join("")
+      : '<option value="">Aucun adversaire. Dépose des calls plus bas.</option>';
+    sel.onchange = majAdvDetail;
+    majAdvDetail();
+  }
+  const l = $("advListe");
+  if(l) l.innerHTML = ADVERSAIRES.length
+    ? ADVERSAIRES.map((a,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px">
+        <span>${escapeHTML(a.prenom||"?")} <span style="color:var(--muted)">${escapeHTML(a.metier||"")}</span></span>
+        <span><span style="color:${a.issue==="vendu"?"var(--sage)":a.issue==="perdu"?"var(--clay)":"var(--amber)"};font-size:12px">${escapeHTML(a.issue||"?")}</span>
+        <button class="del" data-adv="${i}" style="margin-left:10px">×</button></span>
+      </div>`).join("")
+    : "";
+  if(l) l.querySelectorAll("[data-adv]").forEach(b=>{
+    b.onclick = () => { ADVERSAIRES.splice(+b.dataset.adv,1); saveAdversaires(); };
+  });
+}
+function majAdvDetail(){
+  const sel = $("advChoix"), d = $("advDetail");
+  if(!sel || !d) return;
+  const a = ADVERSAIRES[+sel.value];
+  advActif = a || null;
+  d.innerHTML = a
+    ? `<b style="color:var(--ink)">Ce qui a vraiment bloqué :</b> ${escapeHTML(a.vrai||"inconnu")}<br>
+       <span style="color:var(--muted)">Dans la réalité : ${escapeHTML({vendu:"il a signé.",perdu:"il n'a pas signé.",relance:"il est parti en relance."}[a.issue]||"issue non renseignée.")}</span>`
+    : "";
+}
+
+/* transformer un transcript en adversaire jouable */
+async function faireAdversaire(texte, nom){
+  const t = String(texte).slice(0, 22000);
+  const txt = await callClaude(
+`Voici la transcription d'un vrai call de vente en français. Le vendeur s'appelle souvent Woidih ; l'autre est le prospect.
+
+"""${t}"""
+
+Reconstitue le PROSPECT pour qu'un closer puisse le réaffronter en simulation. Ne romance rien : appuie-toi uniquement sur ce que le transcript montre. Quand une information manque, mets null plutôt que d'inventer.
+
+Retrouve en particulier ses trois couches de douleur :
+- ce qu'il a DIT quand on lui a demandé son problème,
+- ce qui se passait VRAIMENT en dessous, s'il l'a laissé filtrer,
+- ce que ça lui faisait à LUI, s'il est allé jusque-là.
+Et ce qui a réellement bloqué la vente, même si personne ne l'a nommé pendant le call.
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"prenom":"son prenom ou un prenom plausible",
+ "age":"son age approximatif ou null",
+ "metier":"son activite",
+ "situation":"sa situation, argent compris, 2 phrases, d'apres le transcript",
+ "objectif":"ce qu'il voulait atteindre",
+ "douleur_dite":"sa premiere reponse sur son probleme",
+ "douleur_reelle":"le fait mesurable en dessous, ou null",
+ "douleur_intime":"ce que ca lui faisait a lui, ou null s'il n'y est jamais alle",
+ "rationalisation":"son explication a lui, meme si elle etait fausse",
+ "minimise":"ce qu'il a minimise, avec ses mots",
+ "contradiction":"un fait qui contredisait ce qu'il affirmait, ou null",
+ "facon_de_parler":"court et ferme | bavard et decousu | technique | hesitant | du tac au tac",
+ "surface":"l'objection qu'il a repetee, ses mots exacts",
+ "vrai":"ce qui a REELLEMENT bloque la vente",
+ "cle":"la question qui l'aurait fait parler, et qui n'a pas ete posee",
+ "budget_reel":"pouvait-il payer, d'apres le transcript",
+ "issue":"vendu | perdu | relance | inconnu",
+ "rate":"la chose principale que le closer a ratee sur ce call",
+ "ouverture":"sa premiere phrase reelle, ou une equivalente"}`, 2500);
+  const a = parseModelJson(txt);
+  a.source = nom;
+  a.cree = new Date().toISOString().slice(0,10);
+  return a;
+}
+
+async function ingereAdversaires(items){
+  let ok = 0, ko = 0;
+  for(let i = 0; i < items.length; i++){
+    $("advEtat").innerHTML = `<span style="color:var(--amber)">${i+1} / ${items.length} — ${escapeHTML(items[i].nom)}… (${ok} créés)</span>`;
+    try{
+      const a = await faireAdversaire(items[i].texte, items[i].nom);
+      if(a && a.prenom && !ADVERSAIRES.some(x => x.source === a.source)){ ADVERSAIRES.push(a); ok++; saveAdversaires(); }
+    }catch(e){ ko++; }
+    await new Promise(r=>setTimeout(r, 300));
+  }
+  $("advEtat").innerHTML = `<span style="color:var(--sage)">${ok} adversaires créés${ko?`, ${ko} calls illisibles`:""}. Total : ${ADVERSAIRES.length}.</span>`;
+}
+
+document.querySelectorAll("#sparSource [data-src]").forEach(b=>{
+  b.onclick = () => {
+    document.querySelectorAll("#sparSource .pill").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); sparSource = b.dataset.src;
+    $("blocReel").style.display = sparSource === "reel" ? "block" : "none";
+    $("blocInvente").style.display = sparSource === "reel" ? "none" : "block";
+  };
+});
+
+$("advDrop").onclick = () => $("advFiles").click();
+$("advDrop").ondragover = e => { e.preventDefault(); $("advDrop").style.borderColor = "var(--amber)"; };
+$("advDrop").ondragleave = () => $("advDrop").style.borderColor = "var(--line)";
+$("advDrop").ondrop = async e => {
+  e.preventDefault(); $("advDrop").style.borderColor = "var(--line)";
+  await depotAdversaires(e.dataTransfer.files);
+};
+$("advFiles").onchange = e => depotAdversaires(e.target.files);
+
+async function depotAdversaires(liste){
+  const items = [];
+  for(const f of [...liste]){
+    try{
+      const raw = await readFile(f);
+      if(raw.replace(/\s/g,"").length > 400) items.push({texte:raw, nom:f.name});
+    }catch(e){}
+  }
+  if(!items.length) return toast("Rien de lisible dans ces fichiers");
+  ingereAdversaires(items);
+}
+
+$("btnAdvColle").onclick = () => {
+  const t = $("advColle").value.trim();
+  if(t.length < 400) return toast("Transcript trop court");
+  $("advColle").value = "";
+  ingereAdversaires([{texte:t, nom:"Collé le "+new Date().toLocaleDateString("fr-FR")+" "+new Date().toLocaleTimeString("fr-FR").slice(0,5)}]);
+};
+
+$("btnAdvExport").onclick = () => {
+  const b = new Blob([JSON.stringify(ADVERSAIRES,null,1)],{type:"application/json"});
+  const a = document.createElement("a"), url = URL.createObjectURL(b);
+  a.href = url; a.download = "adversaires.json"; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+};
+$("btnAdvImport").onclick = () => $("advImportFile").click();
+$("advImportFile").onchange = async e => {
+  try{
+    const arr = JSON.parse(await e.target.files[0].text());
+    if(!Array.isArray(arr)) return toast("Fichier non reconnu");
+    let n = 0;
+    arr.forEach(a=>{ if(a && a.prenom && !ADVERSAIRES.some(x=>x.source===a.source)){ ADVERSAIRES.push(a); n++; } });
+    saveAdversaires(); toast(n+" adversaires ajoutés");
+  }catch(_){ toast("Fichier illisible"); }
+};
+loadAdversaires();
+
 let sparSegment = "complet", sparTemp = "tiede";
 
 /* on peuple les deux listes à partir des tables : une seule source de vérité */
@@ -3397,6 +3585,29 @@ $("btnSparGo").onclick = async () => {
   $("btnSparGo").disabled = true;
   try{
     const seg = SEGMENTS[sparSegment];
+
+    // un vrai prospect : pas besoin de le fabriquer, il existe déjà
+    if(sparSource === "reel"){
+      if(!advActif){ $("sparEtat").innerHTML = '<span style="color:var(--clay)">Choisis un adversaire, ou dépose des calls plus bas.</span>'; $("btnSparGo").disabled = false; return; }
+      const p = JSON.parse(JSON.stringify(advActif));
+      SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
+              segment:sparSegment, profil:"reel", temp:"reel", reel:true};
+      $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
+      $("sparQui").textContent = `${p.prenom}${p.age?", "+p.age:""} — ${p.metier||""}  ·  vrai call`;
+      $("sparDit").textContent = "« " + (p.ouverture||"Bonjour.") + " »";
+      $("sparTon").textContent = seg.objectif;
+      $("sparHisto").innerHTML = "";
+      $("sparInfo").innerHTML = '<span style="color:var(--muted)">Tu l\'as déjà eu au téléphone. Cette fois tu sais qu\'il y a quelque chose que tu n\'as pas trouvé.</span>';
+      SPAR.tours.push({qui:"PROSPECT", txt:p.ouverture||"Bonjour."});
+      SPAR.couche = 1; majCouche(1);
+      rendSparHisto();
+      $("sparEtatVocal").classList.toggle("on", sparCanal === "vocal");
+      $("btnSparRedire").style.display = sparCanal === "vocal" ? "inline-block" : "none";
+      faisParler(p.ouverture || "Bonjour.", () => ouvreTonTour());
+      $("btnSparGo").disabled = false;
+      return;
+    }
+
     const cle = sparProfil === "hasard"
       ? Object.keys(PROFILS_P)[Math.floor(Math.random()*Object.keys(PROFILS_P).length)]
       : sparProfil;
@@ -3638,6 +3849,10 @@ Le vrai blocage du prospect était : ${p.vrai}
 La question qui le débloquait ressemblait à : ${p.cle}
 Sa capacité à payer : ${p.budget_reel}
 
+${SPAR.reel ? `CE CALL A VRAIMENT EU LIEU. Dans la réalité : ${{vendu:"le prospect a signé",perdu:"le prospect n'a pas signé",relance:"le call s'est terminé en relance"}[p.issue]||"issue inconnue"}.
+Ce que le closer avait raté ce jour-là : ${p.rate||"non renseigné"}.
+Compare ce qu'il vient de faire en simulation avec ce qu'il avait fait en vrai. Dis-lui clairement s'il a corrigé son erreur ou s'il l'a refaite.` : ""}
+
 LE SPARRING :
 ${SPAR.tours.map(t=>(t.qui==="MOI"?"CLOSER":"PROSPECT")+" : "+t.txt).join("\n")}
 
@@ -3657,7 +3872,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "faute":"sa faute principale, cite-la",
  "aurait_du":"la phrase exacte qu il aurait du dire, et a quel moment",
  "criteres":[{"c":"le critere, recopie","ok":true ou false,"note":"une phrase, cite ses mots"}],
- "exercice":"un exercice concret pour la prochaine fois, une phrase"}`);
+ "exercice":"un exercice concret pour la prochaine fois, une phrase"${SPAR.reel ? ',"corrige":"a-t-il corrige l erreur du vrai call, ou refaite : une phrase franche"' : ""}}`);
     const j = parseModelJson(txt);
     const c = j.trouve ? "var(--sage)" : "var(--clay)";
     $("sparDebrief").innerHTML = `
@@ -3691,7 +3906,8 @@ Réponds uniquement avec ce JSON, sans markdown :
         <p style="margin-top:14px"><strong>Ce qui était bon</strong><br>${j.fort||""}</p>
         <p style="margin-top:12px"><strong>Ta faute principale</strong><br>${j.faute||""}</p>
         <p style="margin-top:12px"><strong>Il fallait dire</strong><br><em>« ${j.aurait_du||""} »</em></p>
-        <p style="margin-top:12px"><strong>Pour la prochaine fois</strong><br>${j.exercice||""}</p>
+        <p style="margin-top:12px"><strong>Pour la prochaine fois</strong><br>${escapeHTML(j.exercice||"")}</p>
+        ${j.corrige ? `<p style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><strong>Par rapport au vrai call</strong><br>${escapeHTML(j.corrige)}</p>` : ""}
         ${SPAR.indices ? `<p style="font-size:12.5px;color:var(--muted);margin-top:14px">${SPAR.indices} indice(s) utilisé(s). En vrai call, personne ne t'en donne.</p>` : ""}
       </div>
       <div class="row">
