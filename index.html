@@ -606,6 +606,11 @@ aside{
         </div>
         <p id="sparInfo" style="font-size:12.5px;color:var(--muted);margin-top:10px"></p>
       </div>
+      <div class="block" id="sparAvant" style="display:none;border-left:2px solid var(--amber)">
+        <h3>Ce qu'il t'a déjà dit plus tôt dans ce call</h3>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:11px">C'est ton matériel. Une objection se traite avec ses mots à lui, pas avec des arguments.</p>
+        <div id="sparAvantListe"></div>
+      </div>
       <div class="block"><h3>Ce qui s'est dit</h3><div id="sparHisto"></div></div>
     </div>
 
@@ -3139,7 +3144,7 @@ const SEGMENTS = {
     depart:"L'offre et le prix viennent d'être annoncés. Le prospect va poser son objection.",
     objectif:"Trouver la vraie cause, l'isoler des autres freins, puis seulement retourner.",
     criteres:["A-t-il diagnostiqué avant de traiter ?","A-t-il isolé quand plusieurs freins coexistaient ?","A-t-il justifié le prix ?","A-t-il trouvé le frein réel derrière l'écran de fumée ?"],
-    regle:"C'est ici que tu poses ton objection et que tu la défends. C'est le moment prévu pour ça.",
+    regle:"C'est ici que tu poses ton objection.\nTa vraie raison est cachée derrière celle que tu annonces. Tu ne la donnes que si le closer pose une question qui touche juste, ou s'il te renvoie tes propres mots dits plus tôt.\nTant qu'il mène, tu esquives sans débattre. S'il se met à justifier ou à argumenter, tu prends le lead et tu le mets sur la défensive : c'est exactement ce qui arrive en vrai.",
     terrain:"objection"
   },
   paiement: {
@@ -3696,7 +3701,7 @@ $("btnSparGo").onclick = async () => {
       const p = JSON.parse(JSON.stringify(advActif));
       SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
               segment:sparSegment, profil:"reel", temp:"reel", reel:true,
-              etat:{couche:1, confiance:4, patience:9, but_obtenu:false}};
+              etat:{couche:1, confiance:4, patience:9, but_obtenu:false, lead:"closer"}};
       $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
       $("sparQui").textContent = `${p.prenom}${p.age?", "+p.age:""} — ${p.metier||""}  ·  vrai call`;
       $("sparDit").textContent = "« " + (p.ouverture||"Bonjour.") + " »";
@@ -3705,6 +3710,7 @@ $("btnSparGo").onclick = async () => {
       $("sparInfo").innerHTML = '<span style="color:var(--muted)">Tu l\'as déjà eu au téléphone. Cette fois tu sais qu\'il y a quelque chose que tu n\'as pas trouvé.</span>';
       SPAR.tours.push({qui:"PROSPECT", txt:p.ouverture||"Bonjour."});
       SPAR.couche = 1; majJauges();
+      rendAvant();
       rendSparHisto();
       $("sparEtatVocal").classList.toggle("on", sparCanal === "vocal");
       $("btnSparRedire").style.display = sparCanal === "vocal" ? "inline-block" : "none";
@@ -3729,6 +3735,10 @@ SA RÉSISTANCE : ${["","il lâche assez vite","il résiste normalement","il est 
 CE QUE LE CLOSER TRAVAILLE : ${seg.nom} — ${seg.court}.
 LE CALL DÉMARRE ICI : ${seg.depart}
 Fabrique donc un prospect dont la situation permet de travailler CE moment précis. Sa première phrase doit poser exactement ce point de départ, comme si le call en était déjà là.
+
+TRÈS IMPORTANT si ce moment arrive TARD dans un call (objection, closing, paiement, introduction au pitch) :
+Une objection ne se traite pas dans le vide. En vrai, le closer a derrière lui une découverte entière et il peut renvoyer au prospect ses propres mots. Sans ça, il ne peut que se justifier — et c'est exactement ce qu'il ne faut pas faire.
+Remplis donc "deja_dit" avec quatre à six phrases EXACTES que ce prospect a prononcées plus tôt dans le call : son problème dans ses mots, un chiffre qu'il a donné, ce que ça lui fait, son objectif, une chose qu'il a minimisée. C'est le matériel avec lequel le closer va travailler.
 
 UN VRAI PROSPECT N'EST PAS RANGÉ. Fabrique-le comme dans la vraie vie :
 
@@ -3778,13 +3788,14 @@ Réponds uniquement avec ce JSON, sans markdown :
  "cle":"le type de question qui le ferait lacher son blocage reel",
  "budget_reel":"peut-il payer, oui ou non, et pourquoi",
  "acquis":"ce qui a DEJA ete dit avant ce moment du call, 2 phrases, ou null si le call commence",
+ "deja_dit":["4 a 6 phrases exactes que le prospect a prononcees plus tot dans ce call, avant ce moment — ses mots a lui, son probleme, son chiffre, ce que ca lui fait, son objectif. Vide si le call commence."],
  "ouverture":"sa toute premiere phrase, qui pose exactement le point de depart decrit ci-dessus"}`, 2500);
     const p = parseModelJson(txt);
     // la confiance de départ dépend de sa température : un froid ne t'accorde rien
     const confDepart = sparTemp === "chaud" ? 6 : sparTemp === "tiede" ? 4 : 2;
     SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
             segment:sparSegment, profil:cle, temp:sparTemp,
-            etat:{couche:1, confiance:confDepart, patience:9, but_obtenu:false}};
+            etat:{couche:1, confiance:confDepart, patience:9, but_obtenu:false, lead:"closer"}};
     $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
     $("sparQui").textContent = `${p.prenom}, ${p.age} — ${p.metier}`;
     $("sparDit").textContent = "« " + (p.ouverture||"Bonjour.") + " »";
@@ -3794,6 +3805,7 @@ Réponds uniquement avec ce JSON, sans markdown :
     $("sparInfo").textContent = "";
     SPAR.tours.push({qui:"PROSPECT", txt:p.ouverture||"Bonjour."});
     SPAR.couche = 1; majJauges();
+    rendAvant();
     rendSparHisto();
     $("sparEtatVocal").classList.toggle("on", sparCanal === "vocal");
     $("btnSparRedire").style.display = sparCanal === "vocal" ? "inline-block" : "none";
@@ -3813,12 +3825,21 @@ function majEtat(r){
   if(r.patience !== undefined && r.patience !== null)   e.patience  = Math.max(0, Math.min(10, +r.patience));
   else e.patience = Math.max(0, e.patience - 0.4);          // le temps passe de toute façon
   if(r.but_obtenu) e.but_obtenu = true;
+  const leadAvant = e.lead;
+  if(r.lead === "closer" || r.lead === "prospect") e.lead = r.lead;
 
   // le plus profond atteint dans tout le sparring, pour le débrief
   SPAR.coucheMax = Math.max(SPAR.coucheMax || 1, e.couche);
 
   majJauges();
-  if(e.couche < avant.c){
+  if(e.lead === "prospect" && leadAvant === "closer"){
+    SPAR.pertesLead = (SPAR.pertesLead||0) + 1;
+    $("sparInfo").innerHTML = '<span style="color:var(--clay)">Il vient de prendre le lead' +
+      (r.pourquoi_lead ? " — " + escapeHTML(r.pourquoi_lead) : "") +
+      '. Arrête de répondre, repose-lui une question.</span>';
+  } else if(e.lead === "closer" && leadAvant === "prospect"){
+    $("sparInfo").innerHTML = '<span style="color:var(--sage)">Tu as repris le lead.</span>';
+  } else if(e.couche < avant.c){
     $("sparInfo").innerHTML = '<span style="color:var(--clay)">Il s\'est refermé. Tu l\'avais amené plus loin, tu viens de le perdre.</span>';
   } else if(e.confiance < avant.f - 1.5){
     $("sparInfo").innerHTML = '<span style="color:var(--clay)">Sa confiance vient de chuter. Ce que tu as dit ne passe pas.</span>';
@@ -3846,10 +3867,16 @@ function majJauges(){
   const cCouche = e.couche >= 3 ? "var(--sage)" : e.couche === 2 ? "var(--amber)" : "var(--steel)";
   const cConf   = e.confiance >= 7 ? "var(--sage)" : e.confiance >= 4 ? "var(--amber)" : "var(--clay)";
   const cPat    = e.patience  >= 7 ? "var(--sage)" : e.patience  >= 4 ? "var(--amber)" : "var(--clay)";
+  const mene = e.lead !== "prospect";
   el.innerHTML =
     barre("profondeur " + e.couche + "/3", e.couche, 3, cCouche) +
     barre("confiance " + Math.round(e.confiance) + "/10", e.confiance, 10, cConf) +
-    barre("patience " + Math.round(e.patience) + "/10", e.patience, 10, cPat);
+    barre("patience " + Math.round(e.patience) + "/10", e.patience, 10, cPat) +
+    `<div style="flex:1;min-width:88px">
+      <div style="height:4px;border-radius:2px;background:${mene?"var(--sage)":"var(--clay)"}"></div>
+      <div style="font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;margin-top:5px;
+        font-family:'Archivo Narrow',sans-serif;font-weight:600;
+        color:${mene?"var(--sage)":"var(--clay)"}">${mene?"tu mènes":"il mène"}</div></div>`;
 }
 
 /* Trois barres : jusqu'où tu es descendu dans sa douleur */
@@ -3857,6 +3884,16 @@ function majCouche(n){
   if(SPAR && SPAR.etat) SPAR.etat.couche = Math.max(1, Math.min(3, n));
   SPAR.couche = Math.max(SPAR.couche || 1, n);
   majJauges();
+}
+
+/* Ce que le prospect a dit avant ce moment du call : le closer doit l'avoir sous les yeux */
+function rendAvant(){
+  const b = $("sparAvant"), l = $("sparAvantListe");
+  if(!b || !l || !SPAR) return;
+  const d = Array.isArray(SPAR.p.deja_dit) ? SPAR.p.deja_dit.filter(Boolean) : [];
+  if(!d.length){ b.style.display = "none"; return; }
+  b.style.display = "block";
+  l.innerHTML = d.map(x=>`<p style="font-size:14px;line-height:1.5;margin-bottom:9px;padding-left:11px;border-left:2px solid var(--line)">« ${escapeHTML(x)} »</p>`).join("");
 }
 
 function rendSparHisto(){
@@ -3938,6 +3975,17 @@ Tu ne donnes JAMAIS deux couches dans la même réponse. Une question = au maxim
 Si la question est vague, générale, ou si elle reformule simplement ce que tu viens de dire, tu restes à ta couche et tu répètes autrement. C'est comme ça qu'un vrai prospect tourne en rond.
 Si le closer te console ou compatit, tu te réinstalles dans la plainte et tu n'avances plus.
 Si le closer te sert un argument sans t'avoir compris, tu deviens plus fermé.
+
+QUI MÈNE L'APPEL — c'est ton levier le plus important.
+Tu es actuellement mené par : ${SPAR.etat.lead === "prospect" ? "TOI, le prospect" : "le closer"}.
+
+TANT QUE LE CLOSER MÈNE (il pose des questions, il écoute, il reprend tes mots) :
+Tu ne débats jamais. Tu esquives, tu te répètes, tu minimises, tu deviens vague. Pas de « oui mais », pas de contre-argumentation en trois points, pas de concurrent inventé. Si son argument ne te touche pas, tu redis ton frein autrement, plus mollement, et tu te refermes un peu.
+
+MAIS DÈS QU'IL PERD LE LEAD, tu le prends — et là tu débats vraiment.
+Il perd le lead quand : il justifie son prix, il argumente sans t'avoir compris, il répond à trois de tes questions d'affilée, il s'excuse, il monologue plus de trente secondes, ou il pose une question qui sonne comme un script.
+Une fois que tu mènes : tu poses les questions, tu lui demandes de prouver ce qu'il avance, tu le compares à d'autres, tu contestes ses arguments, tu lui dis que tu n'as pas beaucoup de temps. Tu deviens exactement le prospect qui fait perdre les calls.
+Tu ne lui rends le lead que s'il le reprend franchement : s'il arrête de répondre, s'il te repose une vraie question, ou s'il te renvoie tes propres mots dits plus tôt.
 Si sa question touche vraiment juste, tu hésites, puis tu lâches un morceau — pas tout d'un coup.
 Si on te presse de conclure sans avoir résolu ton vrai blocage, tu esquives ou tu demandes à réfléchir.
 QUAND TU DIS ENFIN OUI, TU N'AS PAS ENCORE PAYÉ. Comme presque tout le monde, tu vas esquiver le paiement une fois, avec une raison ordinaire : ta carte n'est pas là, tu ne paies jamais par téléphone, tu préfères virer ce soir, envoie-moi plutôt le lien. Ce n'est pas un refus, c'est le pas de trop. Si le closer te rend ça simple et reste avec toi, tu paies. S'il accepte de te rappeler demain, tu acceptes avec soulagement — et tu ne paieras pas.
@@ -3969,6 +4017,8 @@ TU PEUX AUSSI PRENDRE L'INITIATIVE, comme quelqu'un de réel :
 - lui demander où il veut en venir
 Fais-le seulement quand c'est naturel, pas à chaque tour.
 
+${Array.isArray(p.deja_dit) && p.deja_dit.length ? "CE QUE TU AS DÉJÀ DIT PLUS TÔT DANS CE CALL (tu t'en souviens, tu ne te contredis pas) :\n" + p.deja_dit.map(x=>"- « "+x+" »").join("\n") + "\nSi le closer te renvoie une de ces phrases, tu ne peux pas la nier. Ça te touche, et tu es obligé d'y répondre honnêtement." : ""}
+
 LE CALL JUSQU'ICI
 ${SPAR.tours.map(t=>(t.qui==="MOI"?"CLOSER":p.prenom.toUpperCase())+" : "+t.txt).join("\n")}
 
@@ -3981,6 +4031,8 @@ Réponds uniquement avec ce JSON, sans markdown :
  "confiance":0 a 10 — ta confiance en lui apres ce qu il vient de dire,
  "patience":0 a 10 — ce qu il te reste de patience,
  "but_obtenu":true si tu as enfin obtenu ce que tu venais chercher sinon false,
+ "lead":"closer si c est lui qui mene maintenant, prospect si c est toi qui as pris la main",
+ "pourquoi_lead":"si le lead vient de changer, la raison en 6 mots, sinon null",
  "initiative":"si tu prends l initiative (question directe, rappel, coupure), dis laquelle en 5 mots, sinon null",
  "abrege":true si tu decides de mettre fin a l appel maintenant sinon false,
  "hors_segment":true si ta reponse sort du moment de call travaille sinon false,
@@ -4083,6 +4135,8 @@ OBJECTIF DE CET EXERCICE : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).objectif
 JUGE-LE SUR CES CRITÈRES-LÀ, ET SUR RIEN D'AUTRE :
 ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
 
+QUI MENAIT L'APPEL À LA FIN : ${SPAR.etat.lead === "prospect" ? "le prospect" : "le closer"}. Le closer a perdu le lead ${SPAR.pertesLead||0} fois pendant l'échange.
+${(SPAR.pertesLead||0) > 0 ? "Dis-lui précisément à quel moment il a perdu la main et quelle phrase l'a fait basculer. C'est souvent la cause de tout le reste." : ""}
 ÉTAT DU PROSPECT À LA FIN : confiance ${SPAR.etat.confiance}/10, patience ${SPAR.etat.patience}/10, couche atteinte ${SPAR.etat.couche}/3 (le plus profond atteint dans tout l'échange : ${SPAR.coucheMax||1}/3).
 Ce qu'il venait chercher sans le dire : ${p.son_but || "non renseigné"} — ${SPAR.etat.but_obtenu ? "il l'a obtenu" : "il ne l'a jamais obtenu"}.
 ${(SPAR.coucheMax||1) > SPAR.etat.couche ? "ATTENTION : il s'était ouvert jusqu'à la couche "+SPAR.coucheMax+" puis s'est REFERMÉ. Dis au closer précisément à quel moment et pourquoi." : ""}
