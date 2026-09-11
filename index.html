@@ -3357,7 +3357,7 @@ document.querySelectorAll("#sparMoteurVoix [data-moteur]").forEach(b=>{
 
 function coupeAudio(){
   if(AUDIO_EN_COURS){ try{ AUDIO_EN_COURS.pause(); }catch(e){} AUDIO_EN_COURS = null; }
-  coupeAudio();
+  if("speechSynthesis" in window) speechSynthesis.cancel();
 }
 
 /* Fabrique le son et le joue. Renvoie false si le service n'a pas répondu :
