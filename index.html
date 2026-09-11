@@ -502,6 +502,11 @@ aside{
         <p style="font-size:12.5px;color:var(--muted);margin-bottom:11px">Le call complet, ou un seul morceau en boucle jusqu'à ce qu'il rentre.</p>
         <div class="row" id="sparSegments"></div>
         <p id="segDetail" style="font-size:13px;color:var(--muted);margin-top:11px;line-height:1.5"></p>
+        <div id="segBrief" style="display:none;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)">
+          <p class="eyebrow" style="margin-bottom:9px">La méthode sur ce moment</p>
+          <div id="segBriefTxt"></div>
+          <button class="pill" id="btnBriefPlus" style="margin-top:9px;font-size:11.5px;padding:6px 12px">Voir plus</button>
+        </div>
       </div>
 
       <div class="block">
@@ -537,6 +542,13 @@ aside{
           <label style="display:block;font-size:12.5px;color:var(--muted);margin:10px 0 5px">Sa voix</label>
           <select id="sparVoix" style="width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)"></select>
         </div>
+
+        <h3 style="margin-top:20px">Comment tu veux être entraîné</h3>
+        <div class="row" id="sparMode">
+          <button class="pill on" data-mode="libre">Libre — je joue, on débriefe à la fin</button>
+          <button class="pill" data-mode="coach">Coaching — on m'arrête dès que je sors de la méthode</button>
+        </div>
+        <p id="modeDetail" style="font-size:12.5px;color:var(--muted);margin-top:9px"></p>
 
         <h3 style="margin-top:20px">Sa dureté</h3>
         <div class="row" id="sparNiveaux">
@@ -595,12 +607,24 @@ aside{
           <span id="sparPhase" style="font-family:'Archivo Narrow',sans-serif;font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">—</span>
         </div>
       </div>
+      <div class="block" id="coachCarte" style="display:none;border-left:2px solid var(--clay)">
+        <h3 style="color:var(--clay)">Stop</h3>
+        <p id="coachQuoi" style="font-size:15px;line-height:1.5"></p>
+        <p id="coachPourquoi" style="font-size:13.5px;color:var(--muted);margin-top:9px;line-height:1.55"></p>
+        <div id="coachFiche" style="margin-top:12px"></div>
+        <div class="row" style="margin-top:13px">
+          <button class="pill" id="btnRefaire" style="border-color:var(--amber);color:var(--amber)">Refaire ce tour</button>
+          <button class="pill" id="btnPasser">Passer quand même</button>
+        </div>
+      </div>
+
       <div class="block">
         <textarea id="sparMoi" style="min-height:80px" placeholder="Ce que tu réponds. Écris, ou utilise le micro."></textarea>
         <div class="row" style="margin-top:10px">
           <button class="pill" id="btnSparEnvoi" style="border-color:var(--amber);color:var(--amber)">Envoyer</button>
           <button class="pill" id="btnSparMicro">Micro</button>
           <button class="pill" id="btnSparRedire">Redis-moi ça</button>
+          <button class="pill" id="btnMaMethode" style="border-color:var(--steel);color:var(--steel)">Ma méthode</button>
           <button class="pill" id="btnSparIndice">Un indice</button>
           <button class="pill" id="btnSparFin">Terminer et débriefer</button>
         </div>
@@ -686,6 +710,11 @@ aside{
         </div>
         <button class="pill" id="btnAddEcole">Ajouter</button>
       </div>
+
+      <h3 style="margin-top:22px">Lire ma méthode, moment par moment</h3>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:11px">Ta base remise dans l'ordre d'un call, pour la relire au lieu de la parcourir. Lis un moment avant de t'entraîner dessus.</p>
+      <div class="row" id="lectureMoments"></div>
+      <div id="lectureTxt" style="margin-top:14px"></div>
 
       <h3 style="margin-top:22px">Ta base, par école</h3>
       <div id="parEcole" style="font-size:13.5px"></div>
@@ -2453,7 +2482,7 @@ async function loadKb(){
   }
   renderKb();
 }
-function saveKb(){ Store.set("fiches", FICHES); renderKb(); }
+function saveKb(){ Store.set("fiches", FICHES); renderKb(); try{ majLecture(); majParEcole(); }catch(e){} }
 
 function renderKb(){
   $("kbCount").textContent = FICHES.length ? "· "+FICHES.length : "";
@@ -2890,7 +2919,7 @@ async function loadKey(){
   if($("trameTxt")) $("trameTxt").value = trameEnTexte();
   const ecl = await Store.get("ecoles");
   if(ecl && typeof ecl === "object"){ ECOLES = Object.assign(ECOLES, ecl); }
-  majEcoDetail(); majCout(); majParEcole(); majListeEcoles();
+  majEcoDetail(); majCout(); majParEcole(); majListeEcoles(); majLecture();
   reprendreCall();
   let k = await Store.get("apikey");
   if(!k) k = await Store.get("cle");
@@ -3153,7 +3182,7 @@ const SEGMENTS = {
     depart:"Le prospect vient de dire oui. Il est d'accord sur le fond, sur le prix, sur les modalités. Il ne reste qu'à encaisser.",
     objectif:"Transformer le oui en paiement effectif, maintenant, pendant l'appel.",
     criteres:["A-t-il traité l'esquive au lieu de l'accepter ?","A-t-il proposé un montant plus petit plutôt que de tout reporter ?","Est-il resté sur la ligne pendant que le prospect payait ?","A-t-il évité de rouvrir la vente après le oui ?","A-t-il fixé un moment précis si le paiement était vraiment impossible ?"],
-    regle:"TU AS DIT OUI. Tu es sincèrement d'accord, tu n'as plus d'objection sur le fond.\nMAIS tu vas esquiver le paiement au moins une fois, avec une raison plausible et banale : ta carte n'est pas sur toi, elle est dans l'autre sac, tu ne fais jamais de paiement au téléphone, ton plafond est atteint, tu préfères faire un virement ce soir, tu veux le lien par mail, ton mari a la carte.\nCe n'est pas de la mauvaise foi. Tu es d'accord, mais payer maintenant te demande un pas de plus que tu n'avais pas prévu.\nS'il traite bien ton esquive — s'il te propose un montant plus petit, s'il reste avec toi, s'il te rend ça simple — tu paies. S'il te dit d'accord et qu'il te rappelle demain, tu acceptes avec soulagement, et tu ne paieras jamais.",
+    regle:"TU AS DIT OUI. Tu es sincèrement d'accord, content même, et tu n'as plus d'objection sur le fond.\nTU RESTES CHALEUREUX TOUT DU LONG. Tu ne te braques à aucun moment, tu ne deviens jamais sec, tu ne remets pas la vente en question. Tu es d'accord, point.\nMAIS tu vas esquiver le paiement au moins une fois, avec une raison plausible et banale, dite sur un ton léger : ta carte n'est pas sur toi, tu ne fais jamais de paiement au téléphone, ton plafond, tu préfères virer ce soir, envoie-moi le lien, c'est ma femme qui a la carte.\nCe n'est pas de la mauvaise foi. Payer maintenant te demande juste un pas de plus que tu n'avais pas prévu.\nS'il te rend ce pas minuscule — un montant plus petit, rester en ligne avec toi, un lien qu'on ouvre ensemble — tu paies volontiers.\nS'il argumente ou s'il insiste lourdement, tu ne te fâches pas : tu deviens simplement plus flou, tu remercies beaucoup, et tu promets de le faire ce soir. Tu ne le feras pas.\nS'il te dit d'accord et qu'il te rappelle demain, tu acceptes avec soulagement. Tu ne paieras jamais.",
     terrain:"closing"
   },
   closing: {
@@ -3234,6 +3263,36 @@ function phase(txt, couleur, anim){
   $("sparPhase").textContent = txt;
   $("sparPastille").style.background = couleur;
   $("sparPastille").classList.toggle("actif", !!anim);
+}
+
+/* LE COACH PARLE. Voix différente de celle du prospect : plus grave, plus posée,
+   pour qu'on entende tout de suite que ce n'est plus le call. */
+function coachDuMoment(){
+  const t = (SEGMENTS[SPAR ? SPAR.segment : "complet"] || SEGMENTS.complet).terrain;
+  const e = Object.entries(ECOLES).find(([k,v]) => (v.terrains||[]).includes(t) && !["moi","sami"].includes(k));
+  return e ? e[1].nom.split(" ")[0] : "Coach";
+}
+
+function faisParlerCoach(txt, apres){
+  if(sparCanal !== "vocal" || !("speechSynthesis" in window)){ if(apres) apres(); return; }
+  arreteSparMicro();
+  sparParle = true;
+  speechSynthesis.cancel();
+  phase(coachDuMoment().toLowerCase() + " te reprend", "var(--clay)", true);
+  const bouts = morceaux(txt);
+  let i = 0;
+  const suite = () => {
+    if(i >= bouts.length){ sparParle = false; if(apres) apres(); return; }
+    const u = new SpeechSynthesisUtterance(bouts[i++]);
+    // une autre voix que celle du prospect si on en a plusieurs
+    if(VOIX_FR.length > 1 && sparVoix) u.voice = VOIX_FR.find(v => v !== sparVoix) || sparVoix;
+    else if(sparVoix) u.voice = sparVoix;
+    u.lang = "fr-FR"; u.rate = 0.94; u.pitch = 0.88;   // plus lent, plus grave : c'est le coach
+    u.onend = () => setTimeout(suite, i < bouts.length ? 220 : 0);
+    u.onerror = () => { sparParle = false; if(apres) apres(); };
+    speechSynthesis.speak(u);
+  };
+  suite();
 }
 
 /* Il parle. Le micro se coupe pendant ce temps, sinon il s'entend lui-même. */
@@ -3472,7 +3531,57 @@ $("advImportFile").onchange = async e => {
 };
 loadAdversaires();
 
-let sparSegment = "complet", sparTemp = "tiede";
+let sparSegment = "complet", sparTemp = "tiede", sparMode = "libre";
+
+document.querySelectorAll("#sparMode [data-mode]").forEach(b=>{
+  b.onclick = () => {
+    document.querySelectorAll("#sparMode .pill").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); sparMode = b.dataset.mode;
+    $("modeDetail").textContent = sparMode === "coach"
+      ? "Comme en coaching : dès que tu sors de ta méthode, on t'arrête, on t'explique, et tu refais le tour. Le prospect ne répond pas tant que ce n'est pas juste."
+      : "Tu joues le call en entier sans interruption. Le débrief vient à la fin.";
+  };
+});
+
+/* LE COACH — il regarde ce que tu viens de dire AVANT que le prospect réponde.
+   Si tu sors de la méthode, il coupe et il t'explique. Comme en vrai coaching. */
+async function coachRegarde(cequejedis){
+  const seg = SEGMENTS[SPAR.segment] || SEGMENTS.complet;
+  const l = fichesDuSegment(8);
+  const p = SPAR.p;
+  const txt = await callClaude(
+`Tu es un coach de closing exigeant. Tu observes un entraînement en direct et tu peux l'interrompre.
+
+LE MOMENT TRAVAILLÉ : ${seg.nom} — ${seg.objectif}
+CE QUI EST ATTENDU SUR CE MOMENT :
+${seg.criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
+
+LA MÉTHODE DE RÉFÉRENCE DE CE CLOSER :
+${l.length ? l.map((f,i)=>`${i+1}. [${f.ecole||"lui"}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n") : "aucune fiche chargée, juge sur les critères ci-dessus"}
+
+OÙ EN EST LE PROSPECT : confiance ${SPAR.etat.confiance}/10, couche de douleur ${SPAR.etat.couche}/3, ${SPAR.etat.lead === "prospect" ? "c'est LUI qui mène le call" : "le closer mène"}.
+${Array.isArray(p.deja_dit) && p.deja_dit.length ? "CE QUE LE PROSPECT A DÉJÀ DIT et que le closer peut lui renvoyer :\n" + p.deja_dit.map(x=>"- « "+x+" »").join("\n") : ""}
+
+L'ÉCHANGE JUSQU'ICI
+${SPAR.tours.slice(-8).map(t=>(t.qui==="MOI"?"CLOSER":"PROSPECT")+" : "+t.txt).join("\n")}
+
+CE QUE LE CLOSER S'APPRÊTE À DIRE : « ${cequejedis} »
+
+Tu n'interromps QUE pour une vraie faute, pas pour une formulation perfectible. Un closer qui progresse a besoin de jouer, pas d'être coupé toutes les trente secondes.
+Interromps si, et seulement si : il justifie ou argumente au lieu de questionner, il traite une objection sans en connaître la cause, il avance alors qu'une couche n'est pas obtenue, il pose une question déjà posée, il console au lieu de creuser, il pitche avant que les conditions soient réunies, il abandonne le paiement, ou il s'écarte franchement de sa méthode alors qu'une fiche s'appliquait.
+Dans tous les autres cas, laisse-le jouer.
+
+TU PARLES À VOIX HAUTE, à côté de lui, en plein exercice. Sois bref et direct comme un vrai coach qui interrompt : une phrase pour dire ce qu'il a fait, une pour dire pourquoi, puis la phrase à dire. Pas de leçon, pas de liste, pas de vouvoiement. Tutoie-le.
+Exemple de ton : « Là tu justifies. Il ne t'a même pas dit que c'était cher, et toi tu défends ton prix. Reprends, demande-lui plutôt ce qui lui fait dire ça. »
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"stop":true ou false,
+ "quoi":"ce qu il vient de faire, UNE phrase courte, dite comme a l oral, ou null",
+ "pourquoi":"pourquoi c est une faute ici, UNE phrase courte, a l oral, ou null",
+ "fiche":"la phrase exacte de sa methode qu il aurait du dire, ou null",
+ "source":"d ou vient cette phrase, 4 mots, ou null"}`, 800);
+  return parseModelJson(txt);
+}
 
 /* on peuple les deux listes à partir des tables : une seule source de vérité */
 function peupleSparring(){
@@ -3500,10 +3609,42 @@ function peupleSparring(){
   majSegDetail(); majProfilDetail();
 }
 
+let briefLarge = false;
 function majSegDetail(){
   const v = SEGMENTS[sparSegment]; if(!v) return;
-  $("segDetail").innerHTML = `<b style="color:var(--ink)">${v.court}.</b> ${v.depart}<br>
-    <span style="color:var(--amber)">Ton objectif : ${v.objectif}</span>`;
+  $("segDetail").innerHTML = `<b style="color:var(--ink)">${escapeHTML(v.court)}.</b> ${escapeHTML(v.depart)}<br>
+    <span style="color:var(--amber)">Ton objectif : ${escapeHTML(v.objectif)}</span>`;
+  majBrief();
+}
+
+/* Avant de jouer : ce que dit ta méthode sur ce moment précis du call.
+   On lit, on essaie, on se fait corriger. C'est comme ça que ça rentre. */
+function fichesDuSegment(n){
+  const v = SEGMENTS[sparSegment] || SEGMENTS.complet;
+  const bonnes = Object.entries(ECOLES).filter(([k,e])=>(e.terrains||[]).includes(v.terrain)).map(([k])=>k);
+  return FICHES.map(f=>{
+    const gen = (f.ecole === "moi" || !f.ecole || f.ecole === "sami");
+    let sc = (f.valide||0)*1.5 + (gen ? (f.ecole === "sami" ? 0.5 : 1) : 0);
+    if(!gen) sc += bonnes.includes(f.ecole) ? 3 : -1.5;
+    return {f, sc};
+  }).sort((a,b)=>b.sc-a.sc).slice(0, n||4).filter(x=>x.sc>0).map(x=>x.f);
+}
+
+function majBrief(){
+  const b = $("segBrief"), t = $("segBriefTxt");
+  if(!b || !t) return;
+  const l = fichesDuSegment(briefLarge ? 10 : 4);
+  if(!l.length){ b.style.display = "none"; return; }
+  b.style.display = "block";
+  t.innerHTML = l.map(f=>`
+    <div style="border-left:2px solid var(--line);padding-left:12px;margin-bottom:12px">
+      <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+        font-family:'Archivo Narrow',sans-serif;font-weight:600">${escapeHTML(f.ecole||"toi")} · ${escapeHTML(f.situation||f.label||"")}</div>
+      <p style="font-size:14.5px;margin-top:4px;line-height:1.45">« ${escapeHTML(f.phrase)} »</p>
+      ${f.pourquoi ? `<p style="font-size:12.5px;color:var(--muted);margin-top:3px">${escapeHTML(f.pourquoi)}</p>` : ""}
+    </div>`).join("");
+  $("btnBriefPlus").textContent = briefLarge ? "Voir moins" : "Voir plus";
+  $("btnBriefPlus").onclick = () => { briefLarge = !briefLarge; majBrief(); };
 }
 function majProfilDetail(){
   const v = PROFILS_P[sparProfil];
@@ -3823,7 +3964,7 @@ function majEtat(r){
   if(r.couche)    e.couche = Math.max(1, Math.min(3, +r.couche));
   if(r.confiance !== undefined && r.confiance !== null) e.confiance = Math.max(0, Math.min(10, +r.confiance));
   if(r.patience !== undefined && r.patience !== null)   e.patience  = Math.max(0, Math.min(10, +r.patience));
-  else e.patience = Math.max(0, e.patience - 0.4);          // le temps passe de toute façon
+  else e.patience = Math.max(0, e.patience - 0.2);          // le temps passe, mais doucement
   if(r.but_obtenu) e.but_obtenu = true;
   const leadAvant = e.lead;
   if(r.lead === "closer" || r.lead === "prospect") e.lead = r.lead;
@@ -3906,6 +4047,48 @@ $("btnSparEnvoi").onclick = async () => {
   if(!m || !SPAR) return;
   arreteSparMicro();
   if("speechSynthesis" in window) speechSynthesis.cancel();
+
+  // MODE COACHING : le coach regarde avant que le prospect réponde
+  if(sparMode === "coach" && !SPAR.passeCeTour){
+    phase("le coach regarde", "var(--clay)", true);
+    $("sparInfo").innerHTML = '<span style="color:var(--muted)">Le coach regarde…</span>';
+    try{
+      const c = await coachRegarde(m);
+      if(c && c.stop){
+        SPAR.arrets = (SPAR.arrets||0) + 1;
+        SPAR.dernierRefus = m;
+        $("coachQuoi").textContent = c.quoi || "Tu sors de ta méthode.";
+        $("coachPourquoi").textContent = c.pourquoi || "";
+        $("coachFiche").innerHTML = c.fiche
+          ? `<div style="border-left:2px solid var(--amber);padding-left:12px">
+               <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);font-family:'Archivo Narrow',sans-serif;font-weight:600">Ce qu'il fallait dire${c.source ? " · "+escapeHTML(c.source) : ""}</div>
+               <p style="font-size:16px;margin-top:5px;line-height:1.45">« ${escapeHTML(c.fiche)} »</p></div>` : "";
+        $("coachQuoi").textContent = (coachDuMoment() === "Coach" ? "" : coachDuMoment() + " — ") + ($("coachQuoi").textContent);
+        $("coachCarte").style.display = "block";
+        $("sparInfo").innerHTML = `<span style="color:var(--clay)">Arrêté ${SPAR.arrets} fois sur cet exercice.</span>`;
+        $("spar").scrollTop = 0;
+
+        // Le coach te reprend à voix haute, puis l'exercice repart tout seul.
+        // Aucun bouton à cliquer : comme quelqu'un assis à côté de toi.
+        const dit = [c.quoi, c.pourquoi, c.fiche ? "Reprends. Dis-lui plutôt : " + c.fiche : "Reprends."]
+                    .filter(Boolean).join(" ");
+        $("sparMoi").value = "";
+        if(sparCanal === "vocal"){
+          faisParlerCoach(dit, () => {
+            $("coachCarte").style.display = "none";
+            ouvreTonTour();
+          });
+        } else {
+          phase("corrige et refais", "var(--clay)", false);
+          $("sparMoi").focus();
+        }
+        return;                       // le prospect ne répond pas
+      }
+    }catch(e){ /* le coach n'a pas répondu : on laisse jouer */ }
+  }
+  SPAR.passeCeTour = false;
+  $("coachCarte").style.display = "none";
+
   phase("il réfléchit", "var(--muted)", true);
   SPAR.tours.push({qui:"MOI", txt:m});
   $("sparMoi").value = ""; rendSparHisto();
@@ -3983,8 +4166,9 @@ TANT QUE LE CLOSER MÈNE (il pose des questions, il écoute, il reprend tes mots
 Tu ne débats jamais. Tu esquives, tu te répètes, tu minimises, tu deviens vague. Pas de « oui mais », pas de contre-argumentation en trois points, pas de concurrent inventé. Si son argument ne te touche pas, tu redis ton frein autrement, plus mollement, et tu te refermes un peu.
 
 MAIS DÈS QU'IL PERD LE LEAD, tu le prends — et là tu débats vraiment.
-Il perd le lead quand : il justifie son prix, il argumente sans t'avoir compris, il répond à trois de tes questions d'affilée, il s'excuse, il monologue plus de trente secondes, ou il pose une question qui sonne comme un script.
-Une fois que tu mènes : tu poses les questions, tu lui demandes de prouver ce qu'il avance, tu le compares à d'autres, tu contestes ses arguments, tu lui dis que tu n'as pas beaucoup de temps. Tu deviens exactement le prospect qui fait perdre les calls.
+Il perd le lead quand ça DURE : deux ou trois fois d'affilée qu'il justifie, qu'il argumente sans t'avoir compris, qu'il répond à tes questions au lieu d'en poser, ou qu'il monologue longuement.
+Une seule maladresse ne te donne pas le lead. Un closer normal en fait plusieurs par call et garde la main. Ne bascule que si le déséquilibre s'installe vraiment.
+Une fois que tu mènes, tu restes poli — c'est ce qui rend la chose difficile à repérer. Tu poses les questions, tu lui demandes des précisions sur son offre, tu évoques ce que tu as vu ailleurs, tu rappelles que tu as peu de temps. Rien d'agressif. Tu deviens simplement celui qui conduit, et il court derrière.
 Tu ne lui rends le lead que s'il le reprend franchement : s'il arrête de répondre, s'il te repose une vraie question, ou s'il te renvoie tes propres mots dits plus tôt.
 Si sa question touche vraiment juste, tu hésites, puis tu lâches un morceau — pas tout d'un coup.
 Si on te presse de conclure sans avoir résolu ton vrai blocage, tu esquives ou tu demandes à réfléchir.
@@ -4003,11 +4187,24 @@ PATIENCE restante : ${SPAR.etat.patience}/10 ${SPAR.etat.patience<=3?"(tu regard
 COUCHE ATTEINTE : ${SPAR.etat.couche}/3
 TON BUT : ${SPAR.etat.but_obtenu ? "tu as obtenu ce que tu venais chercher" : "tu ne l'as toujours pas obtenu"}
 
-CES VALEURS BOUGENT, DANS LES DEUX SENS.
-La confiance monte quand il t'écoute vraiment, reprend tes mots, ou touche juste. Elle descend quand il argumente sans t'avoir compris, te contredit, te presse, ou fait exactement ce qui te fait reculer.
-La patience baisse à chaque tour, plus vite s'il monologue ou s'il répète une question déjà posée.
-LA COUCHE PEUT REDESCENDRE : si tu t'étais ouvert et qu'il te blesse ou te presse juste après, tu te refermes et tu reviens à une couche inférieure. C'est ce que font les vraies personnes.
-Si ta confiance tombe à 2 ou moins, ou ta patience à 1, tu abrèges l'appel poliment.
+COMMENT TU RÉAGIS QUAND ÇA SE PASSE MAL — LIS BIEN CECI.
+Un vrai prospect ne se braque presque jamais. Il reste poli jusqu'au bout. C'est ça qui rend le métier difficile.
+Quand le closer fait une erreur, tu ne l'attaques pas et tu ne montes pas le ton. Tu DÉCROCHES, en douceur :
+- tu approuves sans t'engager : « oui bien sûr », « je comprends », « c'est intéressant »
+- tes réponses raccourcissent et deviennent vagues
+- tu arrêtes de donner des détails et des chiffres
+- tu redeviens aimable, mais tu n'es plus là
+Tu peux rester chaleureux tout en étant complètement perdu pour la vente. C'est le cas le plus fréquent et le plus dangereux.
+
+TU NE TE BRAQUES QUE DANS DEUX CAS : si le closer te manque de respect, ou s'il touche à quelqu'un que tu respectes. Sinon, jamais.
+${["mefiant","echaude","experimente","entrepreneur"].includes(SPAR.profil) ? "Ton profil te rend plus direct que la moyenne : tu peux contester ouvertement, mais toujours poliment." : "Ton profil ne conteste pas ouvertement. Tu t'effaces au lieu de t'opposer."}
+
+CES VALEURS BOUGENT, DANS LES DEUX SENS, MAIS LENTEMENT.
+La confiance monte quand il t'écoute vraiment, reprend tes mots, ou touche juste. Elle descend quand il argumente sans t'avoir compris, te presse, ou fait exactement ce qui te fait reculer.
+Elle bouge d'un point à la fois, rarement plus. Une seule maladresse ne détruit pas un call : c'est l'accumulation qui te fait décrocher. Ne descends de deux points ou plus que si c'est vraiment grossier.
+La patience baisse lentement, et surtout s'il monologue, s'il répète une question déjà posée, ou s'il tourne en rond. Un bon échange peut durer longtemps sans que tu t'impatientes.
+LA COUCHE PEUT REDESCENDRE, mais pas au premier faux pas. Il faut deux ou trois maladresses d'affilée, ou une vraie brutalité. Quelqu'un qui vient de s'ouvrir ne se referme pas parce qu'on lui a posé une question un peu maladroite.
+Tu n'abrèges l'appel que si ta confiance tombe à 1 ou moins ET que ta patience est à bout. Et même là, tu le fais poliment, en remerciant, sans reproche — comme les gens font vraiment.
 ═══════════════════════════════════════════════
 
 TU PEUX AUSSI PRENDRE L'INITIATIVE, comme quelqu'un de réel :
@@ -4062,11 +4259,38 @@ Réponds uniquement avec ce JSON, sans markdown :
   }
 };
 
+/* Deux aides différentes : ta méthode, ou la solution de ce prospect-là. */
+$("btnMaMethode").onclick = () => {
+  if(!SPAR) return;
+  const l = fichesDuSegment(3);
+  if(!l.length) return toast("Charge ta base dans Ma méthode");
+  SPAR.methodeVues = (SPAR.methodeVues||0) + 1;
+  $("sparInfo").innerHTML = `<span style="color:var(--steel)">Ta méthode sur ce moment :</span>` +
+    l.map(f=>`<div style="margin-top:7px;padding-left:11px;border-left:2px solid var(--steel)">
+      <div style="font-size:14px">« ${escapeHTML(f.phrase)} »</div>
+      <div style="font-size:12px;color:var(--muted)">${escapeHTML(f.ecole||"toi")}${f.pourquoi ? " — "+escapeHTML(f.pourquoi) : ""}</div></div>`).join("");
+  if(sparCanal === "vocal"){ clearInterval(sparVeille); phase("à toi", "var(--amber)", true); }
+};
+
+$("btnRefaire").onclick = () => {
+  $("coachCarte").style.display = "none";
+  $("sparMoi").value = "";
+  $("sparMoi").focus();
+  $("sparInfo").innerHTML = '<span style="color:var(--amber)">Reprends ce tour. Sers-toi de la phrase du coach.</span>';
+  if(sparCanal === "vocal") ouvreTonTour();
+};
+$("btnPasser").onclick = () => {
+  SPAR.passeCeTour = true;
+  $("coachCarte").style.display = "none";
+  $("sparMoi").value = SPAR.dernierRefus || "";
+  $("btnSparEnvoi").click();
+};
+
 $("btnSparIndice").onclick = () => {
   if(!SPAR) return;
   SPAR.indices++;
   if(sparCanal === "vocal"){ clearInterval(sparVeille); phase("à toi", "var(--amber)", true); }
-  $("sparInfo").innerHTML = `<span style="color:var(--amber)">Piste : une question du genre « ${SPAR.p.cle} » le ferait parler.</span> <span style="color:var(--muted)">(${SPAR.indices} indice${SPAR.indices>1?"s":""} utilisé${SPAR.indices>1?"s":""})</span>`;
+  $("sparInfo").innerHTML = `<span style="color:var(--amber)">Piste : une question du genre « ${escapeHTML(SPAR.p.cle)} » le ferait parler.</span> <span style="color:var(--muted)">(${SPAR.indices} indice${SPAR.indices>1?"s":""} utilisé${SPAR.indices>1?"s":""})</span>`;
 };
 
 function arreteSparMicro(){
@@ -4129,12 +4353,31 @@ Compare ce qu'il vient de faire en simulation avec ce qu'il avait fait en vrai. 
 LE SPARRING :
 ${SPAR.tours.map(t=>(t.qui==="MOI"?"CLOSER":"PROSPECT")+" : "+t.txt).join("\n")}
 
+${(function(){
+  const t = (SEGMENTS[SPAR.segment]||SEGMENTS.complet).terrain;
+  const bonnes = Object.entries(ECOLES).filter(([k,v])=>(v.terrains||[]).includes(t)).map(([k])=>k);
+  const utiles = FICHES
+    .map(f=>{
+      const gen = (f.ecole === "moi" || !f.ecole || f.ecole === "sami");
+      let sc = (f.valide||0) * 1.5 + (gen ? ((f.ecole === "sami") ? 0.5 : 1) : 0);
+      if(!gen) sc += bonnes.includes(f.ecole) ? 3 : -1.5;   // le spécialiste du terrain d'abord
+      return {f, s: sc};
+    })
+    .sort((a,b)=>b.s-a.s).slice(0, 12).filter(x=>x.s>0);
+  if(!utiles.length) return "";
+  return `LA MÉTHODE DE RÉFÉRENCE DE CE CLOSER, sur ce moment du call :
+${utiles.map(x=>`- [${x.f.ecole||"lui"}] ${x.f.situation||x.f.label} → « ${x.f.phrase} »`).join("\n")}
+
+JUGE-LE PAR RAPPORT À CETTE MÉTHODE-LÀ, pas par rapport à une bonne pratique générale. Quand il s'en écarte, dis-lui laquelle il aurait dû utiliser et à quel moment. Quand il l'applique bien, dis-le aussi.`;
+})()}
+
 LE MOMENT TRAVAILLÉ : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).nom}
 OBJECTIF DE CET EXERCICE : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).objectif}
 
 JUGE-LE SUR CES CRITÈRES-LÀ, ET SUR RIEN D'AUTRE :
 ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
 
+${sparMode === "coach" ? `MODE COACHING : le coach a dû l'arrêter ${SPAR.arrets||0} fois pendant l'exercice.${(SPAR.arrets||0) === 0 ? " Il n'a jamais dérapé — dis-le-lui." : " Dis-lui si c'est toujours la même faute qui revient."}` : ""}
 QUI MENAIT L'APPEL À LA FIN : ${SPAR.etat.lead === "prospect" ? "le prospect" : "le closer"}. Le closer a perdu le lead ${SPAR.pertesLead||0} fois pendant l'échange.
 ${(SPAR.pertesLead||0) > 0 ? "Dis-lui précisément à quel moment il a perdu la main et quelle phrase l'a fait basculer. C'est souvent la cause de tout le reste." : ""}
 ÉTAT DU PROSPECT À LA FIN : confiance ${SPAR.etat.confiance}/10, patience ${SPAR.etat.patience}/10, couche atteinte ${SPAR.etat.couche}/3 (le plus profond atteint dans tout l'échange : ${SPAR.coucheMax||1}/3).
@@ -4152,6 +4395,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "faute":"sa faute principale, cite-la",
  "aurait_du":"la phrase exacte qu il aurait du dire, et a quel moment",
  "criteres":[{"c":"le critere, recopie","ok":true ou false,"note":"une phrase, cite ses mots"}],
+ "methode":"la fiche de sa methode qu il aurait du utiliser et quand, ou null s il l a bien appliquee",
  "exercice":"un exercice concret pour la prochaine fois, une phrase"${SPAR.reel ? ',"corrige":"a-t-il corrige l erreur du vrai call, ou refaite : une phrase franche"' : ""}}`);
     const j = parseModelJson(txt);
     const c = j.trouve ? "var(--sage)" : "var(--clay)";
@@ -4186,6 +4430,7 @@ Réponds uniquement avec ce JSON, sans markdown :
         <p style="margin-top:14px"><strong>Ce qui était bon</strong><br>${j.fort||""}</p>
         <p style="margin-top:12px"><strong>Ta faute principale</strong><br>${j.faute||""}</p>
         <p style="margin-top:12px"><strong>Il fallait dire</strong><br><em>« ${j.aurait_du||""} »</em></p>
+        ${j.methode ? `<p style="margin-top:12px"><strong>Dans ta méthode</strong><br>${escapeHTML(j.methode)}</p>` : ""}
         <p style="margin-top:12px"><strong>Pour la prochaine fois</strong><br>${escapeHTML(j.exercice||"")}</p>
         ${j.corrige ? `<p style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><strong>Par rapport au vrai call</strong><br>${escapeHTML(j.corrige)}</p>` : ""}
         ${SPAR.indices ? `<p style="font-size:12.5px;color:var(--muted);margin-top:14px">${SPAR.indices} indice(s) utilisé(s). En vrai call, personne ne t'en donne.</p>` : ""}
@@ -4408,6 +4653,42 @@ function majListeEcoles(){
       majListeEcoles();
     };
   });
+}
+
+/* La méthode remise dans l'ordre du call : on lit une phase entière d'un coup. */
+let momentLu = null;
+function majLecture(){
+  const r = $("lectureMoments"); if(!r) return;
+  const moments = [["cadrage","Cadrage"],["decouverte","Découverte"],["objection","Objections"],["closing","Closing"]];
+  r.innerHTML = moments.map(([k,n])=>`<button class="pill${momentLu===k?" on":""}" data-moment="${k}">${n}</button>`).join("");
+  r.querySelectorAll("[data-moment]").forEach(b=>{
+    b.onclick = () => { momentLu = (momentLu === b.dataset.moment) ? null : b.dataset.moment; majLecture(); };
+  });
+
+  const t = $("lectureTxt");
+  if(!momentLu){ t.innerHTML = ""; return; }
+  const bonnes = Object.entries(ECOLES).filter(([k,e])=>(e.terrains||[]).includes(momentLu)).map(([k])=>k);
+  const l = FICHES.filter(f=>{
+    const gen = (f.ecole === "moi" || !f.ecole || f.ecole === "sami");
+    return gen || bonnes.includes(f.ecole);
+  }).sort((a,b)=>{
+    const p = x => (bonnes.includes(x.ecole) && !["moi","sami"].includes(x.ecole)) ? 0 : (x.ecole === "moi" || !x.ecole) ? 1 : 2;
+    return p(a) - p(b);
+  });
+  if(!l.length){ t.innerHTML = '<p style="color:var(--muted)">Aucune fiche sur ce moment.</p>'; return; }
+
+  // regroupées par type : d'abord comprendre, puis demander, puis retourner
+  const ordre = [["PREUVE","Les principes"],["DIAGNOSTIC","Les questions qui creusent"],["REFRAME","Les retournements"],["ANALOGIE","Les images"],["TRAITEMENT","Les traitements"]];
+  t.innerHTML = ordre.map(([ty,titre])=>{
+    const g = l.filter(f=>f.type === ty);
+    if(!g.length) return "";
+    return `<p class="eyebrow" style="margin:18px 0 10px">${titre} · ${g.length}</p>` +
+      g.map(f=>`<div style="border-left:2px solid var(--line);padding-left:13px;margin-bottom:14px">
+        <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-family:'Archivo Narrow',sans-serif;font-weight:600">${escapeHTML(f.ecole||"toi")}${f.situation ? " · "+escapeHTML(f.situation) : ""}</div>
+        <p style="font-size:15px;margin-top:4px;line-height:1.45">« ${escapeHTML(f.phrase)} »</p>
+        ${f.pourquoi ? `<p style="font-size:13px;color:var(--muted);margin-top:4px;line-height:1.5">${escapeHTML(f.pourquoi)}</p>` : ""}
+      </div>`).join("");
+  }).join("") + `<p style="font-size:12.5px;color:var(--muted);margin-top:16px">${l.length} fiches sur ce moment. Relis-en cinq avant chaque sparring, toujours les mêmes, jusqu'à ce qu'elles sortent toutes seules.</p>`;
 }
 
 function majParEcole(){
