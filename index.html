@@ -541,6 +541,14 @@ aside{
         <div id="sparVoixBloc">
           <label style="display:block;font-size:12.5px;color:var(--muted);margin:10px 0 5px">Sa voix</label>
           <select id="sparVoix" style="width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)"></select>
+          <p style="font-size:12.5px;color:var(--muted);margin-top:8px">En mains libres : il parle, ton micro s'ouvre tout seul, tu réponds, et il repart. Tu ne touches à rien.</p>
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin:12px 0 6px">Combien de temps il te laisse avant d'envoyer</label>
+          <div class="row" id="sparPatience">
+            <button class="pill on" data-p="auto">Il apprend mon rythme</button>
+            <button class="pill" data-p="0.7">Je parle vite</button>
+            <button class="pill" data-p="1.5">Je réfléchis en parlant</button>
+          </div>
+          <p id="sparRythmeTxt" style="font-size:12.5px;color:var(--muted);margin-top:7px"></p>
         </div>
 
         <h3 style="margin-top:20px">Comment tu veux être entraîné</h3>
@@ -3224,6 +3232,32 @@ const PROFILS_P = {
    ============================================================ */
 let SPAR = null, sparProfil = "prix", sparNiveau = 2, sparRec = null;
 let sparCanal = "vocal", sparVoix = null, sparDernierMot = 0, sparVeille = null, sparParle = false;
+let sparRythme = 1, sparSilence = null;
+let PAUSES = [];                          // tes silences à toi, mesurés au fil du sparring
+
+/* Il apprend ta façon de parler. Quelqu'un qui construit ses phrases à voix haute
+   fait des pauses longues : au bout de quelques tours, il le sait et il t'attend. */
+function noteTaPause(ms){
+  if(ms < 150 || ms > 6000) return;       // ni un bafouillage, ni un vrai silence
+  PAUSES.push(ms);
+  if(PAUSES.length > 40) PAUSES = PAUSES.slice(-30);
+  if(PAUSES.length >= 8){
+    const tri = [...PAUSES].sort((a,b)=>a-b);
+    const haut = tri[Math.floor(tri.length * 0.85)];        // tes pauses les plus longues
+    sparRythme = Math.max(0.7, Math.min(1.8, haut / 700));  // 700 ms = rythme de référence
+    const el = $("sparRythmeTxt");
+    if(el) el.textContent = "Il a appris ton rythme : il te laisse " +
+      (attenteAvantEnvoi("une phrase en cours ici")/1000).toFixed(1) + " s quand tu es lancé.";
+  }
+}
+document.querySelectorAll("#sparPatience [data-p]").forEach(b=>{
+  b.onclick = () => {
+    document.querySelectorAll("#sparPatience .pill").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    if(b.dataset.p === "auto"){ PAUSES = []; sparRythme = 1; }
+    else { PAUSES = null; sparRythme = parseFloat(b.dataset.p); }   // null = plus d'apprentissage
+  };
+});
 
 /* --- LA VOIX DU PROSPECT --- */
 /* Toutes les voix ne se valent pas. Les voix dites neuronales sonnent
@@ -3354,6 +3388,18 @@ function faisParler(txt, apres){
 }
 
 /* Mains libres : ton micro s'ouvre, et dès que tu te tais, ça part. */
+/* Quand une phrase se termine par un de ces mots, c'est que tu n'as pas fini.
+   On attend nettement plus longtemps avant d'envoyer. */
+const MOT_SUSPENDU = /\b(et|mais|donc|parce|car|que|qui|de|du|des|un|une|le|la|les|à|au|aux|en|dans|sur|pour|avec|si|quand|comment|pourquoi|je|tu|il|elle|on|nous|vous|ils|c'est|j'ai|tu as|est-ce|ton|ta|tes|mon|ma|mes|son|sa|ses|euh|enfin|alors|bon|voilà|genre|du coup)\s*$/i;
+
+function attenteAvantEnvoi(texte){
+  const t = texte.trim();
+  let ms = 2300;                                // phrase terminée : on peut partir
+  if(MOT_SUSPENDU.test(t)) ms = 3800;           // tu es clairement au milieu d'une idée
+  else if(!/[.!?]$/.test(t) && t.split(/\s+/).length > 4) ms = 3000;   // pas de fin nette
+  return Math.round(ms * sparRythme);
+}
+
 function ouvreTonTour(){
   if(sparCanal !== "vocal" || !SPAR) return;
   lanceSparMicro();
@@ -3363,12 +3409,42 @@ function ouvreTonTour(){
   sparVeille = setInterval(()=>{
     if(!sparRec || sparParle) return;
     const dit = $("sparMoi").value.trim();
-    if(dit.length > 2 && Date.now() - sparDernierMot > 1700){
+    if(dit.length < 3) return;
+    const silence = Date.now() - sparDernierMot;
+    const seuil = attenteAvantEnvoi(dit);
+
+    // on te montre que ça va partir, pour que tu puisses reprendre la parole
+    if(silence > seuil - 900) phase("j'envoie dans un instant…", "var(--amber)", true);
+    else phase("à toi", "var(--amber)", true);
+
+    if(silence > seuil){
       clearInterval(sparVeille);
       phase("il réfléchit", "var(--muted)", true);
       $("btnSparEnvoi").click();
     }
-  }, 300);
+  }, 250);
+
+  /* Si tu as posé une question et que tu ne dis plus rien du tout, ce n'est pas
+     une panne : c'est un silence tenu. Le prospect doit le sentir et le combler. */
+  clearInterval(sparSilence);
+  const depart = Date.now();
+  sparSilence = setInterval(()=>{
+    if(!sparRec || sparParle){ clearInterval(sparSilence); return; }
+    const dit = $("sparMoi").value.trim();
+    const derniere = SPAR.tours.slice(-1)[0];
+    const jAiPose = derniere && derniere.qui === "MOI" && estUneQuestion(derniere.txt);
+    if(dit.length === 0 && jAiPose){
+      const t = Math.round((Date.now() - depart)/1000);
+      if(t >= 4){
+        SPAR.silenceTenu = t;
+        SPAR.silencesTotal = (SPAR.silencesTotal||0) + 1;
+        clearInterval(sparSilence); clearInterval(sparVeille);
+        $("sparInfo").innerHTML = '<span style="color:var(--sage)">Tu as tenu ' + t + ' secondes de silence. Il va devoir combler.</span>';
+        $("sparMoi").value = "[le closer garde le silence]";
+        $("btnSparEnvoi").click();
+      }
+    }
+  }, 250);
 }
 
 
@@ -3564,6 +3640,10 @@ ${Array.isArray(p.deja_dit) && p.deja_dit.length ? "CE QUE LE PROSPECT A DÉJÀ 
 
 L'ÉCHANGE JUSQU'ICI
 ${SPAR.tours.slice(-8).map(t=>(t.qui==="MOI"?"CLOSER":"PROSPECT")+" : "+t.txt).join("\n")}
+
+${(SPAR.essais && SPAR.essais.length) ? `TU L'AS DÉJÀ REPRIS SUR CE MÊME TOUR :
+${SPAR.essais.map((e,i)=>`Tentative ${i+1} : « ${e.dit} » — tu lui as répondu : « ${e.reproche} »`).join("\n")}
+Il vient de reformuler après ta correction. Sois beaucoup plus indulgent : s'il a corrigé l'essentiel de ce que tu lui reprochais, LAISSE PASSER, même si ce n'est pas parfait. Ne répète jamais deux fois le même reproche. Si tu dois l'arrêter encore, ce doit être pour une raison différente et clairement expliquée.` : ""}
 
 CE QUE LE CLOSER S'APPRÊTE À DIRE : « ${cequejedis} »
 
@@ -4049,7 +4129,9 @@ $("btnSparEnvoi").onclick = async () => {
   if("speechSynthesis" in window) speechSynthesis.cancel();
 
   // MODE COACHING : le coach regarde avant que le prospect réponde
-  if(sparMode === "coach" && !SPAR.passeCeTour){
+  // Jamais plus de deux arrêts d'affilée sur le même tour : au troisième on laisse
+  // jouer, sinon on tourne en rond et l'exercice s'arrête.
+  if(sparMode === "coach" && !SPAR.passeCeTour && (SPAR.essais||[]).length < 2){
     phase("le coach regarde", "var(--clay)", true);
     $("sparInfo").innerHTML = '<span style="color:var(--muted)">Le coach regarde…</span>';
     try{
@@ -4057,6 +4139,8 @@ $("btnSparEnvoi").onclick = async () => {
       if(c && c.stop){
         SPAR.arrets = (SPAR.arrets||0) + 1;
         SPAR.dernierRefus = m;
+        SPAR.essais = SPAR.essais || [];
+        SPAR.essais.push({dit:m, reproche:(c.quoi||"") + " " + (c.fiche ? "Il fallait dire : "+c.fiche : "")});
         $("coachQuoi").textContent = c.quoi || "Tu sors de ta méthode.";
         $("coachPourquoi").textContent = c.pourquoi || "";
         $("coachFiche").innerHTML = c.fiche
@@ -4084,9 +4168,16 @@ $("btnSparEnvoi").onclick = async () => {
         }
         return;                       // le prospect ne répond pas
       }
-    }catch(e){ /* le coach n'a pas répondu : on laisse jouer */ }
+    }catch(e){
+      // le coach n'a pas répondu : on ne bloque jamais l'exercice pour autant
+      $("sparInfo").innerHTML = '<span style="color:var(--muted)">Le coach n\'a pas répondu, on continue.</span>';
+    }
+  }
+  if(SPAR.essais && SPAR.essais.length >= 2){
+    $("sparInfo").innerHTML = '<span style="color:var(--amber)">On avance. On reverra ça au débrief.</span>';
   }
   SPAR.passeCeTour = false;
+  SPAR.essais = [];                       // nouveau tour, nouveau compteur
   $("coachCarte").style.display = "none";
 
   phase("il réfléchit", "var(--muted)", true);
@@ -4207,6 +4298,12 @@ LA COUCHE PEUT REDESCENDRE, mais pas au premier faux pas. Il faut deux ou trois 
 Tu n'abrèges l'appel que si ta confiance tombe à 1 ou moins ET que ta patience est à bout. Et même là, tu le fais poliment, en remerciant, sans reproche — comme les gens font vraiment.
 ═══════════════════════════════════════════════
 
+LE SILENCE DU CLOSER — c'est un outil, pas un vide.
+${SPAR.silenceTenu ? `IL VIENT DE SE TAIRE ${SPAR.silenceTenu} SECONDES APRÈS SA QUESTION, exprès.
+Un silence qui dure devient inconfortable. Tu ne le laisses pas passer : tu reprends la parole, et tu en dis plus que tu ne voulais. Tu complètes ta réponse précédente, tu ajoutes un détail que tu avais gardé, ou tu lâches quelque chose de plus personnel.
+C'est exactement ce que fait un vrai prospect quand on ne remplit pas le vide à sa place. Plus le silence est long, plus tu en donnes.` : ""}
+Si le closer te répond immédiatement à chaque fois sans jamais laisser de blanc, tu restes en surface : tu réponds à la question posée, rien de plus.
+
 TU PEUX AUSSI PRENDRE L'INITIATIVE, comme quelqu'un de réel :
 - lui poser une question directe qui le met en difficulté
 - reprendre une chose qu'il a dite plus tôt et qui te reste en travers
@@ -4236,6 +4333,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "pret":true si tu es pret a dire oui maintenant sinon false}`);
     const r = parseModelJson(txt);
     SPAR.tours.push({qui:"PROSPECT", txt:r.dit});
+    SPAR.silenceTenu = 0;
     if(r.lache) SPAR.lache = true;
     $("sparDit").textContent = "« " + r.dit + " »";
     $("sparTon").textContent = r.ton || "";
@@ -4275,7 +4373,7 @@ $("btnMaMethode").onclick = () => {
 $("btnRefaire").onclick = () => {
   $("coachCarte").style.display = "none";
   $("sparMoi").value = "";
-  $("sparMoi").focus();
+  if(sparCanal !== "vocal") $("sparMoi").focus();
   $("sparInfo").innerHTML = '<span style="color:var(--amber)">Reprends ce tour. Sers-toi de la phrase du coach.</span>';
   if(sparCanal === "vocal") ouvreTonTour();
 };
@@ -4295,6 +4393,7 @@ $("btnSparIndice").onclick = () => {
 
 function arreteSparMicro(){
   clearInterval(sparVeille);
+  clearInterval(sparSilence);
   if(sparRec){ const r = sparRec; sparRec = null; r.onend = null; try{ r.stop() }catch(e){} }
   $("btnSparMicro").textContent = "Micro";
 }
@@ -4313,7 +4412,10 @@ function lanceSparMicro(){
       if(e.results[i].isFinal) fige += t + " "; else vol += t;
     }
     const dit = (fige + vol).trim();
-    if(dit !== $("sparMoi").value){ $("sparMoi").value = dit; sparDernierMot = Date.now(); }
+    if(dit !== $("sparMoi").value){
+      if(PAUSES && sparDernierMot) noteTaPause(Date.now() - sparDernierMot);   // tu viens de repartir
+      $("sparMoi").value = dit; sparDernierMot = Date.now();
+    }
   };
   sparRec.onend = () => { if(sparRec && !sparParle){ try{ sparRec.start() }catch(e){} } };  // Chrome coupe seul
   sparRec.onerror = e => {
@@ -4378,6 +4480,7 @@ JUGE-LE SUR CES CRITÈRES-LÀ, ET SUR RIEN D'AUTRE :
 ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
 
 ${sparMode === "coach" ? `MODE COACHING : le coach a dû l'arrêter ${SPAR.arrets||0} fois pendant l'exercice.${(SPAR.arrets||0) === 0 ? " Il n'a jamais dérapé — dis-le-lui." : " Dis-lui si c'est toujours la même faute qui revient."}` : ""}
+${(SPAR.silencesTotal||0) > 0 ? `IL A TENU LE SILENCE ${SPAR.silencesTotal} fois après ses questions, au lieu de combler le vide. C'est une vraie compétence — dis-le-lui, et dis-lui ce que ça a produit.` : "IL N'A JAMAIS TENU LE SILENCE APRÈS UNE QUESTION FORTE. Il a comblé chaque blanc. C'est une des façons les plus simples de faire parler un prospect, et il s'en prive."}
 QUI MENAIT L'APPEL À LA FIN : ${SPAR.etat.lead === "prospect" ? "le prospect" : "le closer"}. Le closer a perdu le lead ${SPAR.pertesLead||0} fois pendant l'échange.
 ${(SPAR.pertesLead||0) > 0 ? "Dis-lui précisément à quel moment il a perdu la main et quelle phrase l'a fait basculer. C'est souvent la cause de tout le reste." : ""}
 ÉTAT DU PROSPECT À LA FIN : confiance ${SPAR.etat.confiance}/10, patience ${SPAR.etat.patience}/10, couche atteinte ${SPAR.etat.couche}/3 (le plus profond atteint dans tout l'échange : ${SPAR.coucheMax||1}/3).
