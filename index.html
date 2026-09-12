@@ -566,10 +566,24 @@ aside{
           <div id="blocVoixPro" style="display:none;margin-top:10px">
             <input type="password" id="cleVoix" placeholder="Ta clé du service de voix" style="width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)">
             <div class="row" style="margin-top:9px">
-              <input type="text" id="voixProspect" placeholder="Voix du prospect" style="flex:1;min-width:140px;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)">
-              <input type="text" id="voixCoach" placeholder="Voix du coach" style="flex:1;min-width:140px;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)">
+              <button class="pill" id="btnChargeVoix" style="border-color:var(--steel);color:var(--steel)">Charger mes voix</button>
+            </div>
+            <div id="choixVoix" style="display:none;margin-top:11px">
+              <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px">Voix du prospect</label>
+              <select id="selVoixProspect" style="width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)"></select>
+              <label style="display:block;font-size:12.5px;color:var(--muted);margin:10px 0 5px">Voix du coach</label>
+              <select id="selVoixCoach" style="width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)"></select>
+              <div class="row" style="margin-top:10px">
+                <button class="pill" id="btnEcouteProspect">Écouter le prospect</button>
+                <button class="pill" id="btnEcouteCoach">Écouter le coach</button>
+              </div>
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);margin-top:11px;cursor:pointer">
+                <input type="checkbox" id="voixAuHasard"> Une voix différente à chaque nouveau prospect
+              </label>
             </div>
             <div class="row" style="margin-top:9px">
+              <input type="text" id="voixProspect" placeholder="Ou colle un identifiant" style="flex:1;min-width:140px;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)">
+              <input type="text" id="voixCoach" placeholder="Ou colle un identifiant" style="flex:1;min-width:140px;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)">
               <button class="pill" id="btnTestVoix">Écouter un essai</button>
             </div>
             <p id="voixEtat" style="font-size:12.5px;color:var(--muted);margin-top:8px"></p>
@@ -3451,6 +3465,78 @@ async function ditAvecVraieVoix(txt, voix, apres){
   }
 }
 
+
+/* Ta bibliothèque de voix, récupérée chez le service. Tu choisis dans une liste
+   au lieu de coller des identifiants. */
+let MES_VOIX = [];
+
+async function chargeMesVoix(){
+  const cle = $("cleVoix").value.trim();
+  if(!cle) return toast("Colle ta clé d'abord");
+  $("voixEtat").textContent = "Je récupère tes voix…";
+  try{
+    let liste = [];
+    if(MOTEUR_VOIX === "eleven"){
+      const r = await fetch("https://api.elevenlabs.io/v1/voices", {headers:{"xi-api-key":cle}});
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+      liste = (d.voices||[]).map(v=>({
+        id: v.voice_id,
+        nom: v.name + (v.labels && v.labels.accent ? " · " + v.labels.accent : "")
+                    + (v.labels && v.labels.gender ? " · " + v.labels.gender : "")
+      }));
+    } else {
+      liste = ["nova","shimmer","alloy","echo","fable","onyx"].map(x=>({id:x, nom:x}));
+    }
+    if(!liste.length) throw new Error("aucune voix trouvée");
+    MES_VOIX = liste;
+    remplirChoixVoix();
+    $("choixVoix").style.display = "block";
+    $("voixEtat").innerHTML = '<span style="color:var(--sage)">' + liste.length + ' voix disponibles. Écoute-les et choisis.</span>';
+  }catch(e){
+    $("voixEtat").innerHTML = '<span style="color:var(--clay)">Impossible de récupérer tes voix : ' + escapeHTML(e.message) + '</span>';
+  }
+}
+
+function remplirChoixVoix(){
+  const opts = MES_VOIX.map((v,i)=>`<option value="${escapeHTML(v.id)}">${escapeHTML(v.nom)}</option>`).join("");
+  const a = $("selVoixProspect"), b = $("selVoixCoach");
+  a.innerHTML = opts; b.innerHTML = opts;
+  if(MES_VOIX[1]) b.value = MES_VOIX[1].id;          // deux voix différentes par défaut
+  a.onchange = () => { $("voixProspect").value = a.value; };
+  b.onchange = () => { $("voixCoach").value = b.value; };
+  $("voixProspect").value = a.value;
+  $("voixCoach").value = b.value;
+}
+
+/* Une voix différente à chaque prospect : c'est ce qui casse l'impression
+   de parler toujours à la même personne. */
+function voixDuProspect(){
+  if($("voixAuHasard") && $("voixAuHasard").checked && MES_VOIX.length > 1 && SPAR){
+    if(!SPAR.voixChoisie){
+      const coach = $("voixCoach").value;
+      const dispo = MES_VOIX.filter(v=>v.id !== coach);
+      SPAR.voixChoisie = dispo[Math.floor(Math.random()*dispo.length)].id;
+    }
+    return SPAR.voixChoisie;
+  }
+  return $("voixProspect").value.trim();
+}
+
+$("btnChargeVoix").onclick = chargeMesVoix;
+$("btnEcouteProspect").onclick = async () => {
+  debloqueSon(); CLE_VOIX = $("cleVoix").value.trim();
+  $("voixEtat").textContent = "Écoute…";
+  await ditAvecVraieVoix("Franchement je sais pas... ça fait deux ans que ça dure, et puis bon, j'en ai un peu marre.",
+    $("selVoixProspect").value, ()=>{ $("voixEtat").innerHTML = '<span style="color:var(--sage)">Voix du prospect en place.</span>'; });
+};
+$("btnEcouteCoach").onclick = async () => {
+  debloqueSon(); CLE_VOIX = $("cleVoix").value.trim();
+  $("voixEtat").textContent = "Écoute…";
+  await ditAvecVraieVoix("Là tu justifies. Il ne t'a même pas dit que c'était cher. Reprends, et demande-lui ce qui lui fait dire ça.",
+    $("selVoixCoach").value, ()=>{ $("voixEtat").innerHTML = '<span style="color:var(--sage)">Voix du coach en place.</span>'; });
+};
+
 $("btnTestVoix").onclick = async () => {
   debloqueSon();
   CLE_VOIX = $("cleVoix").value.trim();
@@ -3580,7 +3666,7 @@ async function faisParler(txt, apres){
   // Une vraie voix : une seule requête pour toute la réplique.
   // Les respirations sont déjà dans le modèle, on ne découpe pas.
   if(MOTEUR_VOIX !== "nav"){
-    const ok = await ditAvecVraieVoix(txt, $("voixProspect").value.trim(), () => { sparParle = false; if(apres) apres(); });
+    const ok = await ditAvecVraieVoix(txt, voixDuProspect(), () => { sparParle = false; if(apres) apres(); });
     if(ok) return;
   }
   if(!("speechSynthesis" in window)){ sparParle = false; if(apres) apres(); return; }
