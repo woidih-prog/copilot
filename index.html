@@ -560,8 +560,8 @@ aside{
           <label style="display:block;font-size:12.5px;color:var(--muted);margin:14px 0 6px">Qualité des voix</label>
           <div class="row" id="sparMoteurVoix">
             <button class="pill on" data-moteur="nav">Navigateur — gratuit</button>
-            <button class="pill" data-moteur="eleven">ElevenLabs — très réaliste</button>
-            <button class="pill" data-moteur="openai">OpenAI — réaliste</button>
+            <button class="pill" data-moteur="eleven">ElevenLabs — recommandé</button>
+            <button class="pill" data-moteur="openai">OpenAI — souvent bloqué</button>
           </div>
           <div id="blocVoixPro" style="display:none;margin-top:10px">
             <input type="password" id="cleVoix" placeholder="Ta clé du service de voix" style="width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)">
@@ -3340,6 +3340,7 @@ function phase(txt, couleur, anim){
    dans le modèle, on ne découpe pas.
    ========================================================= */
 let MOTEUR_VOIX = "nav", CLE_VOIX = "";
+const VOIX_DEFAUT = "EXAVITQu4vr4xnSDxMaL";   // voix multilingue par défaut, si tu n'en choisis aucune
 let AUDIO_EN_COURS = null, SON_AUTORISE = false;
 
 /* Les navigateurs refusent de jouer un son tant que l'utilisateur n'a rien cliqué.
@@ -3361,12 +3362,20 @@ document.querySelectorAll("#sparMoteurVoix [data-moteur]").forEach(b=>{
     const pro = $("voixProspect"), co = $("voixCoach");
     if(MOTEUR_VOIX === "openai"){
       pro.placeholder = "nova, shimmer, alloy…"; co.placeholder = "onyx, echo…";
+      // un identifiant ElevenLabs n'a aucun sens chez OpenAI
+      if(pro.value.length > 12) pro.value = "";
+      if(co.value.length  > 12) co.value  = "";
       if(!pro.value) pro.value = "nova";
       if(!co.value)  co.value = "onyx";
-      $("voixEtat").innerHTML = "Clé de la plateforme OpenAI. Environ 2 centimes par réplique.";
+      $("voixEtat").innerHTML = "Clé de la plateforme OpenAI. Attention : beaucoup de navigateurs bloquent ce service depuis une page web. Si l'essai ne passe pas, prends ElevenLabs.";
     } else if(MOTEUR_VOIX === "eleven"){
-      pro.placeholder = "identifiant de la voix"; co.placeholder = "identifiant de la voix";
-      $("voixEtat").innerHTML = "Clé ElevenLabs. Les identifiants de voix se copient depuis leur bibliothèque. Choisis des voix françaises.";
+      // les noms OpenAI n'existent pas chez ElevenLabs : on nettoie
+      const nomsOpenAI = ["nova","onyx","shimmer","alloy","echo","fable","sage","coral","ash","ballad","verse"];
+      if(nomsOpenAI.includes(pro.value.trim().toLowerCase())) pro.value = "";
+      if(nomsOpenAI.includes(co.value.trim().toLowerCase()))  co.value = "";
+      pro.placeholder = "identifiant de voix, ou laisse vide";
+      co.placeholder  = "identifiant de voix, ou laisse vide";
+      $("voixEtat").innerHTML = "Clé ElevenLabs — c'est le service qui fonctionne le mieux depuis un navigateur. Copie les identifiants de voix depuis leur bibliothèque, en choisissant des voix françaises. Laisse vide pour utiliser une voix par défaut.";
     }
   };
 });
@@ -3384,7 +3393,7 @@ async function ditAvecVraieVoix(txt, voix, apres){
   try{
     let r;
     if(MOTEUR_VOIX === "eleven"){
-      r = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + encodeURIComponent(voix || "EXAVITQu4vr4xnSDxMaL"), {
+      r = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + encodeURIComponent(voix || VOIX_DEFAUT), {
         method:"POST",
         headers:{"xi-api-key":cle, "Content-Type":"application/json", "Accept":"audio/mpeg"},
         body:JSON.stringify({text:txt, model_id:"eleven_multilingual_v2",
@@ -3423,7 +3432,17 @@ async function ditAvecVraieVoix(txt, voix, apres){
     await a.play();
     return true;
   }catch(e){
-    const msg = "Voix indisponible : " + e.message + ". On repasse sur le navigateur.";
+    /* « Failed to fetch » = la requête n'est jamais partie. C'est le navigateur
+       qui bloque, pas le service. Inutile de chercher du côté de la clé. */
+    const bloque = /failed to fetch|networkerror|load failed/i.test(e.message || "");
+    if(/voice_not_found/i.test(e.message || "")){
+      const el0 = $("voixEtat");
+      if(el0) el0.innerHTML = '<span style="color:var(--clay)">Cet identifiant de voix n\'existe pas chez ElevenLabs. Vide les deux champs pour utiliser la voix par défaut, ou copie un vrai identifiant depuis leur bibliothèque.</span>';
+      return false;
+    }
+    const msg = bloque
+      ? "Ton navigateur bloque les appels vers ce service depuis cette adresse. Essaie ElevenLabs, qui l'autorise. On repasse sur le navigateur."
+      : "Voix indisponible : " + e.message + ". On repasse sur le navigateur.";
     const el = $("voixEtat");
     if(el) el.innerHTML = '<span style="color:var(--clay)">' + escapeHTML(msg) + '</span>';
     const inf = $("sparInfo");
@@ -4514,6 +4533,14 @@ TA RÉPONSE VA ÊTRE LUE À VOIX HAUTE. Écris-la pour l'oreille, pas pour l'œi
 - Écris les nombres en toutes lettres : "trois mille euros", pas "3000 €".
 - Coupe-toi parfois au milieu d'une idée et reprends autrement, comme les gens font vraiment.` : ""}
 Tu ne livres jamais ton vrai blocage spontanément. Tu te caches derrière ton objection de surface.
+
+QUAND TON FREIN EST FAUX, TU L'EMPILES. C'est le signe que les bons closers repèrent.
+Tu ne dis pas juste « je dois en parler à ma femme ». Tu ajoutes aussitôt : « c'est elle qui a le revenu principal », « et puis elle m'a déjà vu me planter avant ». Tu colles des justifications les unes sur les autres pour que ça pèse plus lourd, parce qu'au fond tu essaies de t'en convaincre toi-même.
+Un frein vrai se dit en une phrase, sans rien autour.
+
+SI LE CLOSER TE PROPOSE D'ENGAGER SEULEMENT TA PART, avec remboursement si ton conjoint refuse : c'est le moment de vérité.
+Si ton frein était vrai, tu acceptes — le risque est nul et tu n'engages que toi.
+Si ton frein était faux, tu refuses quand même, et tu cherches une nouvelle raison. Tu viens de te trahir, et un bon closer le verra.
 Tu ne donnes JAMAIS deux couches dans la même réponse. Une question = au maximum un pas de plus.
 Si la question est vague, générale, ou si elle reformule simplement ce que tu viens de dire, tu restes à ta couche et tu répètes autrement. C'est comme ça qu'un vrai prospect tourne en rond.
 Si le closer te console ou compatit, tu te réinstalles dans la plainte et tu n'avances plus.
