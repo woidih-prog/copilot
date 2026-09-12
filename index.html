@@ -3340,7 +3340,18 @@ function phase(txt, couleur, anim){
    dans le modèle, on ne découpe pas.
    ========================================================= */
 let MOTEUR_VOIX = "nav", CLE_VOIX = "";
-let AUDIO_EN_COURS = null;
+let AUDIO_EN_COURS = null, SON_AUTORISE = false;
+
+/* Les navigateurs refusent de jouer un son tant que l'utilisateur n'a rien cliqué.
+   On profite du premier clic pour débloquer, sinon le prospect resterait muet. */
+function debloqueSon(){
+  if(SON_AUTORISE) return;
+  try{
+    const a = new Audio("data:audio/mp3;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCA");
+    a.volume = 0; a.play().then(()=>{ SON_AUTORISE = true; }).catch(()=>{});
+  }catch(e){}
+}
+document.addEventListener("click", debloqueSon, {once:false});
 
 document.querySelectorAll("#sparMoteurVoix [data-moteur]").forEach(b=>{
   b.onclick = () => {
@@ -3386,23 +3397,43 @@ async function ditAvecVraieVoix(txt, voix, apres){
         body:JSON.stringify({model:"gpt-4o-mini-tts", voice:(voix || "nova"), input:txt, response_format:"mp3"})
       });
     }
-    if(!r.ok) throw new Error("HTTP " + r.status);
+    if(!r.ok){
+      let d = ""; try{ d = (await r.text()).slice(0,140); }catch(_){}
+      throw new Error("HTTP " + r.status + (d ? " — " + d : ""));
+    }
     const blob = await r.blob();
+    if(!blob || blob.size < 500) throw new Error("son vide");
     const url = URL.createObjectURL(blob);
     const a = new Audio(url);
     AUDIO_EN_COURS = a;
-    a.onended = () => { URL.revokeObjectURL(url); AUDIO_EN_COURS = null; if(apres) apres(); };
-    a.onerror = () => { URL.revokeObjectURL(url); AUDIO_EN_COURS = null; if(apres) apres(); };
+
+    // Garde-fou : quoi qu'il arrive, la suite se déclenche une seule fois.
+    // Sans ça, un son qui ne démarre pas fige tout l'exercice.
+    let fini = false;
+    const suite = () => {
+      if(fini) return; fini = true;
+      clearTimeout(secours);
+      try{ URL.revokeObjectURL(url); }catch(_){}
+      AUDIO_EN_COURS = null;
+      if(apres) apres();
+    };
+    const secours = setTimeout(suite, 45000);
+    a.onended = suite;
+    a.onerror = suite;
     await a.play();
     return true;
   }catch(e){
+    const msg = "Voix indisponible : " + e.message + ". On repasse sur le navigateur.";
     const el = $("voixEtat");
-    if(el) el.innerHTML = '<span style="color:var(--clay)">Voix indisponible : ' + escapeHTML(e.message) + '. On repasse sur le navigateur.</span>';
+    if(el) el.innerHTML = '<span style="color:var(--clay)">' + escapeHTML(msg) + '</span>';
+    const inf = $("sparInfo");
+    if(inf && SPAR) inf.innerHTML = '<span style="color:var(--clay)">' + escapeHTML(msg) + '</span>';
     return false;
   }
 }
 
 $("btnTestVoix").onclick = async () => {
+  debloqueSon();
   CLE_VOIX = $("cleVoix").value.trim();
   if(!CLE_VOIX) return toast("Colle ta clé d'abord");
   $("voixEtat").textContent = "Essai en cours…";
@@ -3410,7 +3441,8 @@ $("btnTestVoix").onclick = async () => {
     "Franchement je sais pas... ça fait deux ans que ça dure, et puis bon, j'en ai un peu marre pour être honnête.",
     $("voixProspect").value.trim(),
     () => { $("voixEtat").innerHTML = '<span style="color:var(--sage)">Voix en place. C\'est celle que tu entendras.</span>'; });
-  if(!ok) $("voixEtat").innerHTML = '<span style="color:var(--clay)">Ça n\'a pas répondu. Vérifie la clé et l\'identifiant de voix.</span>';
+  if(!ok && !$("voixEtat").innerHTML.includes("Voix indisponible"))
+    $("voixEtat").innerHTML = '<span style="color:var(--clay)">Ça n\'a pas répondu. Vérifie la clé et l\'identifiant de voix.</span>';
 };
 
 /* LE COACH PARLE. Voix différente de celle du prospect : plus grave, plus posée,
@@ -4123,6 +4155,7 @@ const PROFILS = {
 };
 
 $("btnSparGo").onclick = async () => {
+  debloqueSon();                       // on prend l'autorisation pendant que tu cliques
   if(sparCanal === "vocal" && !("speechSynthesis" in window)){
     sparCanal = "ecrit";
     toast("Ce navigateur ne sait pas parler. On passe à l'écrit.");
