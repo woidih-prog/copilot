@@ -499,6 +499,11 @@ aside{
         <label for="sparPrix" style="display:block;font-size:12.5px;color:var(--muted);margin:12px 0 5px">Prix annoncé</label>
         <input type="text" id="sparPrix" placeholder="3000 €">
       </div>
+      <div class="block" style="border-left:2px solid var(--steel)">
+        <h3>Avant de décrocher — cinq minutes</h3>
+        <div id="avantAppel"></div>
+      </div>
+
       <div class="block">
         <h3>Qu'est-ce que tu travailles ?</h3>
         <p style="font-size:12.5px;color:var(--muted);margin-bottom:11px">Le call complet, ou un seul morceau en boucle jusqu'à ce qu'il rentre.</p>
@@ -3771,6 +3776,24 @@ $("advImportFile").onchange = async e => {
   }catch(_){ toast("Fichier illisible"); }
 };
 loadAdversaires();
+
+
+/* L'état d'avant-appel de Josh : cinq minutes, à chaque fois. */
+const AVANT_APPEL = [
+  ["La question", "Quel est le vrai résultat que je suis ici pour créer ? Pas conclure — être présent et le tenir dans la vérité."],
+  ["Les cinq énergies", "Abondance. Direction. Détachement. Responsabilité. Curiosité."],
+  ["Le détachement", "Est-ce que j'ai besoin de cette vente ? Si oui, ça s'entendra."],
+  ["La carte, pas le script", "Quatre cases à cocher : problème brûlant, engagement, aveu d'incapacité, confiance."]
+];
+function rendAvantAppel(){
+  const el = document.getElementById("avantAppel"); if(!el) return;
+  el.innerHTML = AVANT_APPEL.map(([t,p])=>`
+    <div style="border-left:2px solid var(--steel);padding-left:12px;margin-bottom:11px">
+      <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel);
+        font-family:'Archivo Narrow',sans-serif;font-weight:600">${t}</div>
+      <p style="font-size:14px;margin-top:3px;line-height:1.45">${p}</p></div>`).join("");
+}
+rendAvantAppel();
 
 let sparSegment = "complet", sparTemp = "tiede", sparMode = "libre";
 
