@@ -536,6 +536,9 @@ aside{
           <button class="pill on" data-temp="tiede">Tiède</button>
           <button class="pill" data-temp="chaud">Chaud</button>
         </div>
+        <p style="font-size:12.5px;color:var(--muted);margin:16px 0 9px">Sa couleur — comment il communique</p>
+        <div class="row" id="sparCouleurs"></div>
+        <p id="couleurDetail" style="font-size:13px;color:var(--muted);margin-top:9px;line-height:1.5"></p>
         <p style="font-size:12.5px;color:var(--muted);margin:16px 0 9px">Son profil</p>
         <div class="row" id="sparProfils"></div>
         <p id="profilDetail" style="font-size:13px;color:var(--muted);margin-top:11px;line-height:1.5"></p>
@@ -3271,7 +3274,24 @@ const PROFILS_P = {
   peureux:      {nom:"Il a peur d'échouer", d:"Il veut vraiment, et il est terrifié à l'idée de ne pas y arriver. Il doute de lui, pas de toi."},
   occupe:       {nom:"Débordé", d:"Il court partout. Il regarde sa montre, il te dit qu'il n'a que dix minutes, il répond en même temps qu'il fait autre chose."},
   conjoint:     {nom:"Il ne décide pas seul", d:"Sa femme, son associé ou son patron pèse sur la décision — et il s'en sert aussi comme d'un bouclier."},
-  fauche:       {nom:"Il n'a vraiment pas l'argent", d:"Il est sincèrement intéressé et il n'a pas les moyens. Le bon closer le disqualifie proprement au lieu de forcer."}
+  fauche:       {nom:"Il n'a vraiment pas l'argent", d:"Il est sincèrement intéressé et il n'a pas les moyens. Le bon closer le disqualifie proprement au lieu de forcer."},
+
+  /* Les plus durs : il n'y a rien à creuser. Tout l'arsenal de la douleur
+     ne sert à rien, et c'est là que la plupart des closers s'effondrent. */
+  content:      {nom:"Ça va bien, merci", d:"Sa situation lui convient. Rien ne brûle, rien ne le réveille la nuit. Il est venu par curiosité et il le dit gentiment. La seule porte, c'est l'écart entre où il en est et où il pourrait être — pas la douleur."},
+  curieux2:     {nom:"Il veut juste comprendre", d:"Il se renseigne sur le sujet, pas sur toi. Il pose des questions de fond, il prend des notes. Il n'a aucune intention d'acheter aujourd'hui et il ne s'en cache pas vraiment."},
+  etudiant:     {nom:"Il apprend, il n'achète pas", d:"Il se forme, il lit, il suit des gens. Il confond apprendre et avancer. Il n'a jamais rien mis en pratique et ça ne lui pose aucun problème."},
+  confort:      {nom:"Confortable et coincé", d:"Il gagne correctement sa vie et il s'ennuie. Il n'y a pas de souffrance, juste une sensation de plafond. Si tu cherches une douleur, tu ne trouveras rien : il faut chercher ce qu'il rate."},
+  curiosite:    {nom:"Il compare pour le plaisir", d:"Il aime regarder ce qui existe, il a fait trois appels comme le tien cette semaine. Ça lui coûte zéro et ça l'occupe."}
+};
+
+/* La couleur ne change pas ce qu'il dit, elle change comment il le dit.
+   Deux prospects avec la même douleur ne se travaillent pas pareil. */
+const COULEURS = {
+  rouge: {nom:"Rouge — direct", d:"Rapide, impatient, va droit au but. Il coupe, il décide vite, il déteste qu'on tourne autour du pot. Il te teste en te bousculant. Si tu hésites, tu le perds. Phrases courtes, ton ferme, et il respecte qu'on lui tienne tête."},
+  jaune: {nom:"Jaune — expansif", d:"Chaleureux, bavard, part dans tous les sens. Il raconte sa vie, il t'aime bien, il dit oui à tout. Le risque n'est pas qu'il se ferme, c'est qu'il ne décide jamais. Il faut le ramener au concret sans casser l'ambiance."},
+  vert:  {nom:"Vert — prudent", d:"Calme, aimable, évite le conflit. Il ne dira jamais non franchement. Il acquiesce, il temporise, il a besoin de se sentir en sécurité avant de bouger. La pression le fait reculer sans qu'il le montre."},
+  bleu:  {nom:"Bleu — analytique", d:"Méthodique, précis, veut des données. Il pose des questions techniques, il note, il compare. L'émotion le met mal à l'aise. Il décide sur des faits, et il déteste qu'on le presse."}
 };
 
 /* ============================================================
@@ -3932,7 +3952,7 @@ function rendAvantAppel(){
 }
 rendAvantAppel();
 
-let sparSegment = "complet", sparTemp = "tiede", sparMode = "libre";
+let sparSegment = "complet", sparTemp = "tiede", sparMode = "libre", sparCouleur = "hasard";
 
 document.querySelectorAll("#sparMode [data-mode]").forEach(b=>{
   b.onclick = () => {
@@ -4002,6 +4022,18 @@ function peupleSparring(){
       b.classList.add("on"); sparSegment = b.dataset.seg; majSegDetail();
     };
   });
+
+  const co = $("sparCouleurs");
+  co.innerHTML = Object.entries(COULEURS).map(([k,v])=>
+    `<button class="pill" data-coul="${k}">${escapeHTML(v.nom.split(" — ")[0])}</button>`).join("")
+    + `<button class="pill on" data-coul="hasard">Au hasard</button>`;
+  co.querySelectorAll("[data-coul]").forEach(b=>{
+    b.onclick = () => {
+      co.querySelectorAll(".pill").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on"); sparCouleur = b.dataset.coul; majCouleurDetail();
+    };
+  });
+  majCouleurDetail();
 
   const pr = $("sparProfils");
   pr.innerHTML = Object.entries(PROFILS_P).map(([k,v],i)=>
@@ -4082,6 +4114,13 @@ function majBrief(){
   $("btnBriefPlus").textContent = briefLarge ? "Voir moins" : "Voir plus";
   $("btnBriefPlus").onclick = () => { briefLarge = !briefLarge; majBrief(); };
 }
+function majCouleurDetail(){
+  const d = $("couleurDetail"); if(!d) return;
+  const v = COULEURS[sparCouleur];
+  d.innerHTML = v ? `<b style="color:var(--ink)">${escapeHTML(v.nom)}.</b> ${escapeHTML(v.d)}`
+                  : `<span style="color:var(--muted)">Couleur tirée au sort au lancement.</span>`;
+}
+
 function majProfilDetail(){
   const v = PROFILS_P[sparProfil];
   const t = TEMPERATURES[sparTemp] || "";
@@ -4307,12 +4346,17 @@ $("btnSparGo").onclick = async () => {
       ? Object.keys(PROFILS_P)[Math.floor(Math.random()*Object.keys(PROFILS_P).length)]
       : sparProfil;
     const prof = PROFILS_P[cle];
+    const cCle = sparCouleur === "hasard"
+      ? Object.keys(COULEURS)[Math.floor(Math.random()*4)] : sparCouleur;
+    const coul = COULEURS[cCle];
     const txt = await callClaude(
 `Fabrique un prospect francophone crédible pour un entraînement au closing.
 
 L'offre du closer : ${offre}. Prix : ${prix}.
 
 SON PROFIL : ${prof.nom}. ${prof.d}
+SA COULEUR : ${coul.nom}. ${coul.d}
+La couleur ne change pas ce qu'il vit, elle change entièrement sa façon de le dire. Tiens-la dans chaque réplique : rythme, longueur des phrases, chaleur, franchise.
 SA TEMPÉRATURE : ${TEMPERATURES[sparTemp]}
 SA RÉSISTANCE : ${["","il lâche assez vite","il résiste normalement","il est très fermé, il faut vraiment le mériter"][sparNiveau]}
 
@@ -4325,6 +4369,11 @@ Une objection ne se traite pas dans le vide. En vrai, le closer a derrière lui 
 Remplis donc "deja_dit" avec quatre à six phrases EXACTES que ce prospect a prononcées plus tôt dans le call : son problème dans ses mots, un chiffre qu'il a donné, ce que ça lui fait, son objectif, une chose qu'il a minimisée. C'est le matériel avec lequel le closer va travailler.
 
 UN VRAI PROSPECT N'EST PAS RANGÉ. Fabrique-le comme dans la vraie vie :
+
+${["content","curieux2","etudiant","confort","curiosite"].includes(cle) ? `ATTENTION — CE PROSPECT N'A PAS DE VRAIE DOULEUR.
+Ne lui en invente pas une. Sa situation lui convient à peu près, rien ne brûle, il dort bien.
+Ses trois couches existent quand même, mais elles sont TIÈDES : une gêne, pas une souffrance. Couche 3 n'est pas de la détresse, c'est un regret discret, une sensation de passer à côté, un plafond qu'il sent sans le nommer.
+Si le closer creuse la douleur, il ne trouvera rien et le call tournera en rond — c'est normal, c'est l'exercice. La seule porte, c'est l'écart entre où il en est et ce qu'il pourrait avoir. Il ne s'ouvre que si le closer arrête de chercher une plaie et se met à lui montrer ce qu'il rate.` : ""}
 
 1. SA DOULEUR A TROIS COUCHES, et il ne donne que la première.
    - Ce qu'il DIT quand on lui demande son problème : souvent technique, extérieur à lui, presque neutre. « J'ai un problème de visibilité. »
@@ -4379,6 +4428,7 @@ Réponds uniquement avec ce JSON, sans markdown :
     const confDepart = sparTemp === "chaud" ? 6 : sparTemp === "tiede" ? 4 : 2;
     SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
             segment:sparSegment, profil:cle, temp:sparTemp,
+            couleur:cCle,
             etat:{couche:1, confiance:confDepart, patience:9, but_obtenu:false, lead:"closer"}};
     $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
     $("sparQui").textContent = `${p.prenom}, ${p.age} — ${p.metier}`;
@@ -4587,6 +4637,7 @@ ${["objection","closing","complet"].includes(SPAR.segment)
   ? "Ce que tu répètes à voix haute : "+p.surface
   : "Ton futur frein, que tu ne poses PAS encore à ce stade du call : "+p.surface+" — garde-le pour toi, il n'a pas lieu d'être maintenant."}
 Ta façon de parler : ${p.facon_de_parler || "normale"}. Tiens-la tout du long.
+${SPAR.couleur && COULEURS[SPAR.couleur] ? "TA COULEUR : " + COULEURS[SPAR.couleur].nom + ". " + COULEURS[SPAR.couleur].d + "\nC'est le plus visible de toi. Tiens-la dans chaque réplique, même quand tu te fermes ou que tu t'ouvres." : ""}
 
 TES TROIS COUCHES DE DOULEUR — tu ne descends jamais d'une couche tout seul.
 COUCHE 1, celle que tu donnes d'emblée : ${p.douleur_dite || p.surface}
