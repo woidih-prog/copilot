@@ -167,6 +167,9 @@ main{flex:1;display:flex;min-height:0}
 .pill:hover{border-color:var(--amber);color:var(--amber)}
 #btnBon:hover{border-color:var(--sage);color:var(--sage)}
 #btnMauvais:hover{border-color:var(--clay);color:var(--clay)}
+/* Le bouton choisi doit se voir. Sans ça, on ne sait jamais ce qu'on a sélectionné. */
+.pill.on{border-color:var(--amber);color:var(--amber);background:rgba(232,163,61,.14);font-weight:700}
+.pill.on:hover{background:rgba(232,163,61,.2)}
 .pill.vote.on{border-color:var(--sage);color:var(--sage);background:rgba(121,191,149,.1)}
 .pill kbd{font-family:inherit;opacity:.5;margin-left:6px;font-size:10px}
 #why{display:none;font-size:13px;line-height:1.55;color:var(--muted);border-left:2px solid var(--line);padding-left:12px}
@@ -647,6 +650,7 @@ aside{
     </div>
 
     <div id="sparJeu" style="display:none">
+      <p id="sparRappel" style="font-size:12px;color:var(--muted);letter-spacing:.04em;margin-bottom:12px;font-family:'Archivo Narrow',sans-serif;font-weight:600;text-transform:uppercase"></p>
       <div class="block" id="sparCarte">
         <h3 id="sparQui">Le prospect</h3>
         <p id="sparDit" style="font-size:19px;line-height:1.45">…</p>
@@ -2970,6 +2974,7 @@ async function loadKey(){
   const ecl = await Store.get("ecoles");
   if(ecl && typeof ecl === "object"){ ECOLES = Object.assign(ECOLES, ecl); }
   majEcoDetail(); majCout(); majParEcole(); majListeEcoles(); majLecture();
+  try{ await chargeReglagesVoix(); }catch(e){}
   reprendreCall();
   let k = await Store.get("apikey");
   if(!k) k = await Store.get("cle");
@@ -3393,6 +3398,7 @@ document.querySelectorAll("#sparMoteurVoix [data-moteur]").forEach(b=>{
     document.querySelectorAll("#sparMoteurVoix .pill").forEach(x=>x.classList.remove("on"));
     b.classList.add("on"); MOTEUR_VOIX = b.dataset.moteur;
     $("blocVoixPro").style.display = MOTEUR_VOIX === "nav" ? "none" : "block";
+    setTimeout(sauveReglagesVoix, 50);
     const pro = $("voixProspect"), co = $("voixCoach");
     if(MOTEUR_VOIX === "openai"){
       pro.placeholder = "nova, shimmer, alloy…"; co.placeholder = "onyx, echo…";
@@ -3523,8 +3529,8 @@ function remplirChoixVoix(){
   const a = $("selVoixProspect"), b = $("selVoixCoach");
   a.innerHTML = opts; b.innerHTML = opts;
   if(MES_VOIX[1]) b.value = MES_VOIX[1].id;          // deux voix différentes par défaut
-  a.onchange = () => { $("voixProspect").value = a.value; };
-  b.onchange = () => { $("voixCoach").value = b.value; };
+  a.onchange = () => { $("voixProspect").value = a.value; sauveReglagesVoix(); };
+  b.onchange = () => { $("voixCoach").value = b.value; sauveReglagesVoix(); };
   $("voixProspect").value = a.value;
   $("voixCoach").value = b.value;
 }
@@ -3543,7 +3549,39 @@ function voixDuProspect(){
   return $("voixProspect").value.trim();
 }
 
-$("btnChargeVoix").onclick = chargeMesVoix;
+/* Ta clé de voix et tes choix sont conservés d'une session à l'autre.
+   Ce n'est pas la clé du cerveau : elle ne donne accès qu'à la synthèse vocale. */
+async function sauveReglagesVoix(){
+  await Store.set("voix_pro", {
+    moteur: MOTEUR_VOIX,
+    cle: $("cleVoix").value.trim(),
+    prospect: $("voixProspect").value.trim(),
+    coach: $("voixCoach").value.trim(),
+    hasard: !!($("voixAuHasard") && $("voixAuHasard").checked)
+  });
+}
+
+async function chargeReglagesVoix(){
+  const v = await Store.get("voix_pro");
+  if(!v || !v.cle) return;
+  MOTEUR_VOIX = v.moteur || "eleven";
+  CLE_VOIX = v.cle;
+  $("cleVoix").value = v.cle;
+  $("voixProspect").value = v.prospect || "";
+  $("voixCoach").value = v.coach || "";
+  if($("voixAuHasard")) $("voixAuHasard").checked = !!v.hasard;
+  document.querySelectorAll("#sparMoteurVoix [data-moteur]").forEach(b=>{
+    b.classList.toggle("on", b.dataset.moteur === MOTEUR_VOIX);
+  });
+  $("blocVoixPro").style.display = MOTEUR_VOIX === "nav" ? "none" : "block";
+  $("voixEtat").innerHTML = '<span style="color:var(--sage)">Clé retrouvée. Clique sur Charger mes voix pour revoir la liste.</span>';
+}
+
+$("btnChargeVoix").onclick = async () => { await chargeMesVoix(); sauveReglagesVoix(); };
+["cleVoix","voixProspect","voixCoach"].forEach(id=>{
+  const e = $(id); if(e) e.onchange = sauveReglagesVoix;
+});
+if($("voixAuHasard")) $("voixAuHasard").onchange = sauveReglagesVoix;
 $("btnEcouteProspect").onclick = async () => {
   debloqueSon(); CLE_VOIX = $("cleVoix").value.trim();
   $("voixEtat").textContent = "Écoute…";
@@ -4298,6 +4336,20 @@ const PROFILS = {
   hasard:   "au choix parmi : prix, timing, conjoint, tiédeur, curiosité stérile, peur"
 };
 
+/* Ce que tu viens de choisir, affiché pendant la fabrication et tout l'exercice. */
+function rappelReglages(prof, coul){
+  const el = $("sparRappel"); if(!el) return;
+  const seg = SEGMENTS[sparSegment] || SEGMENTS.complet;
+  const bouts = [seg.nom];
+  if(prof) bouts.push(prof);
+  if(coul) bouts.push(coul.split(" — ")[0]);
+  bouts.push({froid:"froid", tiede:"tiède", chaud:"chaud"}[sparTemp] || sparTemp);
+  bouts.push(["","souple","réaliste","coriace"][sparNiveau] || "");
+  if(sparMode === "coach") bouts.push("coaching");
+  el.innerHTML = bouts.filter(Boolean).map((b,i)=>
+    `<span style="color:${i===0?"var(--amber)":"var(--muted)"}">${escapeHTML(b)}</span>`).join(' <span style="color:#3E4852">·</span> ');
+}
+
 $("btnSparGo").onclick = async () => {
   debloqueSon();                       // on prend l'autorisation pendant que tu cliques
   if(sparCanal === "vocal" && !("speechSynthesis" in window)){
@@ -4307,8 +4359,11 @@ $("btnSparGo").onclick = async () => {
   if(sparCanal === "vocal") await assureMicro();
   const offre = $("sparOffre").value.trim() || "un accompagnement";
   const prix = $("sparPrix").value.trim() || "3000 €";
-  $("sparEtat").textContent = "Je fabrique ton prospect…";
+  $("sparEtat").innerHTML = '<span style="color:var(--amber)">Je fabrique ton prospect…</span>';
   $("btnSparGo").disabled = true;
+  // on montre l'écran de jeu tout de suite, avec tes choix sous les yeux
+  rappelReglages(sparProfil === "hasard" ? null : (PROFILS_P[sparProfil]||{}).nom,
+                 sparCouleur === "hasard" ? null : (COULEURS[sparCouleur]||{}).nom);
   try{
     const seg = SEGMENTS[sparSegment];
 
@@ -4320,7 +4375,8 @@ $("btnSparGo").onclick = async () => {
               segment:sparSegment, profil:"reel", temp:"reel", reel:true,
               etat:{couche:1, confiance:4, patience:9, but_obtenu:false, lead:"closer"}};
       $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
-      $("sparQui").textContent = `${p.prenom}${p.age?", "+p.age:""} — ${p.metier||""}  ·  vrai call`;
+      rappelReglages(null, null);
+    $("sparQui").textContent = `${p.prenom}${p.age?", "+p.age:""} — ${p.metier||""}  ·  vrai call`;
       const jOuvre = (seg.commence !== "prospect");
       $("sparDit").textContent = jOuvre ? "— il attend que tu ouvres —" : "« " + (p.ouverture||"Bonjour.") + " »";
       $("sparTon").textContent = seg.objectif;
@@ -4431,6 +4487,7 @@ Réponds uniquement avec ce JSON, sans markdown :
             couleur:cCle,
             etat:{couche:1, confiance:confDepart, patience:9, but_obtenu:false, lead:"closer"}};
     $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
+    rappelReglages(prof.nom, coul.nom);
     $("sparQui").textContent = `${p.prenom}, ${p.age} — ${p.metier}`;
     const jOuvre = (seg.commence !== "prospect");
     $("sparDit").textContent = jOuvre
