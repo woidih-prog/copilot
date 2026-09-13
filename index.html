@@ -493,6 +493,7 @@ aside{
   <div class="wrap">
     <p class="eyebrow">Entraînement</p>
     <h2>Sparring</h2>
+    <p id="bandeauAcces" style="display:none;font-size:12.5px;margin:-10px 0 16px;cursor:pointer"></p>
 
     <div id="sparSetup">
       <p style="color:var(--muted);margin-bottom:18px">Un prospect en face de toi. Il résiste comme un vrai, et il a un blocage qu'il ne dira pas de lui-même. À toi de le trouver.</p>
@@ -685,7 +686,8 @@ aside{
         <p id="sparInfo" style="font-size:12.5px;color:var(--muted);margin-top:10px"></p>
       </div>
       <div class="block" id="sparAvant" style="display:none;border-left:2px solid var(--amber)">
-        <h3>Ce qu'il t'a déjà dit plus tôt dans ce call</h3>
+        <h3>Ce qu'il t'a déjà dit plus tôt dans ce call
+          <button class="pill" id="btnEcouterAvant" style="float:right;font-size:11px;padding:5px 11px">Écouter</button></h3>
         <p style="font-size:12.5px;color:var(--muted);margin-bottom:11px">C'est ton matériel. Une objection se traite avec ses mots à lui, pas avec des arguments.</p>
         <div id="sparAvantListe"></div>
       </div>
@@ -2464,6 +2466,7 @@ async function installeBaseLivree(){
   if(!ADVERSAIRES.length){
     ADVERSAIRES = ADVERSAIRES_LIVRES.slice();
     await Store.set("adversaires", ADVERSAIRES);
+    banqueChargee = Promise.resolve();      // la banque est à jour, plus de relecture
   }
   await Store.set("base_livree_v1", Date.now());
   try{ renderKb(); majListeAdv(); majParEcole(); majLecture(); }catch(e){}
@@ -2549,8 +2552,7 @@ async function loadKb(){
   const ok = await Store.set("ping", Date.now());
   const d = await Store.get("fiches");
   FICHES = Array.isArray(d) ? d : [];
-  const a = await Store.get("adversaires");
-  ADVERSAIRES = Array.isArray(a) ? a : [];
+  await loadAdversaires();
   await installeBaseLivree();
   const box = $("memState");
   if(box){
@@ -3201,6 +3203,8 @@ const SEGMENTS = {
     objectif:"Mener le call du début à la fin.",
     criteres:["A-t-il ouvert par le challenge, sans vendre le futur ?","A-t-il obtenu une douleur ressentie et chiffrée ?","A-t-il isolé avant de traiter ?","A-t-il demandé l'engagement ?"],
     regle:"Le call se déroule normalement, dans son ordre naturel.",
+    fin:"le call va au bout : engagement obtenu, paiement fait, ou le prospect met fin.",
+    toursMax:60,
     commence:"closer",
     terrain:"decouverte"
   },
@@ -3211,6 +3215,8 @@ const SEGMENTS = {
     objectif:"Poser le cadre et obtenir son plus gros challenge, dans ses mots.",
     criteres:["A-t-il montré qu'il avait préparé ?","A-t-il demandé SON avis personnel ?","A-t-il demandé LE plus gros challenge, pas un problème parmi d'autres ?","A-t-il évité de chercher la sympathie ?","A-t-il ancré dans le présent, pas dans le futur souhaité ?"],
     regle:"INTERDIT : tu n'as entendu ni offre ni prix. Tu ne poses AUCUNE objection commerciale — ni prix, ni délai, ni conjoint, ni « je vais réfléchir ». Ce n'est pas le moment du call.\nAUTORISÉ : être vague, poli, court, ne pas savoir quoi répondre.",
+    fin:"le prospect a donné son plus gros challenge dans ses propres mots, et le closer a pris le lead.",
+    toursMax:8,
     commence:"closer",
     terrain:"cadrage"
   },
@@ -3221,6 +3227,8 @@ const SEGMENTS = {
     objectif:"L'amener à ressentir sa douleur, pas à la raconter. Puis s'arrêter au bon moment.",
     criteres:["Est-il passé de la description au ressenti ?","A-t-il posé la question de trop après une réponse polie ?","A-t-il élargi au-delà du business ?","S'est-il arrêté quand le prospect a craqué, ou a-t-il insisté jusqu'à l'anesthésier ?","A-t-il évité de consoler et d'en faire une victime ?"],
     regle:"INTERDIT : tu n'as entendu ni offre ni prix. AUCUNE objection commerciale. Pas de « c'est cher », pas de « je dois en parler à ma femme », pas de « je vais réfléchir ».\nAUTORISÉ ET MÊME SOUHAITABLE : laisser filtrer un signal faible — une phrase glissée au passage qui annonce ton futur frein, sur le ton de la confidence. Mais un signal se glisse, il ne se pose pas et il ne se défend pas. Si le closer rebondit dessus, tu ne développes pas : tu reviens à ta situation.",
+    fin:"la couche 3 est atteinte — il a dit ce que ça lui fait à lui — ou il s'est refermé pour de bon.",
+    toursMax:14,
     commence:"closer",
     terrain:"decouverte"
   },
@@ -3231,6 +3239,8 @@ const SEGMENTS = {
     objectif:"Faire le calcul avec lui, à voix haute, puis lui demander ce que ça lui fait.",
     criteres:["A-t-il fait le calcul AVEC lui, à voix haute ?","A-t-il pris l'hypothèse la plus basse, incontestable ?","A-t-il demandé « c'est exact ? » avant « ça te fait quoi ? »","A-t-il saisi la surprise si elle est apparue ?","A-t-il évité de gonfler le chiffre ?"],
     regle:"INTERDIT : ni offre ni prix entendus, donc aucune objection commerciale.\nAUTORISÉ : résister au calcul, contester un chiffre, minimiser le résultat obtenu.",
+    fin:"le calcul a été fait à voix haute avec lui et il a réagi au chiffre.",
+    toursMax:12,
     commence:"closer",
     terrain:"decouverte"
   },
@@ -3241,6 +3251,8 @@ const SEGMENTS = {
     objectif:"Lui faire décrire lui-même ce que devient sa vie une fois le problème réglé.",
     criteres:["Est-ce le prospect qui décrit, ou le closer qui projette à sa place ?","A-t-il obtenu du concret, pas des généralités ?","La vision touche-t-elle sa vie, pas seulement ses chiffres ?","A-t-il relié cette vision à la douleur d'avant ?"],
     regle:"INTERDIT : ni offre ni prix entendus, donc aucune objection commerciale.\nAUTORISÉ : avoir du mal à te projeter, rester vague, retomber sur ta plainte. Se projeter demande un effort que tu ne fais pas spontanément.",
+    fin:"il a décrit lui-même, concrètement, ce que devient sa vie une fois le problème réglé.",
+    toursMax:12,
     commence:"closer",
     terrain:"decouverte"
   },
@@ -3251,6 +3263,8 @@ const SEGMENTS = {
     objectif:"Vérifier les quatre conditions, résumer avec ses mots, et demander l'autorisation de présenter.",
     criteres:["Les quatre conditions étaient-elles réunies avant de basculer ?","A-t-il résumé la douleur la plus forte en premier ?","A-t-il repris les mots du prospect, pas les chiffres logistiques ?","A-t-il demandé l'autorisation de présenter ?","L'énergie était-elle sobre, ou enthousiaste au mauvais moment ?"],
     regle:"INTERDIT : le prix n'a pas encore été annoncé. Ton objection viendra APRÈS le prix, pas avant.\nAUTORISÉ : être silencieux, attentiste, demander où il veut en venir.",
+    fin:"le closer a résumé avec ses mots et demandé l'autorisation de présenter — ou il a pitché sans l'avoir.",
+    toursMax:10,
     commence:"closer",
     terrain:"decouverte"
   },
@@ -3261,6 +3275,8 @@ const SEGMENTS = {
     objectif:"Trouver la vraie cause, l'isoler des autres freins, puis seulement retourner.",
     criteres:["A-t-il diagnostiqué avant de traiter ?","A-t-il isolé quand plusieurs freins coexistaient ?","A-t-il justifié le prix ?","A-t-il trouvé le frein réel derrière l'écran de fumée ?"],
     regle:"C'est ici que tu poses ton objection.\nTa vraie raison est cachée derrière celle que tu annonces. Tu ne la donnes que si le closer pose une question qui touche juste, ou s'il te renvoie tes propres mots dits plus tôt.\nTant qu'il mène, tu esquives sans débattre. S'il se met à justifier ou à argumenter, tu prends le lead et tu le mets sur la défensive : c'est exactement ce qui arrive en vrai.",
+    fin:"la vraie cause est sortie et a été traitée, ou le prospect s'est définitivement fermé.",
+    toursMax:16,
     commence:"prospect",
     terrain:"objection"
   },
@@ -3271,6 +3287,8 @@ const SEGMENTS = {
     objectif:"Transformer le oui en paiement effectif, maintenant, pendant l'appel.",
     criteres:["A-t-il traité l'esquive au lieu de l'accepter ?","A-t-il proposé un montant plus petit plutôt que de tout reporter ?","Est-il resté sur la ligne pendant que le prospect payait ?","A-t-il verrouillé après le oui, en lui faisant dire POURQUOI il le fait ?","Le prospect est-il reparti avec de l'élan, ou juste sans raison de dire non ?"],
     regle:"TU AS DIT OUI. Tu es sincèrement d'accord, content même, et tu n'as plus d'objection sur le fond.\nTU RESTES CHALEUREUX TOUT DU LONG. Tu ne te braques à aucun moment, tu ne deviens jamais sec, tu ne remets pas la vente en question. Tu es d'accord, point.\nMAIS tu vas esquiver le paiement au moins une fois, avec une raison plausible et banale, dite sur un ton léger : ta carte n'est pas sur toi, tu ne fais jamais de paiement au téléphone, ton plafond, tu préfères virer ce soir, envoie-moi le lien, c'est ma femme qui a la carte.\nCe n'est pas de la mauvaise foi. Payer maintenant te demande juste un pas de plus que tu n'avais pas prévu.\nS'il te rend ce pas minuscule — un montant plus petit, rester en ligne avec toi, un lien qu'on ouvre ensemble — tu paies volontiers.\nS'il argumente ou s'il insiste lourdement, tu ne te fâches pas : tu deviens simplement plus flou, tu remercies beaucoup, et tu promets de le faire ce soir. Tu ne le feras pas.\nS'il te dit d'accord et qu'il te rappelle demain, tu acceptes avec soulagement. Tu ne paieras jamais.\nATTENTION — LE PIÈGE : si le closer se contente de répondre à tes questions sans jamais te faire dire POURQUOI tu le fais, tu paies quand même, mais sans conviction. Tu le dis à demi-mot : « bon, je n'ai pas de raison de dire non », « c'est pas mon habitude de décider si vite ». Il faut qu'il le repère et qu'il te fasse verbaliser ta raison. S'il ne le fait pas, tu paies — et c'est une fausse victoire.",
+    fin:"le paiement est effectué, un premier montant est engagé, ou le prospect a définitivement reporté.",
+    toursMax:12,
     commence:"closer",
     terrain:"closing"
   },
@@ -3281,6 +3299,8 @@ const SEGMENTS = {
     objectif:"Demander l'engagement clairement et sécuriser un premier paiement.",
     criteres:["A-t-il demandé l'engagement, ou attendu que le prospect le fasse ?","A-t-il sécurisé un acompte plutôt qu'un oui verbal ?","A-t-il tenu le silence après avoir demandé ?","A-t-il évité de rouvrir la vente après le oui ?"],
     regle:"Tu ne dis pas non, mais tu ne t'engages pas. Tu esquives, tu temporises, tu demandes un délai — jusqu'à ce qu'on te demande clairement de t'engager.",
+    fin:"l'engagement a été demandé clairement et il a répondu oui ou non.",
+    toursMax:12,
     commence:"closer",
     terrain:"closing"
   }
@@ -3825,15 +3845,21 @@ function ouvreTonTour(){
     const derniere = SPAR.tours.slice(-1)[0];
     const jAiPose = derniere && derniere.qui === "MOI" && estUneQuestion(derniere.txt);
     if(dit.length === 0 && jAiPose){
-      const t = Math.round((Date.now() - depart)/1000);
-      if(t >= 4){
-        SPAR.silenceTenu = t;
+      const t = (Date.now() - depart)/1000;
+      // on te montre le compteur dès 1,5 s : tu sais que le silence est pris en compte
+      if(t >= 1.5 && t < 3){
+        phase("silence tenu · " + t.toFixed(0) + " s", "var(--sage)", false);
+      }
+      if(t >= 3){
+        SPAR.silenceTenu = Math.round(t);
         SPAR.silencesTotal = (SPAR.silencesTotal||0) + 1;
         clearInterval(sparSilence); clearInterval(sparVeille);
-        $("sparInfo").innerHTML = '<span style="color:var(--sage)">Tu as tenu ' + t + ' secondes de silence. Il va devoir combler.</span>';
+        $("sparInfo").innerHTML = '<span style="color:var(--sage)">Silence tenu ' + Math.round(t) + ' s. Il va devoir combler.</span>';
         $("sparMoi").value = "[le closer garde le silence]";
         $("btnSparEnvoi").click();
       }
+    } else if(dit.length > 0){
+      clearInterval(sparSilence);      // tu as repris la parole : ce n'est plus un silence
     }
   }, 250);
 }
@@ -3845,10 +3871,17 @@ function ouvreTonTour(){
 let ADVERSAIRES = [];
 let sparSource = "invente", advActif = null;
 
+/* Une seule source de vérité. Deux lectures en parallèle provoquaient une course :
+   la plus lente écrasait la banque que la plus rapide venait d'installer. */
+let banqueChargee = null;
 async function loadAdversaires(){
-  const a = await Store.get("adversaires");
-  ADVERSAIRES = Array.isArray(a) ? a : [];
-  majListeAdv();
+  if(banqueChargee) return banqueChargee;
+  banqueChargee = (async () => {
+    const a = await Store.get("adversaires");
+    if(Array.isArray(a) && a.length) ADVERSAIRES = a;
+    majListeAdv();
+  })();
+  return banqueChargee;
 }
 function saveAdversaires(){ Store.set("adversaires", ADVERSAIRES); majListeAdv(); }
 
@@ -4015,6 +4048,72 @@ function rendAvantAppel(){
       <p style="font-size:14px;margin-top:3px;line-height:1.45">${p}</p></div>`).join("");
 }
 rendAvantAppel();
+
+
+/* =========================================================
+   ACCÈS — pour les testeurs.
+   Un code par personne, une liste que tu contrôles sur GitHub.
+   Tu modifies le fichier, l'accès est coupé au lancement suivant.
+   ========================================================= */
+const FICHIER_ACCES = "./acces.json";
+let ACCES = null;              // le droit accordé à cette personne
+let LISTE_ACCES = null;        // null = pas de contrôle, tout le monde passe
+
+async function chargeListeAcces(){
+  try{
+    const r = await fetch(FICHIER_ACCES + "?t=" + Date.now(), {cache:"no-store"});
+    if(!r.ok) return;                       // pas de fichier : aucun contrôle
+    LISTE_ACCES = await r.json();
+  }catch(e){ LISTE_ACCES = null; }
+}
+
+async function verifieAcces(){
+  if(!LISTE_ACCES || !Array.isArray(LISTE_ACCES.codes)) return {ok:true};
+  const code = (await Store.get("code_acces") || "").toUpperCase();
+  if(!code) return {ok:false, raison:"code manquant"};
+  const e = LISTE_ACCES.codes.find(x => (x.code||"").toUpperCase() === code);
+  if(!e) return {ok:false, raison:"code inconnu"};
+  if(e.actif === false) return {ok:false, raison:"accès désactivé"};
+  const faits = +(await Store.get("sparrings_faits") || 0);
+  const quota = (e.sparrings === null || e.sparrings === undefined) ? Infinity : +e.sparrings;
+  if(faits >= quota) return {ok:false, raison:"quota atteint", faits, quota, nom:e.nom};
+  return {ok:true, faits, quota, nom:e.nom};
+}
+
+async function compteUnSparring(){
+  if(!LISTE_ACCES) return;
+  const n = +(await Store.get("sparrings_faits") || 0) + 1;
+  await Store.set("sparrings_faits", n);
+  majBandeauAcces();
+}
+
+async function majBandeauAcces(){
+  const el = $("bandeauAcces"); if(!el) return;
+  ACCES = await verifieAcces();
+  if(!LISTE_ACCES){ el.style.display = "none"; return; }
+  el.style.display = "block";
+  if(ACCES.ok && ACCES.quota !== Infinity){
+    const reste = ACCES.quota - ACCES.faits;
+    el.innerHTML = `<span style="color:${reste<=1?"var(--clay)":"var(--muted)"}">` +
+      escapeHTML(ACCES.nom || "Accès") + " — " + reste + " sparring" + (reste>1?"s":"") + " restant" + (reste>1?"s":"") + "</span>";
+  } else if(ACCES.ok){
+    el.innerHTML = '<span style="color:var(--sage)">' + escapeHTML(ACCES.nom || "Accès") + " — illimité</span>";
+  } else if(ACCES.raison === "quota atteint"){
+    el.innerHTML = '<span style="color:var(--clay)">Tes ' + ACCES.quota + ' sparrings d\'essai sont utilisés. Contacte Woidih pour continuer.</span>';
+  } else {
+    el.innerHTML = '<span style="color:var(--amber)">Entre ton code d\'accès pour t\'entraîner.</span>';
+  }
+}
+
+async function demandeCode(){
+  const c = prompt("Ton code d'accès :");
+  if(!c) return;
+  await Store.set("code_acces", c.trim().toUpperCase());
+  await majBandeauAcces();
+  if(ACCES && ACCES.ok) toast("Accès ouvert");
+  else toast("Code refusé");
+}
+
 
 let sparSegment = "complet", sparTemp = "tiede", sparMode = "libre", sparCouleur = "hasard";
 
@@ -4293,8 +4392,12 @@ $("btnMicroOk").onclick = async () => {
   }
 };
 
+$("bandeauAcces").onclick = demandeCode;
+
 $("btnSpar").onclick = async () => {
   $("home").style.display = "none"; $("spar").classList.add("on");
+  await chargeListeAcces();
+  await majBandeauAcces();
   if(PRET) { try{ await PRET }catch(e){} }
   majEtatCle();
   $("sparSetup").style.display = "block"; $("sparJeu").style.display = "none";
@@ -4378,6 +4481,22 @@ function rappelReglages(prof, coul){
 
 $("btnSparGo").onclick = async () => {
   debloqueSon();                       // on prend l'autorisation pendant que tu cliques
+
+  // contrôle d'accès : seulement si une liste existe sur le serveur
+  await majBandeauAcces();
+  if(ACCES && !ACCES.ok){
+    if(ACCES.raison === "quota atteint"){
+      $("sparEtat").innerHTML = '<span style="color:var(--clay)">Tes ' + ACCES.quota +
+        ' sparrings d\'essai sont utilisés. Contacte Woidih pour ouvrir un accès complet.</span>';
+      return;
+    }
+    await demandeCode();
+    if(!ACCES || !ACCES.ok){
+      $("sparEtat").innerHTML = '<span style="color:var(--clay)">Il te faut un code d\'accès valide pour t\'entraîner.</span>';
+      return;
+    }
+  }
+  await compteUnSparring();
   if(sparCanal === "vocal" && !("speechSynthesis" in window)){
     sparCanal = "ecrit";
     toast("Ce navigateur ne sait pas parler. On passe à l'écrit.");
@@ -4414,12 +4533,15 @@ $("btnSparGo").onclick = async () => {
       rendSparHisto();
       $("sparEtatVocal").classList.toggle("on", sparCanal === "vocal");
       $("btnSparRedire").style.display = sparCanal === "vocal" ? "inline-block" : "none";
-      if(jOuvre){
-        $("sparInfo").innerHTML = '<span style="color:var(--amber)">À toi d\'ouvrir.</span>';
-        if(sparCanal === "vocal") ouvreTonTour(); else $("sparMoi").focus();
-      } else {
-        faisParler(p.ouverture || "Bonjour.", () => ouvreTonTour());
-      }
+      const suiteOuv = () => {
+        if(jOuvre){
+          $("sparInfo").innerHTML = '<span style="color:var(--amber)">À toi d\'ouvrir.</span>';
+          if(sparCanal === "vocal") ouvreTonTour(); else $("sparMoi").focus();
+        } else {
+          faisParler(p.ouverture || "Bonjour.", () => ouvreTonTour());
+        }
+      };
+      if(sparCanal === "vocal" && texteDuRappel()) ecouteLeRappel(suiteOuv); else suiteOuv();
       $("btnSparGo").disabled = false;
       return;
     }
@@ -4529,12 +4651,15 @@ Réponds uniquement avec ce JSON, sans markdown :
     rendSparHisto();
     $("sparEtatVocal").classList.toggle("on", sparCanal === "vocal");
     $("btnSparRedire").style.display = sparCanal === "vocal" ? "inline-block" : "none";
-    if(jOuvre){
-      $("sparInfo").innerHTML = '<span style="color:var(--amber)">À toi d\'ouvrir.</span>';
-      if(sparCanal === "vocal") ouvreTonTour(); else $("sparMoi").focus();
-    } else {
-      faisParler(p.ouverture || "Bonjour.", () => ouvreTonTour());
-    }
+    const suiteOuverture = () => {
+      if(jOuvre){
+        $("sparInfo").innerHTML = '<span style="color:var(--amber)">À toi d\'ouvrir.</span>';
+        if(sparCanal === "vocal") ouvreTonTour(); else $("sparMoi").focus();
+      } else {
+        faisParler(p.ouverture || "Bonjour.", () => ouvreTonTour());
+      }
+    };
+    if(sparCanal === "vocal" && texteDuRappel()) ecouteLeRappel(suiteOuverture); else suiteOuverture();
   }catch(e){ $("sparEtat").innerHTML = '<span style="color:var(--clay)">'+e.message+'</span>'; }
   $("btnSparGo").disabled = false;
 };
@@ -4621,6 +4746,24 @@ function rendAvant(){
   l.innerHTML = d.map(x=>`<p style="font-size:14px;line-height:1.5;margin-bottom:9px;padding-left:11px;border-left:2px solid var(--line)">« ${escapeHTML(x)} »</p>`).join("");
 }
 
+/* Le rappel de ce qui s'est dit avant, lu à voix haute.
+   En mains libres, on ne veut pas avoir à lire un écran. */
+function texteDuRappel(){
+  if(!SPAR) return "";
+  const d = Array.isArray(SPAR.p.deja_dit) ? SPAR.p.deja_dit.filter(Boolean) : [];
+  if(!d.length) return "";
+  const seg = SEGMENTS[SPAR.segment] || SEGMENTS.complet;
+  return "Avant ce moment du call, voilà ce qu'il t'a dit. " + d.join(" ")
+       + " Tu en es là. " + seg.objectif;
+}
+
+let rappelLu = false;
+function ecouteLeRappel(apres){
+  const t = texteDuRappel();
+  if(!t){ if(apres) apres(); return; }
+  faisParlerCoach(t, apres);
+}
+
 function rendSparHisto(){
   $("sparHisto").innerHTML = SPAR.tours.map(t=>
     `<div class="tour ${t.qui==="MOI"?"moi":""}"><div class="q">${t.qui==="MOI"?"Toi":SPAR.p.prenom}</div>${t.txt}</div>`).join("");
@@ -4701,6 +4844,10 @@ Où en est le call : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).depart}
 ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).regle||""}
 
 ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).commence !== "prospect" ? "C'EST LE CLOSER QUI OUVRE, PAS TOI. Tu attends qu'il parle. Tu ne lances jamais le sujet toi-même, tu ne racontes pas ta situation spontanément, tu ne demandes pas ce qu'il propose. Tu réponds à ce qu'il te demande, et rien de plus. Un prospect ne déballe pas sa vie avant qu'on lui pose une question." : "C'EST TOI QUI OUVRES : tu viens de poser ton objection, c'est à lui de réagir."}
+
+L'EXERCICE S'ARRÊTE QUAND : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).fin}
+Dès que c'est le cas, mets "segment_fini" à true. Tu ne continues pas la conversation au-delà : l'exercice est terminé, on passe au débrief.
+Ne le déclare pas trop tôt. Tant que ce n'est pas atteint, tu restes dedans.
 
 Tu restes dans ce moment quoi qu'il arrive. Tu ne sautes jamais en avant dans le call, même si ce serait réaliste, même si le closer te tend la perche. Un prospect qui saute à l'objection alors qu'on travaille la douleur rend l'exercice inutile.
 Si le closer lui-même essaie d'aller plus loin que ce moment, tu ne le suis pas : tu réponds comme quelqu'un qui n'y est pas encore.
@@ -4845,6 +4992,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "pourquoi_lead":"si le lead vient de changer, la raison en 6 mots, sinon null",
  "initiative":"si tu prends l initiative (question directe, rappel, coupure), dis laquelle en 5 mots, sinon null",
  "abrege":true si tu decides de mettre fin a l appel maintenant sinon false,
+ "segment_fini":true si l objectif du moment travaille vient d etre atteint sinon false,
  "hors_segment":true si ta reponse sort du moment de call travaille sinon false,
  "pret":true si tu es pret a dire oui maintenant sinon false}`);
     const r = parseModelJson(txt);
@@ -4866,6 +5014,24 @@ Réponds uniquement avec ce JSON, sans markdown :
                               : r.lache ? "Il vient de lâcher quelque chose. Reste dessus." : "";
     rendSparHisto();
     $("spar").scrollTop = 0;
+
+    // L'exercice a une fin. Sans ça il dérive vers un call complet.
+    const tours = SPAR.tours.filter(t=>t.qui==="MOI").length;
+    const maxi = (SEGMENTS[SPAR.segment]||SEGMENTS.complet).toursMax || 40;
+    const termine = r.segment_fini || r.abrege || tours >= maxi;
+    if(termine && SPAR.segment !== "complet"){
+      SPAR.finRaison = r.segment_fini ? "objectif atteint"
+                     : r.abrege ? "le prospect a mis fin à l'appel"
+                     : "limite de " + maxi + " prises de parole";
+      faisParler(r.dit, () => {
+        arreteSparMicro();
+        phase("terminé", "var(--sage)", false);
+        $("sparInfo").innerHTML = '<span style="color:var(--sage)">Exercice terminé — ' +
+          escapeHTML(SPAR.finRaison) + '. Le débrief arrive.</span>';
+        setTimeout(()=>$("btnSparFin").click(), 1200);
+      });
+      return;
+    }
     faisParler(r.dit, () => ouvreTonTour());
   }catch(e){
     $("sparDit").textContent = "…";
@@ -4884,6 +5050,12 @@ $("btnMaMethode").onclick = () => {
       <div style="font-size:14px">« ${escapeHTML(f.phrase)} »</div>
       <div style="font-size:12px;color:var(--muted)">${escapeHTML(f.ecole||"toi")}${f.pourquoi ? " — "+escapeHTML(f.pourquoi) : ""}</div></div>`).join("");
   if(sparCanal === "vocal"){ clearInterval(sparVeille); phase("à toi", "var(--amber)", true); }
+};
+
+$("btnEcouterAvant").onclick = () => {
+  debloqueSon();
+  clearInterval(sparVeille); clearInterval(sparSilence);
+  ecouteLeRappel(() => { if(sparCanal === "vocal") ouvreTonTour(); });
 };
 
 $("btnRefaire").onclick = () => {
@@ -5000,6 +5172,7 @@ OBJECTIF DE CET EXERCICE : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).objectif
 JUGE-LE SUR CES CRITÈRES-LÀ, ET SUR RIEN D'AUTRE :
 ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
 
+${SPAR.finRaison ? "L'EXERCICE S'EST TERMINÉ : " + SPAR.finRaison + ". " + (SPAR.finRaison.startsWith("limite") ? "Il a tourné en rond sans atteindre l'objectif du moment travaillé — dis-lui pourquoi." : "") : ""}
 ${sparMode === "coach" ? `MODE COACHING : le coach a dû l'arrêter ${SPAR.arrets||0} fois pendant l'exercice.${(SPAR.arrets||0) === 0 ? " Il n'a jamais dérapé — dis-le-lui." : " Dis-lui si c'est toujours la même faute qui revient."}` : ""}
 ${(SPAR.silencesTotal||0) > 0 ? `IL A TENU LE SILENCE ${SPAR.silencesTotal} fois après ses questions, au lieu de combler le vide. C'est une vraie compétence — dis-le-lui, et dis-lui ce que ça a produit.` : "IL N'A JAMAIS TENU LE SILENCE APRÈS UNE QUESTION FORTE. Il a comblé chaque blanc. C'est une des façons les plus simples de faire parler un prospect, et il s'en prive."}
 QUI MENAIT L'APPEL À LA FIN : ${SPAR.etat.lead === "prospect" ? "le prospect" : "le closer"}. Le closer a perdu le lead ${SPAR.pertesLead||0} fois pendant l'échange.
