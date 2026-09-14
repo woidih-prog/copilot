@@ -1770,6 +1770,16 @@ L'OUVERTURE, si le call vient de commencer :
 « J'ai regardé ce que tu as rempli, et je suis curieux — toi, personnellement, c'est quoi ton plus gros challenge en ce moment pour [son activité] ? »
 Cinq éléments à préserver si tu la reformules : montrer qu'on a préparé, dire qu'on est curieux, demander SON avis personnel, demander LE PLUS GROS challenge et pas un problème parmi d'autres, et ancrer dans le présent.
 
+${S.marche === "b2b" ? `EN B2B, L'ORDRE EST DIFFÉRENT. Ne cherche jamais l'émotion, elle fait fuir un professionnel.
+1. Le problème de fonctionnement, dans ses mots.
+2. Le chiffre : temps perdu, clients perdus, marge, coût.
+3. Ce que ça déclenche ailleurs — autres équipes, délais, promesses clients.
+4. Ce qu'ils ont déjà tenté en interne, et pourquoi ça n'a pas tenu.
+5. L'enjeu personnel, par le côté : sa crédibilité, ses objectifs, sa charge. Jamais « qu'est-ce que ça te fait ».
+6. Le déclencheur : pourquoi maintenant et pas dans six mois.
+7. Le circuit de décision, et comment un budget se débloque.
+Ignore l'ordre ci-dessous, il est fait pour un particulier.` : ""}
+
 L'ORDRE DE CREUSAGE, quand rien d'urgent ne se présente :
 1. Le problème, en ses mots. Pas la situation : le problème.
 2. Depuis quand, et pourquoi c'est un problème pour lui.
@@ -3713,7 +3723,7 @@ Tu reconnais volontiers tes propres erreurs pour lui montrer que ça arrive à t
 };
 
 function manniereDuCoach(){
-  const t = (SEGMENTS[SPAR ? SPAR.segment : "complet"] || SEGMENTS.complet).terrain;
+  const t = segmentCourant().terrain;
   const m = (SPAR && SPAR.marche) || sparMarche || "b2c";
   const e = Object.entries(ECOLES).find(([k,v]) =>
     (v.terrains||[]).includes(t) && (!v.marches || v.marches.includes(m)) && !["moi","sami"].includes(k));
@@ -3723,7 +3733,7 @@ function manniereDuCoach(){
 }
 
 function coachDuMoment(){
-  const t = (SEGMENTS[SPAR ? SPAR.segment : "complet"] || SEGMENTS.complet).terrain;
+  const t = segmentCourant().terrain;
   const e = Object.entries(ECOLES).find(([k,v]) => (v.terrains||[]).includes(t) && !["moi","sami"].includes(k));
   return e ? e[1].nom.split(" ")[0] : "Coach";
 }
@@ -4139,6 +4149,76 @@ async function demandeCode(){
 }
 
 
+
+/* En B2B, l'objectif et les critères ne sont pas les mêmes. Sans ça, le coach
+   juge une découverte d'entreprise avec une grille de B2C. */
+const SEGMENTS_B2B = {
+ "ouverture": {
+  "objectif": "Poser le cadre en professionnel et obtenir le problème business dans ses mots.",
+  "criteres": [
+   "A-t-il montré qu'il connaissait leur activité avant l'appel ?",
+   "A-t-il annoncé le déroulé sans demander la permission d'exister ?",
+   "A-t-il obtenu un problème de fonctionnement, pas une généralité ?",
+   "A-t-il évité tout registre affectif ?"
+  ]
+ },
+ "douleur": {
+  "objectif": "Chiffrer le problème et le faire remonter jusqu'à l'enjeu personnel, sans jamais parler d'émotion.",
+  "criteres": [
+   "A-t-il obtenu un fait mesurable — temps, argent, clients, marge ?",
+   "A-t-il cherché ce que le problème déclenche sur les autres équipes ?",
+   "A-t-il atteint l'enjeu personnel par le côté — crédibilité, objectifs, charge — sans demander ce qu'il ressent ?",
+   "A-t-il évité de le traiter comme quelqu'un en détresse ?",
+   "Est-il resté au niveau d'un pair, pas d'un coach ?"
+  ]
+ },
+ "cout": {
+  "objectif": "Faire le calcul du coût pour l'entreprise, à voix haute, avec ses chiffres à lui.",
+  "criteres": [
+   "A-t-il fait le calcul avec lui, pas devant lui ?",
+   "A-t-il pris l'hypothèse basse, incontestable ?",
+   "A-t-il inclus ce que ça coûte ailleurs dans la boîte ?",
+   "A-t-il demandé confirmation du chiffre avant d'en tirer quoi que ce soit ?",
+   "A-t-il évité de gonfler, ce qui se retourne au moment du budget ?"
+  ]
+ },
+ "vision": {
+  "objectif": "Lui faire décrire le résultat attendu avec ses propres indicateurs.",
+  "criteres": [
+   "Est-ce lui qui décrit, ou le closer qui projette ?",
+   "A-t-il obtenu des indicateurs mesurables, pas des intentions ?",
+   "A-t-il demandé à quoi ils reconnaîtraient que c'est réussi ?",
+   "A-t-il relié ce résultat au problème chiffré d'avant ?"
+  ]
+ },
+ "transition": {
+  "objectif": "Vérifier le circuit de décision, puis demander l'autorisation de présenter.",
+  "criteres": [
+   "A-t-il fait raconter comment une décision comme celle-là s'est déjà prise chez eux ?",
+   "A-t-il identifié qui peut freiner, pas seulement qui décide ?",
+   "A-t-il su comment un budget se débloque et sur quelle période ?",
+   "A-t-il résumé avec les mots et les chiffres du prospect ?",
+   "A-t-il demandé l'autorisation de présenter ?"
+  ]
+ },
+ "complet": {
+  "objectif": "Mener un call B2B de bout en bout, du cadrage au prochain jalon.",
+  "criteres": [
+   "A-t-il obtenu un problème chiffré, pas une plainte ?",
+   "A-t-il découvert le circuit de décision avant de présenter ?",
+   "A-t-il trouvé le déclencheur — pourquoi maintenant ?",
+   "A-t-il défini un prochain jalon précis plutôt qu'une signature improbable ?"
+  ]
+ }
+};
+
+function segmentCourant(){
+  const base = SEGMENTS[sparSegment] || SEGMENTS.complet;
+  const m = (SPAR && SPAR.marche) || sparMarche || "b2c";
+  if(m !== "b2b" || !SEGMENTS_B2B[sparSegment]) return base;
+  return Object.assign({}, base, SEGMENTS_B2B[sparSegment]);
+}
+
 let sparSegment = "complet", sparTemp = "tiede", sparMode = "libre", sparCouleur = "hasard", sparMarche = "b2c";
 
 /* Le B2B ne se joue pas comme le B2C : pas d'émotion à creuser, un circuit
@@ -4181,7 +4261,7 @@ document.querySelectorAll("#sparMode [data-mode]").forEach(b=>{
 /* LE COACH — il regarde ce que tu viens de dire AVANT que le prospect réponde.
    Si tu sors de la méthode, il coupe et il t'explique. Comme en vrai coaching. */
 async function coachRegarde(cequejedis){
-  const seg = SEGMENTS[SPAR.segment] || SEGMENTS.complet;
+  const seg = segmentCourant();
   const l = fichesDuSegment(8);
   const p = SPAR.p;
   const txt = await callClaude(
@@ -4265,7 +4345,7 @@ function peupleSparring(){
 
 let briefLarge = false;
 function majSegDetail(){
-  const v = SEGMENTS[sparSegment]; if(!v) return;
+  const v = segmentCourant(); if(!v) return;
   $("segDetail").innerHTML = `<b style="color:var(--ink)">${escapeHTML(v.court)}.</b> ${escapeHTML(v.depart)}<br>
     <span style="color:var(--amber)">Ton objectif : ${escapeHTML(v.objectif)}</span>`;
   majBrief();
@@ -4288,7 +4368,7 @@ const SUJETS_SEGMENT = {
 };
 
 function fichesDuSegment(n){
-  const v = SEGMENTS[sparSegment] || SEGMENTS.complet;
+  const v = segmentCourant();
   const m = (SPAR && SPAR.marche) || sparMarche || "b2c";
   const bonnes = Object.entries(ECOLES)
     .filter(([k,e])=>(e.terrains||[]).includes(v.terrain) && (!e.marches || e.marches.includes(m)))
@@ -4564,7 +4644,7 @@ $("btnSparGo").onclick = async () => {
   rappelReglages(sparProfil === "hasard" ? null : (PROFILS_P[sparProfil]||{}).nom,
                  sparCouleur === "hasard" ? null : (COULEURS[sparCouleur]||{}).nom);
   try{
-    const seg = SEGMENTS[sparSegment];
+    const seg = segmentCourant();
 
     // un vrai prospect : pas besoin de le fabriquer, il existe déjà
     if(sparSource === "reel"){
@@ -4681,7 +4761,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "budget_reel":"peut-il payer, oui ou non, et pourquoi",
  "acquis":"ce qui a DEJA ete dit avant ce moment du call, 2 phrases, ou null si le call commence",
  "deja_dit":["4 a 6 phrases exactes que le prospect a prononcees plus tot dans ce call, avant ce moment — ses mots a lui, son probleme, son chiffre, ce que ca lui fait, son objectif. Vide si le call commence."],
- "ouverture":"${(SEGMENTS[sparSegment]||SEGMENTS.complet).commence !== "prospect" ? "null — c est le closer qui ouvre, ce prospect ne parle pas en premier" : "sa premiere phrase, qui pose exactement le point de depart decrit ci-dessus"}"}`, 2500);
+ "ouverture":"${segmentCourant().commence !== "prospect" ? "null — c est le closer qui ouvre, ce prospect ne parle pas en premier" : "sa premiere phrase, qui pose exactement le point de depart decrit ci-dessus"}"}`, 2500);
     const p = parseModelJson(txt);
     // la confiance de départ dépend de sa température : un froid ne t'accorde rien
     const confDepart = sparTemp === "chaud" ? 6 : sparTemp === "tiede" ? 4 : 2;
@@ -4807,7 +4887,7 @@ function texteDuRappel(){
   if(!SPAR) return "";
   const d = Array.isArray(SPAR.p.deja_dit) ? SPAR.p.deja_dit.filter(Boolean) : [];
   if(!d.length) return "";
-  const seg = SEGMENTS[SPAR.segment] || SEGMENTS.complet;
+  const seg = segmentCourant();
   return "Avant ce moment du call, voilà ce qu'il t'a dit. " + d.join(" ")
        + " Tu en es là. " + seg.objectif;
 }
@@ -4894,13 +4974,13 @@ $("btnSparEnvoi").onclick = async () => {
 `Tu joues un prospect dans un entraînement au closing. Tu n'es pas un assistant. Tu ne coaches jamais. Tu es ${p.prenom}.
 
 ═══ RÈGLE LA PLUS IMPORTANTE — LE MOMENT DU CALL ═══
-Vous ne rejouez PAS un call entier. Vous rejouez UN SEUL MOMENT : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).nom.toUpperCase()}.
-Où en est le call : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).depart}
-${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).regle||""}
+Vous ne rejouez PAS un call entier. Vous rejouez UN SEUL MOMENT : ${segmentCourant().nom.toUpperCase()}.
+Où en est le call : ${segmentCourant().depart}
+${segmentCourant().regle||""}
 
-${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).commence !== "prospect" ? "C'EST LE CLOSER QUI OUVRE, PAS TOI. Tu attends qu'il parle. Tu ne lances jamais le sujet toi-même, tu ne racontes pas ta situation spontanément, tu ne demandes pas ce qu'il propose. Tu réponds à ce qu'il te demande, et rien de plus. Un prospect ne déballe pas sa vie avant qu'on lui pose une question." : "C'EST TOI QUI OUVRES : tu viens de poser ton objection, c'est à lui de réagir."}
+${segmentCourant().commence !== "prospect" ? "C'EST LE CLOSER QUI OUVRE, PAS TOI. Tu attends qu'il parle. Tu ne lances jamais le sujet toi-même, tu ne racontes pas ta situation spontanément, tu ne demandes pas ce qu'il propose. Tu réponds à ce qu'il te demande, et rien de plus. Un prospect ne déballe pas sa vie avant qu'on lui pose une question." : "C'EST TOI QUI OUVRES : tu viens de poser ton objection, c'est à lui de réagir."}
 
-L'EXERCICE S'ARRÊTE QUAND : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).fin}
+L'EXERCICE S'ARRÊTE QUAND : ${segmentCourant().fin}
 Dès que c'est le cas, mets "segment_fini" à true. Tu ne continues pas la conversation au-delà : l'exercice est terminé, on passe au débrief.
 Ne le déclare pas trop tôt. Tant que ce n'est pas atteint, tu restes dedans.
 
@@ -5064,7 +5144,7 @@ Réponds uniquement avec ce JSON, sans markdown :
     if(r.hors_segment && SPAR.segment !== "complet"){
       SPAR.sauts = (SPAR.sauts||0) + 1;
       $("sparInfo").innerHTML = '<span style="color:var(--clay)">Il vient de sortir du moment travaillé (' +
-        escapeHTML((SEGMENTS[SPAR.segment]||SEGMENTS.complet).nom) + '). Ramène-le dessus, ou change de segment.</span>';
+        escapeHTML(segmentCourant().nom) + '). Ramène-le dessus, ou change de segment.</span>';
     }
     $("sparInfo").textContent = r.pret ? "Il est prêt. Demande l'engagement maintenant."
                               : r.ferme ? "Tu l'as fait reculer."
@@ -5074,7 +5154,7 @@ Réponds uniquement avec ce JSON, sans markdown :
 
     // L'exercice a une fin. Sans ça il dérive vers un call complet.
     const tours = SPAR.tours.filter(t=>t.qui==="MOI").length;
-    const maxi = (SEGMENTS[SPAR.segment]||SEGMENTS.complet).toursMax || 40;
+    const maxi = segmentCourant().toursMax || 40;
     const termine = r.segment_fini || r.abrege || tours >= maxi;
     if(termine && SPAR.segment !== "complet"){
       SPAR.finRaison = r.segment_fini ? "objectif atteint"
@@ -5206,7 +5286,7 @@ LE SPARRING :
 ${SPAR.tours.map(t=>(t.qui==="MOI"?"CLOSER":"PROSPECT")+" : "+t.txt).join("\n")}
 
 ${(function(){
-  const t = (SEGMENTS[SPAR.segment]||SEGMENTS.complet).terrain;
+  const t = segmentCourant().terrain;
   const bonnes = Object.entries(ECOLES).filter(([k,v])=>(v.terrains||[]).includes(t)).map(([k])=>k);
   const utiles = FICHES
     .map(f=>{
@@ -5223,11 +5303,15 @@ ${utiles.map(x=>`- [${x.f.ecole||"lui"}] ${x.f.situation||x.f.label} → « ${x.
 JUGE-LE PAR RAPPORT À CETTE MÉTHODE-LÀ, pas par rapport à une bonne pratique générale. Quand il s'en écarte, dis-lui laquelle il aurait dû utiliser et à quel moment. Quand il l'applique bien, dis-le aussi.`;
 })()}
 
-LE MOMENT TRAVAILLÉ : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).nom}
-OBJECTIF DE CET EXERCICE : ${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).objectif}
+${((SPAR && SPAR.marche) || sparMarche) === "b2b" ? `CE CALL EST EN B2B. Ne lui reproche jamais de ne pas avoir cherché l'émotion, et ne lui suggère jamais une question du type « et toi, qu'est-ce que ça te fait » ou « dans un an, il se passe quoi pour toi ». Ces questions font perdre un professionnel.
+Ce que tu attends à la place : des chiffres, la propagation du problème aux autres équipes, le circuit de décision, le déclencheur, et l'enjeu personnel abordé par le côté — crédibilité, objectifs, charge de travail.
+S'il traite un dirigeant comme quelqu'un en détresse, c'est une faute et tu l'arrêtes.` : ""}
+
+LE MOMENT TRAVAILLÉ : ${segmentCourant().nom}
+OBJECTIF DE CET EXERCICE : ${segmentCourant().objectif}
 
 JUGE-LE SUR CES CRITÈRES-LÀ, ET SUR RIEN D'AUTRE :
-${(SEGMENTS[SPAR.segment]||SEGMENTS.complet).criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
+${segmentCourant().criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
 
 ${SPAR.finRaison ? "L'EXERCICE S'EST TERMINÉ : " + SPAR.finRaison + ". " + (SPAR.finRaison.startsWith("limite") ? "Il a tourné en rond sans atteindre l'objectif du moment travaillé — dis-lui pourquoi." : "") : ""}
 ${sparMode === "coach" ? `MODE COACHING : le coach a dû l'arrêter ${SPAR.arrets||0} fois pendant l'exercice.${(SPAR.arrets||0) === 0 ? " Il n'a jamais dérapé — dis-le-lui." : " Dis-lui si c'est toujours la même faute qui revient."}` : ""}
@@ -5274,7 +5358,7 @@ Réponds uniquement avec ce JSON, sans markdown :
         ${j.quand ? `<p style="font-size:13.5px;color:var(--muted);margin-top:6px">${j.quand}</p>` : ""}
       </div>
       <div class="block">
-        <h3>${escapeHTML((SEGMENTS[SPAR.segment]||SEGMENTS.complet).nom)} — vu par ${escapeHTML(manniereDuCoach().nom)}</h3>
+        <h3>${escapeHTML(segmentCourant().nom)} — vu par ${escapeHTML(manniereDuCoach().nom)}</h3>
         <p style="font-family:'Archivo Narrow';font-weight:700;font-size:40px">${j.note}/10</p>
         ${(j.criteres||[]).map(c=>`
           <div style="display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line)">
@@ -5299,7 +5383,7 @@ Réponds uniquement avec ce JSON, sans markdown :
     const ap = document.getElementById("btnAutreProspect");
     if(ap) ap.onclick = () => document.getElementById("btnSpar").click();
     HISTO.push({id:SPAR.debut, date:new Date().toISOString().slice(0,10),
-                prospect:"Sparring · "+((SEGMENTS[SPAR.segment]||SEGMENTS.complet).nom)+" · "+p.prenom, duree:Math.round((Date.now()-SPAR.debut)/60000),
+                prospect:"Sparring · "+(segmentCourant().nom)+" · "+p.prenom, duree:Math.round((Date.now()-SPAR.debut)/60000),
                 resultat: j.trouve ? "relance" : "perdu", sparring:true, note:j.note,
                 objections:[p.surface||""].filter(Boolean), faites:[], bons:0, mauvais:0});
     if(HISTO.length > 300) HISTO = HISTO.slice(-300);
