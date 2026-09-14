@@ -4703,12 +4703,19 @@ CE QUE LE CLOSER TRAVAILLE : ${seg.nom} — ${seg.court}.
 LE CALL DÉMARRE ICI : ${seg.depart}
 Fabrique donc un prospect dont la situation permet de travailler CE moment précis. Sa première phrase doit poser exactement ce point de départ, comme si le call en était déjà là.
 
-TRÈS IMPORTANT si ce moment arrive TARD dans un call (objection, closing, paiement, introduction au pitch) :
+${["vision","transition","objection","paiement","closing"].includes(sparSegment) ? `CE MOMENT ARRIVE TARD DANS LE CALL — remplis "deja_dit".` : `CE MOMENT EST UN MOMENT DE CREUSAGE. Mets "deja_dit" à [] — un tableau VIDE, sans aucune phrase.
+Le closer doit aller chercher ces informations lui-même : c'est tout l'objet de l'exercice. Ne lui donne rien d'avance.
+Ton prospect arrive avec une seule chose en tête, formulée de façon extérieure et vague. Il ne déballe rien d'autre tant qu'on ne lui pose pas la bonne question.`}
+
+Si et seulement si ce moment arrive TARD dans un call (vision, introduction au pitch, objection, paiement, closing) :
 Une objection ne se traite pas dans le vide. En vrai, le closer a derrière lui une découverte entière et il peut renvoyer au prospect ses propres mots. Sans ça, il ne peut que se justifier — et c'est exactement ce qu'il ne faut pas faire.
 Remplis donc "deja_dit" avec quatre à six phrases EXACTES que ce prospect a prononcées plus tôt dans le call : son problème dans ses mots, un chiffre qu'il a donné, ce que ça lui fait, son objectif, une chose qu'il a minimisée. C'est le matériel avec lequel le closer va travailler.
 
 UN VRAI PROSPECT N'EST PAS RANGÉ. Fabrique-le comme dans la vraie vie :
 
+${["ouverture","douleur","cout"].includes(sparSegment) ? `CE PROSPECT DOIT ÊTRE AVARE DE SES INFORMATIONS.
+Le closer travaille son creusage : s'il obtient tout sans effort, l'exercice ne sert à rien.
+Ta première phrase ne contient aucun chiffre, aucune durée, aucune tentative passée. Elle énonce une gêne, rien de plus.` : ""}
 ${["content","curieux2","etudiant","confort","curiosite"].includes(cle) ? `ATTENTION — CE PROSPECT N'A PAS DE VRAIE DOULEUR.
 Ne lui en invente pas une. Sa situation lui convient à peu près, rien ne brûle, il dort bien.
 Ses trois couches existent quand même, mais elles sont TIÈDES : une gêne, pas une souffrance. Couche 3 n'est pas de la détresse, c'est un regret discret, une sensation de passer à côté, un plafond qu'il sent sans le nommer.
@@ -4760,9 +4767,15 @@ Réponds uniquement avec ce JSON, sans markdown :
  "cle":"le type de question qui le ferait lacher son blocage reel",
  "budget_reel":"peut-il payer, oui ou non, et pourquoi",
  "acquis":"ce qui a DEJA ete dit avant ce moment du call, 2 phrases, ou null si le call commence",
- "deja_dit":["4 a 6 phrases exactes que le prospect a prononcees plus tot dans ce call, avant ce moment — ses mots a lui, son probleme, son chiffre, ce que ca lui fait, son objectif. Vide si le call commence."],
+ "deja_dit":${["vision","transition","objection","paiement","closing"].includes(sparSegment) ? '["4 a 6 phrases exactes que le prospect a prononcees plus tot dans ce call — ses mots a lui, son probleme, son chiffre, son objectif"]' : '[]'},
  "ouverture":"${segmentCourant().commence !== "prospect" ? "null — c est le closer qui ouvre, ce prospect ne parle pas en premier" : "sa premiere phrase, qui pose exactement le point de depart decrit ci-dessus"}"}`, 2500);
     const p = parseModelJson(txt);
+    /* Verrou : sur un segment de creusage, aucun rappel, quoi que réponde le modèle.
+       Ces informations sont exactement ce que le closer doit aller chercher. */
+    if(!["vision","transition","objection","paiement","closing"].includes(sparSegment)){
+      p.deja_dit = [];
+      p.acquis = null;
+    }
     // la confiance de départ dépend de sa température : un froid ne t'accorde rien
     const confDepart = sparTemp === "chaud" ? 6 : sparTemp === "tiede" ? 4 : 2;
     SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
@@ -5046,6 +5059,12 @@ SI LE CLOSER TE PROPOSE D'ENGAGER SEULEMENT TA PART, avec remboursement si ton c
 Si ton frein était vrai, tu acceptes — le risque est nul et tu n'engages que toi.
 Si ton frein était faux, tu refuses quand même, et tu cherches une nouvelle raison. Tu viens de te trahir, et un bon closer le verra.
 Tu ne donnes JAMAIS deux couches dans la même réponse. Une question = au maximum un pas de plus.
+
+TA PREMIÈRE RÉPONSE EST COURTE. C'est le point le plus mal joué.
+Quand on te demande ton problème, tu réponds en une ou deux phrases, de façon extérieure et vague. Tu ne donnes ni chiffre, ni durée, ni contexte, ni historique, ni ce que tu as déjà essayé — même si tout ça existe dans ta tête.
+Un vrai prospect ne déballe pas sa situation complète à la première question. Il attend qu'on lui demande.
+Tu ne donnes un chiffre que si on te demande un chiffre. Une durée que si on te demande depuis quand. Tes tentatives passées que si on te demande ce que tu as essayé.
+Si tu te surprends à écrire plus de trois phrases sur ta situation, c'est que tu en donnes trop : coupe.
 Si la question est vague, générale, ou si elle reformule simplement ce que tu viens de dire, tu restes à ta couche et tu répètes autrement. C'est comme ça qu'un vrai prospect tourne en rond.
 Si le closer te console ou compatit, tu te réinstalles dans la plainte et tu n'avances plus.
 Si le closer te sert un argument sans t'avoir compris, tu deviens plus fermé.
