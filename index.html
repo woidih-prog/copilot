@@ -362,6 +362,8 @@ aside{
         <div class="d" id="driftD"></div>
       </div>
 
+      <p id="rjEtat" style="font-size:12.5px;color:var(--muted);margin-bottom:10px;min-height:16px"></p>
+
       <div class="block" id="scenePanneau" style="display:none;border-left:2px solid var(--clay);flex-shrink:0">
         <div class="tagline">
           <span class="tag" id="sceneTag">STOP</span>
@@ -741,8 +743,23 @@ aside{
     <div class="block">
       <h3>Le transcript</h3>
       <textarea id="rjTexte" placeholder="[00:00] Woidih: Bonjour Marie...&#10;[00:05] Marie: Bonjour..." style="width:100%;min-height:170px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:12px 14px;font-size:13.5px;font-family:inherit;line-height:1.5;resize:vertical"></textarea>
+      <div class="block" style="margin-top:14px;border-left:2px solid var(--steel)">
+        <h3>Le contexte de ce call <button class="pill" id="btnCtxMicro" style="float:right;font-size:11px;padding:5px 11px">Dicter</button></h3>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:9px">Ce que le transcript ne dit pas : d'où vient le prospect, ce que tu vendais, ton prix, ce qui s'est passé après. Facultatif, mais ça change beaucoup l'analyse.</p>
+        <textarea id="rjContexte" style="width:100%;min-height:75px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px 13px;color:var(--ink);font-family:inherit;font-size:13.5px" placeholder="Lead venu d'une publicité, jamais parlé avant. Offre à 3000 en trois fois. Il n'a pas signé et ne répond plus."></textarea>
+        <div class="row" id="rjIssue" style="margin-top:9px">
+          <button class="pill" data-issue="perdu">Perdu</button>
+          <button class="pill" data-issue="relance">Relance</button>
+          <button class="pill" data-issue="vendu">Vendu</button>
+          <button class="pill on" data-issue="">Je ne précise pas</button>
+        </div>
+      </div>
+
+      <div id="lecture" style="margin-top:16px"></div>
+
       <div class="row" style="margin-top:12px">
         <input id="rjMoi" value="Woidih" placeholder="Ton nom dans le transcript" style="background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:10px 13px;border-radius:9px;font-size:13.5px;font-family:inherit;width:190px">
+        <button class="pill" id="btnLire" style="border-color:var(--amber);color:var(--amber)">Le coach lit mon call</button>
         <select id="rjMode" class="pill" style="background:var(--bg)">
           <option value="coach" selected>Avec le coach — il m'arrête et je refais</option>
           <option value="libre">Sans arrêt — je regarde seulement</option>
@@ -1473,6 +1490,7 @@ function etatEcoute(msg, classe){
 /* --- barre d'état permanente : on voit toujours ce que fait le moteur --- */
 function majEtatMoteur(){
   const e = $("etatMoteur"); if(!e) return;
+  if(typeof RJ !== "undefined" && RJ && RJ.coach && S.running) return;   // le rejeu pilote cette ligne
   const depuis = ECOUTE.derniereAnalyse ? Math.round((Date.now()-ECOUTE.derniereAnalyse)/1000) : null;
   const bouts = [];
   bouts.push(ECOUTE.actif ? "micro actif" : "micro coupé");
@@ -3193,10 +3211,30 @@ async function tourSuivant(){
 
   // Le coach regarde ce que TU viens de dire. S'il voit quelque chose, il arrête.
   if(RJ.coach && t.moi && t.text.split(/\s+/).length > 4 && (RJ.arrets||0) < 5){
+    // on suspend le déroulé pendant qu'il réfléchit, sinon le call file devant lui
+    const reprendre = RJ.auto && RJ.timer;
+    if(reprendre){ clearInterval(RJ.timer); RJ.timer = null; }
+    etatCoach("le coach regarde la réplique " + RJ.i + "…", "var(--amber)");
     try{
       const c = await coachRegardeRejeu(RJ.i - 1);
-      if(c && c.stop){ RJ.arrets = (RJ.arrets||0) + 1; montreArret(c, t); }
-    }catch(e){ /* le coach n'a pas répondu : le call continue */ }
+      if(c && c.stop){
+        RJ.arrets = (RJ.arrets||0) + 1;
+        montreArret(c, t);
+        return;                                   // on ne relance pas : on est en pause
+      }
+      RJ.vues = (RJ.vues||0) + 1;
+      etatCoach("réplique " + RJ.i + "/" + RJ.tours.length + " · " + RJ.vues +
+                " examinée" + (RJ.vues>1?"s":"") + ", rien à reprendre", "var(--muted)");
+    }catch(e){
+      // on ne cache plus rien : si le coach ne répond pas, tu dois le savoir
+      RJ.erreurs = (RJ.erreurs||0) + 1;
+      etatCoach("Le coach n'a pas répondu : " + e.message, "var(--clay)");
+      if(RJ.erreurs >= 3){
+        RJ.coach = false;
+        etatCoach("Le coach échoue à répétition, je le coupe pour ce call. Dernière erreur : " + e.message, "var(--clay)");
+      }
+    }
+    if(reprendre && !rejeuEnPause){ RJ.timer = setInterval(tourSuivant, RJ.auto); }
   }
 }
 
@@ -3207,6 +3245,15 @@ async function tourSuivant(){
    ========================================================= */
 let SCENE = null;
 let rejeuEnPause = false;
+
+/* Une ligne d'état toujours visible pendant le rejeu. L'ancienne était logée
+   dans le bouton Suivant, masqué en mode automatique : on ne voyait jamais rien. */
+function etatCoach(msg, couleur){
+  const e = $("etatMoteur");
+  if(e){ e.textContent = msg; e.style.color = couleur || "var(--muted)"; }
+  const h = $("rjEtat");
+  if(h){ h.textContent = msg; h.style.color = couleur || "var(--muted)"; }
+}
 
 /* Il ne regarde que TES prises de parole, et seulement celles qui pèsent. */
 async function coachRegardeRejeu(indexClos){
@@ -3410,6 +3457,174 @@ $("btnContinuerRejeu").onclick = () => {
   if(RJ.auto){ RJ.timer = setInterval(tourSuivant, RJ.auto); tourSuivant(); }
   else $("fileTxt").textContent = "appuie sur Suivant";
 };
+
+
+/* =========================================================
+   LE COACH LIT TON CALL — pas de rejeu, pas de tour par tour.
+   Il lit tout, et il te rend la copie corrigée.
+   ========================================================= */
+let rjIssueChoisie = "";
+document.querySelectorAll("#rjIssue [data-issue]").forEach(b=>{
+  b.onclick = () => {
+    document.querySelectorAll("#rjIssue .pill").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); rjIssueChoisie = b.dataset.issue;
+  };
+});
+
+$("btnCtxMicro").onclick = function(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR) return toast("Pas de micro dans ce navigateur");
+  if(this._rec){ try{this._rec.stop()}catch(e){} this._rec = null; this.textContent = "Dicter"; return; }
+  const r = new SR(); r.lang = "fr-FR"; r.continuous = true; r.interimResults = true;
+  let fige = $("rjContexte").value ? $("rjContexte").value + " " : "";
+  r.onresult = e => {
+    let vol = "";
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const t = e.results[i][0].transcript;
+      if(e.results[i].isFinal) fige += t + " "; else vol += t;
+    }
+    $("rjContexte").value = (fige + vol).trim();
+  };
+  const b = this;
+  r.onend = () => { if(b._rec){ try{ r.start() }catch(e){} } };
+  try{ r.start(); this._rec = r; this.textContent = "J'écoute"; }catch(e){}
+};
+
+let LECTURE = null;
+
+$("btnLire").onclick = async () => {
+  const tours = parseTranscript($("rjTexte").value, $("rjMoi").value.trim() || "Woidih");
+  if(tours.length < 4) return $("lecture").innerHTML = '<p style="color:var(--clay)">Transcript trop court ou nom mal reconnu.</p>';
+
+  const nom = (tours.find(t=>!t.moi) || {}).nom || "le prospect";
+  const ctx = $("rjContexte").value.trim();
+  const issue = {perdu:"il n'a pas signé", relance:"le call s'est terminé en relance", vendu:"il a signé"}[rjIssueChoisie] || "";
+  const marche = sparMarche === "b2b" ? "b2b" : "b2c";
+  const terrainEcoles = Object.entries(ECOLES)
+    .filter(([k,v]) => !["moi","sami"].includes(k) && (!v.marches || v.marches.includes(marche)))
+    .map(([k,v]) => v.nom + " sur " + (v.terrains||[]).join(" et ")).join(" · ");
+
+  const fiches = FICHES.filter(f => !["moi","sami"].includes(f.ecole)).slice(0, 40)
+    .map(f => `[${f.ecole}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n");
+
+  $("lecture").innerHTML = '<p style="color:var(--amber)">Le coach lit ton call… une à deux minutes.</p>';
+  $("btnLire").disabled = true;
+  try{
+    const txt = await callClaude(
+`Tu es un coach de closing. Tu viens de lire l'enregistrement d'un vrai call de ton élève, et tu lui rends la copie.
+
+${manniereDuCoach().ton}
+
+${ctx ? "CE QU'IL T'A DIT SUR CE CALL :\n" + ctx : ""}
+${issue ? "ISSUE RÉELLE : " + issue + "." : "Issue non précisée."}
+MARCHÉ : ${marche === "b2b" ? "B2B — ne lui reproche jamais de ne pas avoir cherché l'émotion. Ce qu'on attend : chiffres, propagation aux autres équipes, circuit de décision, déclencheur, enjeu personnel abordé par le côté." : "B2C haut de gamme."}
+MÉTHODES DE RÉFÉRENCE : ${terrainEcoles}
+
+QUELQUES FORMULATIONS DE SA MÉTHODE, pour t'appuyer dessus quand c'est pertinent :
+${fiches}
+
+LE CALL, réplique par réplique
+${tours.map((t,i)=>`[${i+1}] ${t.moi?"CLOSER":nom.toUpperCase()} : ${t.text}`).join("\n")}
+
+RÈGLES DE TON ANALYSE :
+Observation d'abord, interprétation ensuite, jamais de certitude psychologique. Ne dis pas « il ment » mais « il se tait après le prix, ce qui peut vouloir dire plusieurs choses ».
+Distingue la cause de la conséquence : si la dégradation a commencé plus tôt, dis où.
+Cite ses mots exacts. Sans citation, ton reproche ne vaut rien.
+Sois franc. S'il a bien fait quelque chose, dis-le précisément — pas pour l'encourager, parce que c'est vrai.
+Tutoie-le. Écris en français, dans son vocabulaire de closer francophone.
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"note":0 a 10,
+ "verdict":"en deux phrases, ce qui s est vraiment joue sur ce call",
+ "marche":[{"quoi":"ce qu il a bien fait","cite":"ses mots exacts","pourquoi":"pourquoi c etait juste"}],
+ "ameliorer":[{"quoi":"ce qui doit progresser","cite":"ses mots exacts ou null","comment":"ce qu il faut faire a la place, concretement"}],
+ "moments":[{"replique":numero de la replique,"cite":"ses mots exacts","fait":"ce qu il a fait","effet":"ce que ca a provoque ensuite dans le call","dire":"la phrase exacte a dire a la place"}],
+ "bascule":{"replique":numero ou null,"cite":"la phrase qui a fait basculer le call","pourquoi":"pourquoi celle-la"},
+ "exercice":"un seul exercice concret pour le prochain call, une phrase"}`, 3000);
+
+    const j = parseModelJson(txt);
+    LECTURE = {j, tours, nom};
+    rendLecture();
+  }catch(e){
+    $("lecture").innerHTML = '<p style="color:var(--clay)">Lecture impossible : ' + escapeHTML(e.message) + '</p>';
+  }
+  $("btnLire").disabled = false;
+};
+
+function rendLecture(){
+  const {j, tours} = LECTURE;
+  const c = j.note >= 7 ? "var(--sage)" : j.note >= 5 ? "var(--amber)" : "var(--clay)";
+  $("lecture").innerHTML = `
+    <div class="block" style="border-left:2px solid ${c}">
+      <div class="tagline"><span class="tag" style="border-color:${c};color:${c}">${j.note}/10 — vu par ${escapeHTML(manniereDuCoach().nom)}</span></div>
+      <p style="font-size:16px;line-height:1.5;margin-top:10px">${escapeHTML(j.verdict||"")}</p>
+    </div>
+
+    ${(j.marche||[]).length ? `<div class="block" style="border-left:2px solid var(--sage)">
+      <h3 style="color:var(--sage)">Ce qui a marché</h3>
+      ${(j.marche||[]).map(x=>`
+        <div style="margin-bottom:13px">
+          <p style="font-size:14.5px"><b style="color:var(--ink)">${escapeHTML(x.quoi||"")}</b></p>
+          ${x.cite ? `<p style="font-size:14px;color:var(--muted);margin-top:3px">« ${escapeHTML(x.cite)} »</p>` : ""}
+          <p style="font-size:13px;color:var(--muted);margin-top:3px">${escapeHTML(x.pourquoi||"")}</p>
+        </div>`).join("")}
+    </div>` : ""}
+
+    ${(j.ameliorer||[]).length ? `<div class="block" style="border-left:2px solid var(--amber)">
+      <h3 style="color:var(--amber)">Ce qu'il faut améliorer</h3>
+      ${(j.ameliorer||[]).map(x=>`
+        <div style="margin-bottom:13px">
+          <p style="font-size:14.5px"><b style="color:var(--ink)">${escapeHTML(x.quoi||"")}</b></p>
+          ${x.cite ? `<p style="font-size:14px;color:var(--muted);margin-top:3px">« ${escapeHTML(x.cite)} »</p>` : ""}
+          <p style="font-size:13.5px;margin-top:4px">${escapeHTML(x.comment||"")}</p>
+        </div>`).join("")}
+    </div>` : ""}
+
+    ${j.bascule && j.bascule.cite ? `<div class="block" style="border-left:2px solid var(--clay)">
+      <h3 style="color:var(--clay)">La phrase qui a fait basculer</h3>
+      <p style="font-size:17px;line-height:1.45">« ${escapeHTML(j.bascule.cite)} »</p>
+      <p style="font-size:13.5px;color:var(--muted);margin-top:7px">${escapeHTML(j.bascule.pourquoi||"")}</p>
+      ${j.bascule.replique ? `<button class="pill" data-scene="${+j.bascule.replique-1}" style="margin-top:11px;border-color:var(--amber);color:var(--amber)">Refaire cette scène</button>` : ""}
+    </div>` : ""}
+
+    ${(j.moments||[]).length ? `<div class="block">
+      <h3>Les moments décisifs</h3>
+      ${(j.moments||[]).map(x=>`
+        <div style="border-left:2px solid var(--line);padding-left:13px;margin-bottom:16px">
+          <div class="eyebrow">réplique ${escapeHTML(String(x.replique||"?"))}</div>
+          <p style="font-size:15px;margin-top:4px">« ${escapeHTML(x.cite||"")}</p>
+          <p style="font-size:13.5px;color:var(--muted);margin-top:5px"><b style="color:var(--ink)">Ce que tu as fait :</b> ${escapeHTML(x.fait||"")}</p>
+          <p style="font-size:13.5px;color:var(--muted);margin-top:3px"><b style="color:var(--ink)">Effet :</b> ${escapeHTML(x.effet||"")}</p>
+          <p style="font-size:14.5px;margin-top:6px"><b style="color:var(--amber)">À dire :</b> « ${escapeHTML(x.dire||"")} »</p>
+          ${x.replique ? `<button class="pill" data-scene="${+x.replique-1}" style="margin-top:9px">Refaire cette scène</button>` : ""}
+        </div>`).join("")}
+    </div>` : ""}
+
+    <div class="block" style="border-left:2px solid var(--steel)">
+      <h3>Pour le prochain call</h3>
+      <p style="font-size:15.5px;line-height:1.5">${escapeHTML(j.exercice||"")}</p>
+    </div>`;
+
+  // chaque moment peut être rejoué : on réutilise la scène du rejeu
+  $("lecture").querySelectorAll("[data-scene]").forEach(b=>{
+    b.onclick = () => ouvreSceneDepuisLecture(+b.dataset.scene);
+  });
+}
+
+/* Refaire une scène directement depuis la lecture, sans dérouler le call */
+function ouvreSceneDepuisLecture(i){
+  const tours = LECTURE.tours;
+  if(!tours[i]) return;
+  RJ = {tours, i: i + 1, timer:null, auto:0, coach:false, arrets:0};
+  S.prospect = LECTURE.nom;
+  S.running = true; S.t0 = Date.now();
+  rejeuEnPause = true;
+  const t = tours[i];
+  const m = (LECTURE.j.moments||[]).find(x => +x.replique === i + 1) || LECTURE.j.bascule || {};
+  montreArret({quoi:m.fait||"", pourquoi:m.effet||m.pourquoi||"", dire:m.dire||"", cause:null}, t);
+  $("rejeu").classList.remove("on"); $("call").classList.add("on");
+  $("btnRefaireScene").click();
+}
 
 /* ---- Ma progression : ce que tes calls disent de toi ---- */
 function renderProg(){
