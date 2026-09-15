@@ -362,6 +362,34 @@ aside{
         <div class="d" id="driftD"></div>
       </div>
 
+      <div class="block" id="scenePanneau" style="display:none;border-left:2px solid var(--clay);flex-shrink:0">
+        <div class="tagline">
+          <span class="tag" id="sceneTag">STOP</span>
+          <span id="sceneQuand" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <p id="sceneQuoi" style="font-size:16px;line-height:1.45;margin-top:9px"></p>
+        <p id="scenePourquoi" style="font-size:13.5px;color:var(--muted);margin-top:8px;line-height:1.55"></p>
+        <div id="sceneDire" style="margin-top:11px"></div>
+
+        <div id="sceneJeu" style="display:none;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)">
+          <p id="sceneLui" style="font-size:17px;line-height:1.45"></p>
+          <textarea id="sceneMoi" style="width:100%;min-height:70px;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:11px 13px;color:var(--ink);margin-top:10px;font-family:inherit;font-size:14px" placeholder="Ce que tu dis cette fois…"></textarea>
+          <div class="row" style="margin-top:9px">
+            <button class="pill" id="btnSceneEnvoi" style="border-color:var(--amber);color:var(--amber)">Envoyer</button>
+            <button class="pill" id="btnSceneMicro">Micro</button>
+            <button class="pill" id="btnSceneComparer">Comparer avec l'original</button>
+          </div>
+          <div id="sceneHisto" style="margin-top:12px"></div>
+        </div>
+
+        <div id="sceneCompare" style="display:none;margin-top:13px"></div>
+
+        <div class="row" style="margin-top:13px">
+          <button class="pill" id="btnRefaireScene" style="border-color:var(--amber);color:var(--amber)">Refaire cette scène</button>
+          <button class="pill" id="btnContinuerRejeu">Continuer le call</button>
+        </div>
+      </div>
+
       <div class="card" id="card">
         <div class="tagline">
           <span class="tag" id="tag">En écoute</span>
@@ -715,6 +743,10 @@ aside{
       <textarea id="rjTexte" placeholder="[00:00] Woidih: Bonjour Marie...&#10;[00:05] Marie: Bonjour..." style="width:100%;min-height:170px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:12px 14px;font-size:13.5px;font-family:inherit;line-height:1.5;resize:vertical"></textarea>
       <div class="row" style="margin-top:12px">
         <input id="rjMoi" value="Woidih" placeholder="Ton nom dans le transcript" style="background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:10px 13px;border-radius:9px;font-size:13.5px;font-family:inherit;width:190px">
+        <select id="rjMode" class="pill" style="background:var(--bg)">
+          <option value="coach" selected>Avec le coach — il m'arrête et je refais</option>
+          <option value="libre">Sans arrêt — je regarde seulement</option>
+        </select>
         <select id="rjVitesse" class="pill" style="background:var(--bg)">
           <option value="0">Pas à pas — j'appuie pour avancer</option>
           <option value="2500">Une réplique toutes les 2,5 s</option>
@@ -3143,7 +3175,8 @@ function parseTranscript(txt, moi){
   return out;
 }
 
-function tourSuivant(){
+async function tourSuivant(){
+  if(rejeuEnPause) return;
   if(RJ.i >= RJ.tours.length){
     $("heardTxt").textContent = "Rejeu terminé. Tu peux cliquer sur Terminer le call pour le débrief.";
     clearInterval(RJ.timer); return;
@@ -3157,7 +3190,226 @@ function tourSuivant(){
   // en rejeu on connaît qui parle : on l'impose au lieu de deviner
   nouvellePhrase(t.text, {qui: t.moi ? "CLOSER" : "PROSPECT", surete: 1});
   if(!RJ.auto) $("fileTxt").textContent = `réplique ${RJ.i}/${RJ.tours.length}`;
+
+  // Le coach regarde ce que TU viens de dire. S'il voit quelque chose, il arrête.
+  if(RJ.coach && t.moi && t.text.split(/\s+/).length > 4 && (RJ.arrets||0) < 5){
+    try{
+      const c = await coachRegardeRejeu(RJ.i - 1);
+      if(c && c.stop){ RJ.arrets = (RJ.arrets||0) + 1; montreArret(c, t); }
+    }catch(e){ /* le coach n'a pas répondu : le call continue */ }
+  }
 }
+
+
+/* =========================================================
+   REFAIRE LA SCÈNE — le coach regarde ton call se dérouler,
+   s'arrête quand quelque chose compte, et te fait rejouer le passage.
+   ========================================================= */
+let SCENE = null;
+let rejeuEnPause = false;
+
+/* Il ne regarde que TES prises de parole, et seulement celles qui pèsent. */
+async function coachRegardeRejeu(indexClos){
+  const avant = RJ.tours.slice(Math.max(0, indexClos - 6), indexClos);
+  const moi = RJ.tours[indexClos];
+  const apres = RJ.tours.slice(indexClos + 1, indexClos + 3);
+  const l = fichesDuSegment ? [] : [];
+  const bonnes = FICHES.filter(f=>["bill walsh","josh lyons","ben byrne","vente complexe"].includes(f.ecole))
+    .slice(0, 0);   // on ne charge pas les fiches ici : on veut un repérage, pas un cours
+
+  const txt = await callClaude(
+`Tu es un coach de closing. Tu regardes l'enregistrement d'un vrai call avec ton élève, et tu peux l'arrêter.
+
+CE QUI PRÉCÈDE
+${avant.map(t=>(t.moi?"CLOSER":"PROSPECT")+" : "+t.text).join("\n") || "(début du call)"}
+
+CE QUE LE CLOSER A DIT À CE MOMENT-LÀ
+« ${moi.text} »
+
+CE QUI S'EST PASSÉ JUSTE APRÈS
+${apres.map(t=>(t.moi?"CLOSER":"PROSPECT")+" : "+t.text).join("\n") || "(fin du call)"}
+
+Tu n'arrêtes QUE sur un moment qui a compté. Pas sur une formulation perfectible, pas sur un détail.
+Tu arrêtes si : il justifie ou argumente au lieu de questionner, il traite une objection sans en connaître la cause, il avance alors qu'une couche n'est pas obtenue, il coupe le prospect qui allait livrer quelque chose, il console au lieu de creuser, il pitche trop tôt, il laisse passer un chiffre ou un signal, il abandonne un paiement, ou il lâche la main du call.
+Sur un call entier, cinq arrêts maximum. Sois exigeant sur ce que tu retiens.
+
+Observation puis interprétation, jamais de certitude psychologique. Ne dis pas « le prospect ment » mais « il se tait après le prix, ce qui peut vouloir dire plusieurs choses ».
+Si la dégradation a commencé plus tôt, dis-le : distingue la cause de la conséquence.
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"stop":true ou false,
+ "quoi":"ce qu il vient de faire, une phrase directe, ou null",
+ "pourquoi":"pourquoi ca compte ici et ce que ca a provoque ensuite, deux phrases, ou null",
+ "dire":"la phrase exacte qu il aurait du dire a la place, ou null",
+ "cause":"si la vraie cause est plus tot dans le call, dis ou et quoi, sinon null"}`, 700);
+  return parseModelJson(txt);
+}
+
+function montreArret(c, t){
+  rejeuEnPause = true;
+  clearInterval(RJ.timer);
+  $("sceneQuand").textContent = "réplique " + RJ.i + "/" + RJ.tours.length + " — « " + t.text.slice(0, 70) + (t.text.length>70?"…":"") + " »";
+  $("sceneQuoi").textContent = c.quoi || "";
+  $("scenePourquoi").textContent = (c.pourquoi || "") + (c.cause ? "\n\nLa cause est plus tôt : " + c.cause : "");
+  $("sceneDire").innerHTML = c.dire
+    ? `<div style="border-left:2px solid var(--amber);padding-left:12px">
+         <div class="eyebrow" style="color:var(--amber)">Ce qu'il fallait dire</div>
+         <p style="font-size:16px;margin-top:4px;line-height:1.45">« ${escapeHTML(c.dire)} »</p></div>` : "";
+  $("sceneJeu").style.display = "none";
+  $("sceneCompare").style.display = "none";
+  $("sceneCompare").innerHTML = "";
+  $("scenePanneau").style.display = "block";
+  SCENE = {index: RJ.i - 1, original: t.text, conseil: c.dire || "", quoi: c.quoi || "", tours: []};
+  if(sparCanal === "vocal" && MOTEUR_VOIX !== "nav"){
+    const dit = [c.quoi, c.pourquoi, c.dire ? "Tu aurais dû dire : " + c.dire : ""].filter(Boolean).join(" ");
+    faisParlerCoach(dit, ()=>{});
+  }
+}
+
+
+/* Refaire la scène : le prospect est joué à partir de son état exact
+   au moment de l'erreur, pas depuis le début du call. */
+async function repondDansLaScene(ceQueJeDis){
+  const i = SCENE.index;
+  const avant = RJ.tours.slice(Math.max(0, i - 8), i);
+  const suite = RJ.tours.slice(i + 1, i + 4);
+  const nom = (RJ.tours.find(x=>!x.moi) || {}).nom || "le prospect";
+
+  const txt = await callClaude(
+`Tu joues ${nom}, un vrai prospect, dans une scène rejouée. Tu n'es pas un assistant, tu ne coaches jamais.
+
+LE CALL JUSQU'À CE MOMENT — c'est tout ce que tu sais et tout ce que tu as dit
+${avant.map(t=>(t.moi?"CLOSER":nom.toUpperCase())+" : "+t.text).join("\n")}
+
+CE QUE LE CLOSER AVAIT DIT CE JOUR-LÀ, et que vous rejouez autrement : « ${SCENE.original} »
+CE QUE TU AVAIS RÉPONDU ENSUITE, pour que tu saches où tu en étais : ${suite.map(t=>(t.moi?"[lui] ":"[toi] ")+t.text).join(" / ") || "(rien)"}
+
+CETTE FOIS IL DIT AUTRE CHOSE. Réagis à ce qu'il dit MAINTENANT, pas à ce qu'il avait dit.
+S'il fait mieux — s'il questionne au lieu d'argumenter, s'il reprend tes mots, s'il touche juste — tu vas plus loin que ce jour-là : tu donnes un détail, un chiffre, ou quelque chose de plus personnel.
+S'il fait pareil ou pire, tu réagis comme ce jour-là, ou tu te fermes un peu plus.
+Tu restes exactement la même personne : même situation, mêmes chiffres, même façon de parler. Ne récite jamais les phrases du transcript.
+
+${SCENE.tours.length ? "LA SCÈNE REJOUÉE JUSQU'ICI :\n" + SCENE.tours.map(t=>(t.moi?"CLOSER":nom.toUpperCase())+" : "+t.txt).join("\n") : ""}
+
+IL DIT MAINTENANT : « ${ceQueJeDis} »
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"dit":"ta reponse, 1 a 3 phrases, du francais parle",
+ "ton":"ce que ta voix trahit, 8 mots max",
+ "mieux":true si sa version est meilleure que celle du vrai call sinon false}`, 600);
+  return parseModelJson(txt);
+}
+
+function rendScene(){
+  const nom = (RJ.tours.find(x=>!x.moi) || {}).nom || "Prospect";
+  $("sceneHisto").innerHTML = SCENE.tours.map(t=>
+    `<div class="tour ${t.moi?"moi":""}"><div class="q">${t.moi?"Toi":escapeHTML(nom)}</div>${escapeHTML(t.txt)}</div>`).join("");
+}
+
+$("btnRefaireScene").onclick = () => {
+  if(!SCENE) return;
+  $("sceneJeu").style.display = "block";
+  $("sceneLui").textContent = "Reprends à partir d'ici. Dis ce que tu aurais dû dire.";
+  $("sceneMoi").value = "";
+  $("sceneMoi").focus();
+  $("sceneCompare").style.display = "none";
+};
+
+$("btnSceneEnvoi").onclick = async () => {
+  const m = $("sceneMoi").value.trim();
+  if(!m || !SCENE) return;
+  SCENE.tours.push({moi:true, txt:m});
+  $("sceneMoi").value = "";
+  rendScene();
+  $("sceneLui").textContent = "…";
+  try{
+    const r = await repondDansLaScene(m);
+    SCENE.tours.push({moi:false, txt:r.dit});
+    SCENE.mieux = r.mieux;
+    $("sceneLui").textContent = "« " + r.dit + " »";
+    $("sceneTag").textContent = r.mieux ? "MIEUX QUE L'ORIGINAL" : "SCÈNE REJOUÉE";
+    $("sceneTag").className = r.mieux ? "tag green" : "tag";
+    rendScene();
+    if(sparCanal === "vocal" && MOTEUR_VOIX !== "nav") faisParler(r.dit, ()=>{});
+  }catch(e){
+    $("sceneLui").textContent = "Le prospect n'a pas répondu : " + e.message;
+  }
+};
+
+$("btnSceneMicro").onclick = () => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR) return toast("Pas de micro dans ce navigateur");
+  if(SCENE && SCENE.rec){ try{SCENE.rec.stop()}catch(e){} SCENE.rec = null; $("btnSceneMicro").textContent = "Micro"; return; }
+  const r = new SR(); r.lang = "fr-FR"; r.continuous = true; r.interimResults = true;
+  let fige = "";
+  r.onresult = e => {
+    let vol = "";
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const t = e.results[i][0].transcript;
+      if(e.results[i].isFinal) fige += t + " "; else vol += t;
+    }
+    $("sceneMoi").value = (fige + vol).trim();
+  };
+  r.onend = () => { if(SCENE && SCENE.rec){ try{ r.start() }catch(e){} } };
+  try{ r.start(); SCENE.rec = r; $("btnSceneMicro").textContent = "Micro actif"; }catch(e){}
+};
+
+$("btnSceneComparer").onclick = async () => {
+  if(!SCENE || !SCENE.tours.length) return toast("Refais d'abord la scène");
+  $("sceneCompare").style.display = "block";
+  $("sceneCompare").innerHTML = '<p style="color:var(--muted)">Comparaison…</p>';
+  const nom = (RJ.tours.find(x=>!x.moi) || {}).nom || "le prospect";
+  const suite = RJ.tours.slice(SCENE.index + 1, SCENE.index + 4);
+  try{
+    const txt = await callClaude(
+`Tu es ${manniereDuCoach().nom}, coach de closing. Tu compares deux versions du même moment d'un call.
+
+${manniereDuCoach().ton}
+
+CE QUI PRÉCÉDAIT
+${RJ.tours.slice(Math.max(0,SCENE.index-5), SCENE.index).map(t=>(t.moi?"CLOSER":nom.toUpperCase())+" : "+t.text).join("\n")}
+
+VERSION 1 — ce qu'il avait dit le jour du call
+CLOSER : « ${SCENE.original} »
+Et ensuite : ${suite.map(t=>(t.moi?"[lui] ":"[prospect] ")+t.text).join(" / ") || "(fin)"}
+
+VERSION 2 — ce qu'il vient de refaire
+${SCENE.tours.map(t=>(t.moi?"CLOSER":nom.toUpperCase())+" : "+t.txt).join("\n")}
+
+Compare franchement, sans flatterie, en français, en le tutoyant.
+Si la version 2 n'est pas meilleure, dis-le nettement. Si elle est meilleure, dis précisément sur quoi.
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"verdict":"mieux|pareil|moins bien",
+ "mieux":"ce qui est meilleur dans la version 2, une ou deux phrases, ou null",
+ "faible":"ce qui reste faible malgre le nouvel essai, une ou deux phrases",
+ "effet":"ce que ta nouvelle version aurait probablement change pour la suite du call, une phrase",
+ "encore":"la seule chose a ajouter pour que ce soit vraiment bon, une phrase"}`, 800);
+    const j = parseModelJson(txt);
+    const c = j.verdict === "mieux" ? "var(--sage)" : j.verdict === "pareil" ? "var(--amber)" : "var(--clay)";
+    $("sceneCompare").innerHTML = `
+      <div style="border-left:2px solid ${c};padding-left:13px">
+        <div class="eyebrow" style="color:${c}">${escapeHTML(j.verdict||"")}</div>
+        ${j.mieux ? `<p style="font-size:14px;margin-top:6px"><b style="color:var(--ink)">Meilleur :</b> ${escapeHTML(j.mieux)}</p>` : ""}
+        <p style="font-size:14px;margin-top:6px"><b style="color:var(--ink)">Encore faible :</b> ${escapeHTML(j.faible||"")}</p>
+        <p style="font-size:14px;margin-top:6px"><b style="color:var(--ink)">Effet sur la suite :</b> ${escapeHTML(j.effet||"")}</p>
+        <p style="font-size:14px;margin-top:6px"><b style="color:var(--amber)">Il te manque :</b> ${escapeHTML(j.encore||"")}</p>
+      </div>`;
+    SCENE.faiblesse = j.encore || j.faible;
+  }catch(e){
+    $("sceneCompare").innerHTML = '<p style="color:var(--clay)">' + escapeHTML(e.message) + '</p>';
+  }
+};
+
+$("btnContinuerRejeu").onclick = () => {
+  if(SCENE && SCENE.rec){ try{SCENE.rec.stop()}catch(e){} SCENE.rec = null; }
+  $("scenePanneau").style.display = "none";
+  $("sceneTag").textContent = "STOP"; $("sceneTag").className = "tag";
+  rejeuEnPause = false;
+  SCENE = null;
+  if(RJ.auto){ RJ.timer = setInterval(tourSuivant, RJ.auto); tourSuivant(); }
+  else $("fileTxt").textContent = "appuie sur Suivant";
+};
 
 /* ---- Ma progression : ce que tes calls disent de toi ---- */
 function renderProg(){
@@ -5456,7 +5708,10 @@ $("btnRjGo").onclick = () => {
   }
   const moi = tours.filter(t=>t.moi).length;
   $("rjInfo").textContent = `${tours.length} tours reconnus — ${moi} toi, ${tours.length-moi} le prospect.`;
-  RJ = {tours, i:0, timer:null, auto: +$("rjVitesse").value};
+  RJ = {tours, i:0, timer:null, auto: +$("rjVitesse").value,
+        coach: $("rjMode").value === "coach", arrets:0};
+  rejeuEnPause = false;
+  $("scenePanneau").style.display = "none";
   S.prospect = (tours.find(t=>!t.moi)||{}).nom || "Prospect";
   S.running = true; S.t0 = Date.now(); S.lastSpeech = Date.now();
   $("rejeu").classList.remove("on"); $("call").classList.add("on");
