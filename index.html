@@ -755,6 +755,19 @@ aside{
         </div>
       </div>
 
+      <div class="block" style="margin-top:14px;border-left:2px solid var(--amber)">
+        <h3>L'enregistrement du call</h3>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:9px">Dépose l'audio ou la vidéo — l'export Fathom, Zoom ou Meet marche directement. Le coach regarde avec toi et arrête la lecture quand il voit quelque chose.</p>
+        <div id="audioDrop" style="border:1.5px dashed var(--line);border-radius:11px;padding:18px;text-align:center;cursor:pointer">
+          <strong style="font-size:14.5px">Dépose ton enregistrement</strong><br>
+          <span style="font-size:12.5px;color:var(--muted)">mp4, mov, webm, mp3, m4a, wav…</span>
+          <input type="file" id="audioFichier" accept="audio/*,video/*" hidden>
+        </div>
+        <audio id="lecteur" controls style="width:100%;margin-top:11px;display:none"></audio>
+        <video id="lecteurVideo" controls playsinline style="width:100%;margin-top:11px;display:none;border-radius:11px;background:#000"></video>
+        <p id="audioEtat" style="font-size:12.5px;color:var(--muted);margin-top:8px"></p>
+      </div>
+
       <div id="lecture" style="margin-top:16px"></div>
 
       <div class="row" style="margin-top:12px">
@@ -3138,12 +3151,18 @@ PRET = loadKey().then(()=>{
 let RJ = {tours:[], i:0, timer:null, auto:0};
 
 function nettoie(ligne){
-  return ligne
+  let l = ligne
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/[*_`>#]/g, "")
-    .replace(/^\s*\[?\d{1,2}:\d{2}(:\d{2})?\]?\s*[-–—|]?\s*/, "")
-    .replace(/\(\s*\d{1,2}:\d{2}(:\d{2})?\s*\)\s*$/, "")
-    .trim();
+    .replace(/[*_`>#]/g, "");
+  // On ne jette plus l'horodatage : on le met de côté sous une forme unique,
+  // c'est lui qui permettra d'arrêter l'audio au bon endroit.
+  let h = null;
+  const d = l.match(/^\s*\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*[-–—|]?\s*/);
+  if(d){ h = d[1]; l = l.slice(d[0].length); }
+  const f = l.match(/[\s(]\(?(\d{1,2}:\d{2}(?::\d{2})?)\)?\s*$/);
+  if(f){ if(!h) h = f[1]; l = l.slice(0, f.index); }
+  l = l.trim();
+  return h && l ? "\u0001" + h + "\u0001" + l : l;
 }
 
 function parseTranscript(txt, moi){
@@ -3153,12 +3172,15 @@ function parseTranscript(txt, moi){
 
   // 1er passage : qui sont les interlocuteurs ? un nom se répète, une phrase non.
   const compte = {}, noms = new Set();
-  lignes.forEach(l=>{
+  lignes.forEach(l0=>{
+    const l = l0.replace(/^\u0001[\d:]+\u0001/, "");
     const m = l.match(nomTexte);
     if(m && m[1].split(/\s+/).length <= 5){ noms.add(m[1].trim()); return; }
     const sansHeure = l.replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/, "").trim();
     if(nomSeul.test(sansHeure) && sansHeure.split(/\s+/).length <= 5 && !/[.!?,]$/.test(sansHeure))
       compte[sansHeure] = (compte[sansHeure]||0) + 1;
+    else if(/^\u0001/.test(l0) && nomSeul.test(l) && l.split(/\s+/).length <= 5 && !/[.!?,]$/.test(l))
+      compte[l] = (compte[l]||0) + 1;
   });
   Object.entries(compte).forEach(([n,c])=>{ if(c >= 2) noms.add(n); });
   // transcript très court : on accepte un nom vu une seule fois s'il a au moins deux mots
@@ -3167,16 +3189,30 @@ function parseTranscript(txt, moi){
     if(n.split(/\s+/).length >= 2 && capitalise(n)) noms.add(n);
   });
 
-  // 2e passage : découpage réel
+  // 2e passage : découpage réel. On garde l'horodatage quand il y en a un :
+  // c'est lui qui permettra d'arrêter l'audio au bon endroit.
+  const enSecondes = h => {
+    if(!h) return null;
+    const p = h.split(":").map(Number);
+    return p.length === 3 ? p[0]*3600 + p[1]*60 + p[2] : p[0]*60 + p[1];
+  };
   const brut = []; let courant = null;
   lignes.forEach(l=>{
+    let heure = null;
+    const marque = l.match(/^\u0001([\d:]+)\u0001/);
+    if(marque){ heure = marque[1]; l = l.slice(marque[0].length); }
+
     const m = l.match(nomTexte);
     if(m && noms.has(m[1].trim())){
-      courant = {nom: m[1].trim(), text: m[2].trim()}; brut.push(courant); return;
+      courant = {nom: m[1].trim(), text: m[2].trim(), t: enSecondes(heure)}; brut.push(courant); return;
     }
     const sansHeure = l.replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/, "").trim();
     if(noms.has(sansHeure)){
-      courant = {nom: sansHeure, text: ""}; brut.push(courant); return;
+      courant = {nom: sansHeure, text: "", t: enSecondes(heure)}; brut.push(courant); return;
+    }
+    // format « Nom  00:12 » sur sa propre ligne : le nom est seul, l'heure était en fin
+    if(heure && nomSeul.test(l.trim()) && l.trim().split(/\s+/).length <= 5){
+      courant = {nom: l.trim(), text: "", t: enSecondes(heure)}; brut.push(courant); return;
     }
     if(courant) courant.text += (courant.text ? " " : "") + l;
     else { courant = {nom:"?", text:l}; brut.push(courant); }
@@ -3188,7 +3224,7 @@ function parseTranscript(txt, moi){
     const estMoi = x.nom !== "?" && x.nom.toLowerCase().includes(moi.toLowerCase());
     const p = out[out.length-1];
     if(p && p.nom === x.nom) p.text += " " + x.text;
-    else out.push({moi: estMoi, nom: x.nom, text: x.text.trim()});
+    else out.push({moi: estMoi, nom: x.nom, text: x.text.trim(), t: x.t});
   });
   return out;
 }
@@ -3451,6 +3487,13 @@ Réponds uniquement avec ce JSON, sans markdown :
 $("btnContinuerRejeu").onclick = () => {
   if(SCENE && SCENE.rec){ try{SCENE.rec.stop()}catch(e){} SCENE.rec = null; }
   $("scenePanneau").style.display = "none";
+  // si on écoutait l'enregistrement, on le relance là où il s'était arrêté
+  if(AUDIO_CALL && AUDIO_CALL.paused && MARQUES.length){
+    $("call").classList.remove("on"); $("rejeu").classList.add("on");
+    rejeuEnPause = false; SCENE = null;
+    AUDIO_CALL.play();
+    return;
+  }
   $("sceneTag").textContent = "STOP"; $("sceneTag").className = "tag";
   rejeuEnPause = false;
   SCENE = null;
@@ -3545,11 +3588,105 @@ Réponds uniquement avec ce JSON, sans markdown :
     const j = parseModelJson(txt);
     LECTURE = {j, tours, nom};
     rendLecture();
+    if(AUDIO_CALL) poseLesMarques();
   }catch(e){
     $("lecture").innerHTML = '<p style="color:var(--clay)">Lecture impossible : ' + escapeHTML(e.message) + '</p>';
   }
   $("btnLire").disabled = false;
 };
+
+
+/* Le débrief dit à voix haute. Certains lisent, d'autres écoutent —
+   et pendant un trajet, personne ne lit. */
+function texteDuDebrief(){
+  if(!LECTURE) return "";
+  const j = LECTURE.j;
+  const b = [];
+  b.push("Alors. " + (j.verdict || ""));
+  b.push("Je te mets " + j.note + " sur 10.");
+  if((j.marche||[]).length){
+    b.push("Ce qui a marché.");
+    j.marche.forEach(x=>{
+      b.push(x.quoi + ".");
+      if(x.cite) b.push("Tu as dit : " + x.cite + ".");
+      if(x.pourquoi) b.push(x.pourquoi + ".");
+    });
+  }
+  if((j.ameliorer||[]).length){
+    b.push("Maintenant, ce que tu dois améliorer.");
+    j.ameliorer.forEach(x=>{
+      b.push(x.quoi + ".");
+      if(x.cite) b.push("Là tu as dit : " + x.cite + ".");
+      if(x.comment) b.push(x.comment);
+    });
+  }
+  if(j.bascule && j.bascule.cite){
+    b.push("Et il y a une phrase qui a fait basculer ce call.");
+    b.push(j.bascule.cite + ".");
+    b.push(j.bascule.pourquoi || "");
+  }
+  if((j.moments||[]).length){
+    b.push("Les moments qui comptent, il y en a " + j.moments.length + ".");
+    j.moments.forEach((x,i)=>{
+      b.push("Le " + (i+1) + ". Tu as dit : " + (x.cite||"") + ".");
+      b.push(x.fait || "");
+      if(x.effet) b.push("Et juste après, " + x.effet);
+      if(x.dire) b.push("Tu aurais dû dire : " + x.dire);
+    });
+  }
+  if(j.exercice) b.push("Pour ton prochain call. " + j.exercice);
+  return b.filter(Boolean).join(" ");
+}
+
+/* La trace écrite, exportable. On ne garde pas un débrief dans un onglet. */
+function debriefEnTexte(){
+  if(!LECTURE) return "";
+  const j = LECTURE.j, d = new Date().toLocaleDateString("fr-FR");
+  const l = [];
+  l.push("DÉBRIEF DE CALL — " + d);
+  l.push("Prospect : " + LECTURE.nom);
+  const ctx = $("rjContexte").value.trim();
+  if(ctx) l.push("Contexte : " + ctx);
+  if(rjIssueChoisie) l.push("Issue : " + rjIssueChoisie);
+  l.push("Coach : " + manniereDuCoach().nom + "   Note : " + j.note + "/10");
+  l.push("");
+  l.push("VERDICT");
+  l.push(j.verdict || "");
+  if((j.marche||[]).length){
+    l.push(""); l.push("CE QUI A MARCHÉ");
+    j.marche.forEach(x=>{
+      l.push("- " + (x.quoi||""));
+      if(x.cite) l.push("  « " + x.cite + " »");
+      if(x.pourquoi) l.push("  " + x.pourquoi);
+    });
+  }
+  if((j.ameliorer||[]).length){
+    l.push(""); l.push("À AMÉLIORER");
+    j.ameliorer.forEach(x=>{
+      l.push("- " + (x.quoi||""));
+      if(x.cite) l.push("  « " + x.cite + " »");
+      if(x.comment) l.push("  → " + x.comment);
+    });
+  }
+  if(j.bascule && j.bascule.cite){
+    l.push(""); l.push("LA PHRASE QUI A FAIT BASCULER");
+    l.push("« " + j.bascule.cite + " »");
+    l.push(j.bascule.pourquoi || "");
+  }
+  if((j.moments||[]).length){
+    l.push(""); l.push("LES MOMENTS DÉCISIFS");
+    j.moments.forEach(x=>{
+      l.push("");
+      l.push("[réplique " + (x.replique||"?") + "] « " + (x.cite||"") + " »");
+      l.push("  Ce que tu as fait : " + (x.fait||""));
+      l.push("  Effet : " + (x.effet||""));
+      l.push("  À dire : « " + (x.dire||"") + " »");
+    });
+  }
+  l.push(""); l.push("POUR LE PROCHAIN CALL");
+  l.push(j.exercice || "");
+  return l.join("\n");
+}
 
 function rendLecture(){
   const {j, tours} = LECTURE;
@@ -3558,6 +3695,11 @@ function rendLecture(){
     <div class="block" style="border-left:2px solid ${c}">
       <div class="tagline"><span class="tag" style="border-color:${c};color:${c}">${j.note}/10 — vu par ${escapeHTML(manniereDuCoach().nom)}</span></div>
       <p style="font-size:16px;line-height:1.5;margin-top:10px">${escapeHTML(j.verdict||"")}</p>
+      <div class="row" style="margin-top:13px">
+        <button class="pill" id="btnEcouterDebrief" style="border-color:var(--amber);color:var(--amber)">Écouter le débrief</button>
+        <button class="pill" id="btnCopierDebrief">Copier le texte</button>
+        <button class="pill" id="btnTelechargerDebrief">Télécharger</button>
+      </div>
     </div>
 
     ${(j.marche||[]).length ? `<div class="block" style="border-left:2px solid var(--sage)">
@@ -3596,7 +3738,10 @@ function rendLecture(){
           <p style="font-size:13.5px;color:var(--muted);margin-top:5px"><b style="color:var(--ink)">Ce que tu as fait :</b> ${escapeHTML(x.fait||"")}</p>
           <p style="font-size:13.5px;color:var(--muted);margin-top:3px"><b style="color:var(--ink)">Effet :</b> ${escapeHTML(x.effet||"")}</p>
           <p style="font-size:14.5px;margin-top:6px"><b style="color:var(--amber)">À dire :</b> « ${escapeHTML(x.dire||"")} »</p>
-          ${x.replique ? `<button class="pill" data-scene="${+x.replique-1}" style="margin-top:9px">Refaire cette scène</button>` : ""}
+          <div class="row" style="margin-top:9px">
+            <button class="pill" data-dire="${escapeHTML((x.fait||"") + ". " + (x.effet||"") + ". Tu aurais dû dire : " + (x.dire||""))}">Écouter</button>
+            ${x.replique ? `<button class="pill" data-scene="${+x.replique-1}">Refaire cette scène</button>` : ""}
+          </div>
         </div>`).join("")}
     </div>` : ""}
 
@@ -3609,6 +3754,31 @@ function rendLecture(){
   $("lecture").querySelectorAll("[data-scene]").forEach(b=>{
     b.onclick = () => ouvreSceneDepuisLecture(+b.dataset.scene);
   });
+  $("lecture").querySelectorAll("[data-dire]").forEach(b=>{
+    b.onclick = () => { debloqueSon(); if(AUDIO_CALL) AUDIO_CALL.pause(); faisParlerCoach(b.dataset.dire, ()=>{}); };
+  });
+
+  let enLecture = false;
+  $("btnEcouterDebrief").onclick = function(){
+    debloqueSon();
+    if(enLecture){ coupeAudio(); enLecture = false; this.textContent = "Écouter le débrief"; return; }
+    if(AUDIO_CALL) AUDIO_CALL.pause();
+    enLecture = true; this.textContent = "Arrêter";
+    const b = this;
+    faisParlerCoach(texteDuDebrief(), () => { enLecture = false; b.textContent = "Écouter le débrief"; });
+  };
+  $("btnCopierDebrief").onclick = function(){
+    navigator.clipboard.writeText(debriefEnTexte());
+    this.textContent = "Copié"; setTimeout(()=>{ this.textContent = "Copier le texte"; }, 1500);
+  };
+  $("btnTelechargerDebrief").onclick = () => {
+    const nom = "debrief-" + (LECTURE.nom||"call").toLowerCase().replace(/[^a-z0-9]+/g,"-") +
+                "-" + new Date().toISOString().slice(0,10) + ".txt";
+    const bl = new Blob([debriefEnTexte()], {type:"text/plain;charset=utf-8"});
+    const a = document.createElement("a"), u = URL.createObjectURL(bl);
+    a.href = u; a.download = nom; a.click();
+    setTimeout(()=>URL.revokeObjectURL(u), 1000);
+  };
 }
 
 /* Refaire une scène directement depuis la lecture, sans dérouler le call */
@@ -3625,6 +3795,77 @@ function ouvreSceneDepuisLecture(i){
   $("rejeu").classList.remove("on"); $("call").classList.add("on");
   $("btnRefaireScene").click();
 }
+
+
+/* =========================================================
+   ÉCOUTER LE CALL AVEC LE COACH.
+   L'audio tourne. Aux moments qu'il a repérés, il coupe le son,
+   il t'explique, et tu peux refaire la scène avant de reprendre.
+   ========================================================= */
+let AUDIO_CALL = null, MARQUES = [], marqueFaite = new Set();
+
+$("audioDrop").onclick = () => $("audioFichier").click();
+$("audioDrop").ondragover = e => { e.preventDefault(); $("audioDrop").style.borderColor = "var(--amber)"; };
+$("audioDrop").ondragleave = () => $("audioDrop").style.borderColor = "var(--line)";
+$("audioDrop").ondrop = e => { e.preventDefault(); $("audioDrop").style.borderColor = "var(--line)"; chargeAudio(e.dataTransfer.files[0]); };
+$("audioFichier").onchange = e => chargeAudio(e.target.files[0]);
+
+function chargeAudio(f){
+  if(!f) return;
+  // vidéo ou audio, c'est le même mécanisme : on arrête la lecture au bon endroit
+  const estVideo = /^video\//.test(f.type) || /\.(mp4|mov|webm|mkv|avi)$/i.test(f.name);
+  const l = $(estVideo ? "lecteurVideo" : "lecteur");
+  const autre = $(estVideo ? "lecteur" : "lecteurVideo");
+  autre.style.display = "none"; autre.src = "";
+  l.src = URL.createObjectURL(f);
+  l.style.display = "block";
+  AUDIO_CALL = l;
+  $("audioEtat").innerHTML = '<span style="color:var(--sage)">' + escapeHTML(f.name) +
+    (estVideo ? " — vidéo chargée." : " — audio chargé.") +
+    ' Lance « Le coach lit mon call », puis appuie sur lecture.</span>';
+  l.ontimeupdate = surveilleAudio;
+  l.onplay = () => { if(LECTURE && !MARQUES.length) poseLesMarques(); };
+}
+
+/* Les moments repérés par la lecture deviennent des points d'arrêt sur l'audio. */
+function poseLesMarques(){
+  MARQUES = []; marqueFaite.clear();
+  if(!LECTURE) return 0;
+  const tours = LECTURE.tours;
+  const avecHeure = tours.filter(t => t.t != null).length;
+  const duree = (AUDIO_CALL && AUDIO_CALL.duration) || 0;
+
+  const pose = (rep, m) => {
+    const i = (+rep) - 1;
+    const t = tours[i];
+    if(!t) return;
+    let sec = t.t;
+    // pas d'horodatage : on estime par la position dans le call
+    if(sec == null && duree) sec = Math.round(duree * (i / tours.length));
+    if(sec == null) return;
+    MARQUES.push({sec: Math.max(0, sec - 1), index: i, m});
+  };
+  (LECTURE.j.moments||[]).forEach(x => pose(x.replique, x));
+  if(LECTURE.j.bascule && LECTURE.j.bascule.replique) pose(LECTURE.j.bascule.replique, LECTURE.j.bascule);
+  MARQUES.sort((a,b)=>a.sec-b.sec);
+  $("audioEtat").innerHTML = MARQUES.length
+    ? `<span style="color:var(--amber)">${MARQUES.length} arrêt${MARQUES.length>1?"s":""} posé${MARQUES.length>1?"s":""} sur l'enregistrement` +
+      (avecHeure ? " d'après les horodatages du transcript." : ", estimés — ton transcript n'a pas d'horodatage, ce sera approximatif.") + "</span>"
+    : '<span style="color:var(--muted)">Aucun arrêt à poser.</span>';
+  return MARQUES.length;
+}
+
+function surveilleAudio(){
+  if(!AUDIO_CALL || !MARQUES.length) return;
+  const t = AUDIO_CALL.currentTime;
+  const m = MARQUES.find(x => !marqueFaite.has(x.index) && t >= x.sec);
+  if(!m) return;
+  marqueFaite.add(m.index);
+  AUDIO_CALL.pause();
+  ouvreSceneDepuisLecture(m.index);
+}
+
+
 
 /* ---- Ma progression : ce que tes calls disent de toi ---- */
 function renderProg(){
