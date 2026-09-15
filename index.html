@@ -3343,10 +3343,9 @@ function montreArret(c, t){
   $("sceneCompare").innerHTML = "";
   $("scenePanneau").style.display = "block";
   SCENE = {index: RJ.i - 1, original: t.text, conseil: c.dire || "", quoi: c.quoi || "", tours: []};
-  if(sparCanal === "vocal" && MOTEUR_VOIX !== "nav"){
-    const dit = [c.quoi, c.pourquoi, c.dire ? "Tu aurais dû dire : " + c.dire : ""].filter(Boolean).join(" ");
-    faisParlerCoach(dit, ()=>{});
-  }
+  // Le coach parle toujours, même avec la voix du navigateur.
+  const dit = [c.quoi, c.pourquoi, c.dire ? "Tu aurais dû dire : " + c.dire : ""].filter(Boolean).join(" ");
+  if(dit.trim()){ debloqueSon(); faisParlerCoach(dit, ()=>{}); }
 }
 
 
@@ -3413,7 +3412,7 @@ $("btnSceneEnvoi").onclick = async () => {
     $("sceneTag").textContent = r.mieux ? "MIEUX QUE L'ORIGINAL" : "SCÈNE REJOUÉE";
     $("sceneTag").className = r.mieux ? "tag green" : "tag";
     rendScene();
-    if(sparCanal === "vocal" && MOTEUR_VOIX !== "nav") faisParler(r.dit, ()=>{});
+    debloqueSon(); faisParler(r.dit, ()=>{});
   }catch(e){
     $("sceneLui").textContent = "Le prospect n'a pas répondu : " + e.message;
   }
@@ -3550,6 +3549,7 @@ $("btnLire").onclick = async () => {
   const fiches = FICHES.filter(f => !["moi","sami"].includes(f.ecole)).slice(0, 40)
     .map(f => `[${f.ecole}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n");
 
+  remetLectureAuDebut();
   $("lecture").innerHTML = '<p style="color:var(--amber)">Le coach lit ton call… une à deux minutes.</p>';
   $("btnLire").disabled = true;
   try{
@@ -3853,6 +3853,14 @@ function poseLesMarques(){
       (avecHeure ? " d'après les horodatages du transcript." : ", estimés — ton transcript n'a pas d'horodatage, ce sera approximatif.") + "</span>"
     : '<span style="color:var(--muted)">Aucun arrêt à poser.</span>';
   return MARQUES.length;
+}
+
+/* On repart du début : l'enregistrement au temps zéro, et tous les arrêts réarmés. */
+function remetLectureAuDebut(){
+  marqueFaite.clear();
+  if(AUDIO_CALL){
+    try{ AUDIO_CALL.pause(); AUDIO_CALL.currentTime = 0; }catch(e){}
+  }
 }
 
 function surveilleAudio(){
@@ -4446,8 +4454,9 @@ function coachDuMoment(){
   return e ? e[1].nom.split(" ")[0] : "Coach";
 }
 
+let VOIX_TOUJOURS = false;   // hors sparring, le coach parle quoi qu'il arrive
 async function faisParlerCoach(txt, apres){
-  if(sparCanal !== "vocal"){ if(apres) apres(); return; }
+  if(sparCanal !== "vocal" && !VOIX_TOUJOURS){ if(apres) apres(); return; }
   arreteSparMicro();
   sparParle = true;
   coupeAudio();
@@ -4503,7 +4512,7 @@ function morceaux(txt){
 }
 
 async function faisParler(txt, apres){
-  if(sparCanal !== "vocal"){ if(apres) apres(); return; }
+  if(sparCanal !== "vocal" && !VOIX_TOUJOURS){ if(apres) apres(); return; }
   arreteSparMicro();
   sparParle = true;
   coupeAudio();
@@ -6152,8 +6161,10 @@ Réponds uniquement avec ce JSON, sans markdown :
   }
 };
 
-$("btnRejouer").onclick = () => { $("home").style.display="none"; $("rejeu").classList.add("on"); };
-$("btnRjBack").onclick = () => { $("rejeu").classList.remove("on"); $("home").style.display="flex"; };
+$("btnRejouer").onclick = () => {
+  VOIX_TOUJOURS = true; $("home").style.display="none"; $("rejeu").classList.add("on"); };
+$("btnRjBack").onclick = () => {
+  VOIX_TOUJOURS = false; $("rejeu").classList.remove("on"); $("home").style.display="flex"; };
 
 $("btnRjGo").onclick = () => {
   const tours = parseTranscript($("rjTexte").value, $("rjMoi").value.trim() || "Woidih");
@@ -6168,6 +6179,7 @@ $("btnRjGo").onclick = () => {
         coach: $("rjMode").value === "coach", arrets:0};
   rejeuEnPause = false;
   $("scenePanneau").style.display = "none";
+  remetLectureAuDebut();
   S.prospect = (tours.find(t=>!t.moi)||{}).nom || "Prospect";
   S.running = true; S.t0 = Date.now(); S.lastSpeech = Date.now();
   $("rejeu").classList.remove("on"); $("call").classList.add("on");
