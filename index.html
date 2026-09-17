@@ -3219,10 +3219,32 @@ function nettoie(ligne){
   return h && l ? "\u0001" + h + "\u0001" + l : l;
 }
 
+/* Certains outils écrivent le nom sur une ligne et l'heure sur la suivante :
+     Woidih
+     00:12
+     Bonjour Carmen
+   On recolle les deux, sinon l'heure est jetée et le nom se perd dans le texte. */
+function recolleNomEtHeure(txt){
+  const l = txt.split(/\r?\n/);
+  const out = [];
+  const heureSeule = /^\s*\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*$/;
+  const nomSeul2 = /^\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,45})\s*$/;
+  for(let i = 0; i < l.length; i++){
+    const m = l[i].match(heureSeule);
+    const avant = out.length ? out[out.length-1] : "";
+    if(m && nomSeul2.test(avant) && !/[.!?,;:]$/.test(avant.trim())){
+      out[out.length-1] = avant.trim() + "  " + m[1];     // « Woidih  00:12 »
+      continue;
+    }
+    out.push(l[i]);
+  }
+  return out.join("\n");
+}
+
 function parseTranscript(txt, moi){
   const nomSeul  = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,45})$/;
   const nomTexte = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,45})\s*[:：]\s*(.*)$/;
-  const lignes = txt.split(/\r?\n/).map(nettoie).filter(Boolean);
+  const lignes = recolleNomEtHeure(txt).split(/\r?\n/).map(nettoie).filter(Boolean);
 
   // 1er passage : qui sont les interlocuteurs ? un nom se répète, une phrase non.
   const compte = {}, noms = new Set();
@@ -6472,16 +6494,32 @@ $("btnRjGo").onclick = () => {
   }
 };
 
-function nettoieSousTitres(txt){
+function nettoieSousTitres(txt0){
+  const txt = recolleNomEtHeure(txt0);
   const lignes = txt.split(/\r?\n/);
   const seuls = lignes.filter(l=>/^\s*\d{1,2}:\d{2}(:\d{2})?\s*$/.test(l)).length;
-  // beaucoup d'horodatages isolés = sous-titres YouTube : on recolle le texte
-  if(seuls > 5){
-    return lignes.filter(l=>!/^\s*\d{1,2}:\d{2}(:\d{2})?\s*$/.test(l))
-                 .map(l=>l.trim()).filter(Boolean).join(" ")
-                 .replace(/\s{2,}/g," ");
-  }
-  return txt;
+  if(seuls <= 5) return txt;
+
+  /* Beaucoup d'horodatages isolés : ça peut être des sous-titres YouTube,
+     mais c'est AUSSI le format Fathom (nom sur une ligne, heure en dessous).
+     On ne recolle que s'il n'y a aucun interlocuteur identifiable — sinon on
+     détruisait un vrai transcript et il ne restait qu'un seul tour. */
+  const nomSeul = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,45})$/;
+  const compte = {};
+  lignes.forEach(l=>{
+    const t = l.trim();
+    if(!t || t.length > 46) return;
+    if(nomSeul.test(t) && t.split(/\s+/).length <= 5 && !/[.!?,;:]$/.test(t))
+      compte[t] = (compte[t]||0) + 1;
+    const m = t.match(/^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,45})\s*[:：]/);
+    if(m) compte[m[1].trim()] = (compte[m[1].trim()]||0) + 1;
+  });
+  const interlocuteurs = Object.values(compte).filter(n => n >= 2).length;
+  if(interlocuteurs >= 2) return txt;        // vrai transcript : on n'y touche pas
+
+  return lignes.filter(l=>!/^\s*\d{1,2}:\d{2}(:\d{2})?\s*$/.test(l))
+               .map(l=>l.trim()).filter(Boolean).join(" ")
+               .replace(/\s{2,}/g," ");
 }
 
 let ECOLE = "moi";
