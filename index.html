@@ -3207,7 +3207,8 @@ let RJ = {tours:[], i:0, timer:null, auto:0};
 function nettoie(ligne){
   let l = ligne
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/[*_`>#]/g, "");
+    .replace(/[*_`>#]/g, "")
+    .replace(/^\s*[-–—•·]\s+/, "");        // puces de liste en début de ligne
   // On ne jette plus l'horodatage : on le met de côté sous une forme unique,
   // c'est lui qui permettra d'arrêter l'audio au bon endroit.
   let h = null;
@@ -3228,7 +3229,7 @@ function recolleNomEtHeure(txt){
   const l = txt.split(/\r?\n/);
   const out = [];
   const heureSeule = /^\s*\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*$/;
-  const nomSeul2 = /^\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,45})\s*$/;
+  const nomSeul2 = /^\s*[-–—•·]?\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9'’.\- ]{1,45})\s*$/;
   for(let i = 0; i < l.length; i++){
     const m = l[i].match(heureSeule);
     const avant = out.length ? out[out.length-1] : "";
@@ -3241,9 +3242,36 @@ function recolleNomEtHeure(txt){
   return out.join("\n");
 }
 
+
+/* Quand le découpage échoue, on montre ce qu'on a vu au lieu d'un message vague. */
+function diagnosticTranscript(txt, moi){
+  const brut = txt.split(/\r?\n/);
+  const recolle = recolleNomEtHeure(txt);
+  const apres = nettoieSousTitres(txt);
+  const lignes = recolle.split(/\r?\n/).map(nettoie).filter(Boolean);
+  const nomSeul = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9'’.\- ]{1,45})$/;
+  const compte = {};
+  lignes.forEach(l0=>{
+    const l = l0.replace(/^\u0001[\d:]+\u0001/, "");
+    const m = l.match(/^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9'’.\- ]{1,45})\s*[:：]/);
+    if(m){ const n = m[1].trim(); compte[n] = (compte[n]||0)+1; return; }
+    const sh = l.replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/, "").trim();
+    if(nomSeul.test(sh) && sh.split(/\s+/).length <= 5 && !/[.!?,;:]$/.test(sh))
+      compte[sh] = (compte[sh]||0)+1;
+  });
+  const trouves = Object.entries(compte).filter(([n,c])=>c >= 2).sort((a,b)=>b[1]-a[1]);
+  return {
+    lignesBrutes: brut.filter(l=>l.trim()).length,
+    aplati: apres !== recolle,
+    noms: trouves,
+    exemples: brut.filter(l=>l.trim()).slice(0, 6)
+  };
+}
+
 function parseTranscript(txt, moi){
-  const nomSeul  = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,45})$/;
-  const nomTexte = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,45})\s*[:：]\s*(.*)$/;
+  // on accepte les chiffres (Speaker 1, Intervenant 2) et on retire les puces
+  const nomSeul  = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9'’.\- ]{1,45})$/;
+  const nomTexte = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9'’.\- ]{1,45})\s*[:：]\s*(.*)$/;
   const lignes = recolleNomEtHeure(txt).split(/\r?\n/).map(nettoie).filter(Boolean);
 
   // 1er passage : qui sont les interlocuteurs ? un nom se répète, une phrase non.
@@ -3264,6 +3292,15 @@ function parseTranscript(txt, moi){
   if(noms.size < 2) Object.keys(compte).forEach(n=>{
     if(n.split(/\s+/).length >= 2 && capitalise(n)) noms.add(n);
   });
+  /* Dernier recours : aucun nom sûr. On prend les deux étiquettes les plus
+     fréquentes, même vues une seule fois — mieux vaut un découpage imparfait
+     qu'un refus pur et simple. */
+  if(noms.size < 2){
+    Object.entries(compte)
+      .filter(([n]) => n.length <= 30 && !/\b(bonjour|merci|oui|non|ok|voila|euh)\b/i.test(n))
+      .sort((a,b)=>b[1]-a[1]).slice(0, 2)
+      .forEach(([n])=>noms.add(n));
+  }
 
   // 2e passage : découpage réel. On garde l'horodatage quand il y en a un :
   // c'est lui qui permettra d'arrêter l'audio au bon endroit.
@@ -3693,7 +3730,21 @@ let LECTURE = null;
 
 $("btnLire").onclick = async () => {
   const tours = parseTranscript($("rjTexte").value, $("rjMoi").value.trim() || "Woidih");
-  if(tours.length < 4) return $("lecture").innerHTML = '<p style="color:var(--clay)">Transcript trop court ou nom mal reconnu.</p>';
+  if(tours.length < 4){
+    const d = diagnosticTranscript($("rjTexte").value, $("rjMoi").value.trim() || "Woidih");
+    return $("lecture").innerHTML = `
+      <div class="block" style="border-left:2px solid var(--clay)">
+        <h3 style="color:var(--clay)">Je n'arrive pas à découper ce transcript</h3>
+        <p style="font-size:14px;margin-top:8px">${d.lignesBrutes} lignes lues, ${tours.length} tour${tours.length>1?"s":""} reconnu${tours.length>1?"s":""}.</p>
+        <p style="font-size:14px;margin-top:6px"><b style="color:var(--ink)">Interlocuteurs repérés :</b> ${
+          d.noms.length ? d.noms.map(([n,c])=>escapeHTML(n)+" ("+c+"x)").join(", ")
+                        : '<span style="color:var(--clay)">aucun</span>'}</p>
+        ${d.aplati ? '<p style="font-size:14px;margin-top:6px;color:var(--clay)">Le texte a été recollé en un bloc : aucun nom ne revenait assez souvent.</p>' : ""}
+        <p style="font-size:13px;color:var(--muted);margin-top:12px">Les six premières lignes, telles qu'elles arrivent :</p>
+        <pre style="font-size:12px;color:var(--muted);white-space:pre-wrap;margin-top:5px;padding-left:11px;border-left:2px solid var(--line)">${escapeHTML(d.exemples.join("\n"))}</pre>
+        <p style="font-size:13.5px;margin-top:12px">Vérifie que le nom écrit dans la case correspond exactement à celui du transcript. Sinon, envoie-moi ces six lignes.</p>
+      </div>`;
+  }
 
   const nom = (tours.find(t=>!t.moi) || {}).nom || "le prospect";
   const ctx = $("rjContexte").value.trim();
@@ -6511,7 +6562,7 @@ function nettoieSousTitres(txt0){
     if(!t || t.length > 46) return;
     if(nomSeul.test(t) && t.split(/\s+/).length <= 5 && !/[.!?,;:]$/.test(t))
       compte[t] = (compte[t]||0) + 1;
-    const m = t.match(/^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,45})\s*[:：]/);
+    const m = t.replace(/^\s*[-–—•·]\s+/, "").match(/^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9'’.\- ]{1,45})\s*[:：]/);
     if(m) compte[m[1].trim()] = (compte[m[1].trim()]||0) + 1;
   });
   const interlocuteurs = Object.values(compte).filter(n => n >= 2).length;
