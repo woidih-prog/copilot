@@ -51,7 +51,9 @@ button:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
 /* ---------- ÉCRAN D'ACCUEIL ---------- */
 #home{
   height:100%;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:28px;padding:24px;text-align:center;
+  align-items:center;gap:28px;padding:24px;text-align:center;
+  /* sur un petit écran, le haut était coupé et inaccessible */
+  overflow-y:auto;justify-content:safe center;
 }
 #home h1{
   font-family:'Archivo Narrow',sans-serif;font-weight:700;
@@ -579,8 +581,11 @@ aside{
         <p style="font-size:12.5px;color:var(--muted);margin:16px 0 9px">Sa couleur — comment il communique</p>
         <div class="row" id="sparCouleurs"></div>
         <p id="couleurDetail" style="font-size:13px;color:var(--muted);margin-top:9px;line-height:1.5"></p>
-        <p style="font-size:12.5px;color:var(--muted);margin:16px 0 9px">Son profil</p>
+        <p style="font-size:12.5px;color:var(--muted);margin:16px 0 9px">Son profil — tu peux en cumuler plusieurs pour durcir</p>
         <div class="row" id="sparProfils"></div>
+        <p style="font-size:12.5px;color:var(--muted);margin:16px 0 7px">Ou décris-le toi-même
+          <button class="pill" id="btnDescMicro" style="float:right;font-size:11px;padding:5px 11px">Dicter</button></p>
+        <textarea id="sparDesc" style="width:100%;min-height:60px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink);font-family:inherit;font-size:13.5px" placeholder="Artisan plombier de 48 ans, il refuse des chantiers mais il est persuadé que son problème c'est le bouche-à-oreille. Sa femme tient les comptes."></textarea>
         <p id="profilDetail" style="font-size:13px;color:var(--muted);margin-top:11px;line-height:1.5"></p>
 
         <h3 style="margin-top:20px">Comment vous vous parlez</h3>
@@ -747,7 +752,15 @@ aside{
         <h3>Le contexte de ce call <button class="pill" id="btnCtxMicro" style="float:right;font-size:11px;padding:5px 11px">Dicter</button></h3>
         <p style="font-size:12.5px;color:var(--muted);margin-bottom:9px">Ce que le transcript ne dit pas : d'où vient le prospect, ce que tu vendais, ton prix, ce qui s'est passé après. Facultatif, mais ça change beaucoup l'analyse.</p>
         <textarea id="rjContexte" style="width:100%;min-height:75px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px 13px;color:var(--ink);font-family:inherit;font-size:13.5px" placeholder="Lead venu d'une publicité, jamais parlé avant. Offre à 3000 en trois fois. Il n'a pas signé et ne répond plus."></textarea>
-        <div class="row" id="rjIssue" style="margin-top:9px">
+        <p style="font-size:12.5px;color:var(--muted);margin:13px 0 7px">Le marché — ça change complètement qui te corrige</p>
+        <div class="row" id="rjMarche">
+          <button class="pill on" data-m="b2c">B2C — il décide pour lui</button>
+          <button class="pill" data-m="b2b">B2B — il décide pour une entreprise</button>
+        </div>
+        <p id="rjMarcheDetail" style="font-size:12.5px;color:var(--muted);margin:8px 0 13px;line-height:1.5"></p>
+
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:7px">Comment ça s'est terminé</p>
+        <div class="row" id="rjIssue">
           <button class="pill" data-issue="perdu">Perdu</button>
           <button class="pill" data-issue="relance">Relance</button>
           <button class="pill" data-issue="vendu">Vendu</button>
@@ -762,6 +775,16 @@ aside{
           <strong style="font-size:14.5px">Dépose ton enregistrement</strong><br>
           <span style="font-size:12.5px;color:var(--muted)">mp4, mov, webm, mp3, m4a, wav…</span>
           <input type="file" id="audioFichier" accept="audio/*,video/*" hidden>
+        </div>
+        <p style="font-size:12.5px;color:var(--muted);margin:13px 0 7px">Ou colle le lien de la visio — Fathom, Zoom, Loom, Drive</p>
+        <div class="row">
+          <input id="lienVisio" placeholder="https://fathom.video/share/…" style="flex:1;min-width:200px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)">
+          <button class="pill" id="btnVisio">Afficher</button>
+        </div>
+        <div id="visioBloc" style="display:none;margin-top:11px">
+          <iframe id="visioCadre" style="width:100%;aspect-ratio:16/9;border:0;border-radius:11px;background:#000" allow="autoplay; fullscreen" allowfullscreen></iframe>
+          <p style="font-size:12.5px;color:var(--muted);margin-top:8px">Le coach ne peut pas arrêter une vidéo hébergée ailleurs. Il t'indiquera les moments, à toi de les retrouver. Pour les arrêts automatiques, télécharge le fichier et dépose-le au-dessus.</p>
+          <a id="visioOnglet" target="_blank" rel="noopener" class="pill" style="text-decoration:none;display:inline-block;margin-top:8px">Ouvrir dans un onglet</a>
         </div>
         <audio id="lecteur" controls style="width:100%;margin-top:11px;display:none"></audio>
         <video id="lecteurVideo" controls playsinline style="width:100%;margin-top:11px;display:none;border-radius:11px;background:#000"></video>
@@ -1046,7 +1069,10 @@ async function callClaude(prompt, maxJetons){
 const KB = [
 {
   id:"PRIX", label:"Objection · Prix", cause:"Cause probable : perception du risque, pas le montant",
-  patterns:[/trop cher/i,/c'?est cher/i,/ça fait beaucoup/i,/le prix/i,/ça coûte/i,/gros budget/i,/c'?est un budget/i,/ça représente/i,/paraît cher/i,/trouve ça cher/i,/\d[\d\s]{2,}\s*(euros?|€|balles)/i,/onéreux/i,/ça pique/i],
+  patterns:[/trop cher/i,/c'?est cher/i,/ça fait beaucoup/i,
+    // « c'est quoi le prix » est une demande d'information, pas une objection
+    /(?<!quoi )(?<!est )le prix (?:est|me|c'est|ça|reste|fait)/i,
+    /le prix, c'?est/i,/question de prix/i,/ça coûte/i,/gros budget/i,/c'?est un budget/i,/ça représente/i,/paraît cher/i,/trouve ça cher/i,/\d[\d\s]{2,}\s*(euros?|€|balles)/i,/onéreux/i,/ça pique/i],
   action:"NE JUSTIFIE PAS. Fais-le préciser.",
   why:"Justifier le prix confirme au prospect que le prix est le sujet. Tant que tu ne sais pas ce que « cher » veut dire pour lui, toute réponse est un coup dans le vide.",
   angles:[
@@ -1090,7 +1116,10 @@ const KB = [
 },
 {
   id:"PEUR", label:"Objection · Peur d'échouer", cause:"Cause probable : doute sur lui, pas sur toi",
-  patterns:[/peur de/i,/j'?ai peur/i,/si ça marche pas/i,/si je réussis pas/i,/pas sûr d'?y arriver/i,/capable/i,/pas fait pour moi/i,/j'?y arrive pas/i],
+  patterns:[/peur de/i,/j'?ai peur/i,/si ça marche pas/i,/si je réussis pas/i,/pas sûr d'?y arriver/i,
+    // « je suis capable » n'est pas une peur : on ne garde que la forme négative
+    /(?:pas|jamais|peu)\s+capable/i,/capable\s*\?/i,/suis-je capable/i,
+    /pas fait pour moi/i,/j'?y arrive pas/i],
   action:"Ne rassure pas. Fais-lui dire ce qui le rendrait sûr.",
   why:"Rassurer un prospect qui doute de lui, c'est parler contre son expérience personnelle : il va défendre son doute. Il doit s'entendre décrire lui-même ce qui le ferait réussir.",
   angles:[
@@ -1112,7 +1141,10 @@ const KB = [
 },
 {
   id:"TIMING", label:"Objection · Timing", cause:"Cause probable : urgence absente",
-  patterns:[/pas le moment/i,/plus tard/i,/dans quelques mois/i,/l'?année prochaine/i,/après les vacances/i,/en septembre/i,/en janvier/i,/quand j'?aurai/i],
+  patterns:[/pas le moment/i,
+    // « on en reparle plus tard dans le call » n'est pas un report de décision
+    /plus tard(?!\s+(?:dans|pendant|au cours))/i,
+    /dans quelques mois/i,/l'?année prochaine/i,/après les vacances/i,/en septembre/i,/en janvier/i,/quand j'?aurai/i],
   action:"Reviens à son objectif et à l'écart.",
   why:"Le timing n'est jamais le vrai sujet. Ce qui manque, c'est la conscience du coût d'attendre. Ne discute pas la date : discute l'écart entre où il est et où il veut être.",
   angles:[
@@ -1202,7 +1234,7 @@ const TRAITE = {
 PRIX:[
  {n:"Reframe coût / investissement", p:"La vraie question c'est pas combien ça coûte, c'est combien ça te rapporte. Aujourd'hui, ne rien faire, ça te coûte quoi sur un an ?"},
  {n:"Analogie", p:"C'est comme un permis de conduire. Tu ne paies pas des heures de conduite, tu paies le fait de ne plus dépendre de personne pour te déplacer."},
- {n:"Reframe prix / valeur", p:"Si tu étais certain d'atteindre ton objectif, est-ce que 3000 euros serait toujours cher ?"}
+ {n:"Reframe prix / valeur", p:"Si tu étais certain d'atteindre ton objectif, est-ce que ce montant serait toujours cher ?"}
 ],
 MOYENS:[
  {n:"Reframe priorité", p:"Tu n'as pas les moyens de ne pas le faire, en fait. C'est justement parce que c'est serré que ça ne peut pas rester comme ça."},
@@ -1626,7 +1658,9 @@ const POLITESSE = /^(bonjour|bonsoir|salut|allô|allo|oui)\b[^?]{0,60}(ça va|ca
 
 /* Une question ne finit pas toujours par un point d'interrogation à l'oral,
    et ne commence pas toujours par un mot interrogatif. On cherche partout. */
-const MOTS_QUESTION = /\b(qu'?est-ce|comment|pourquoi|quand|combien|où|quel|quelle|lequel|est-ce que|c'?est quoi|dis-moi|raconte|explique|parle-moi|tu penses|tu dirais|ça fait|ça dure|depuis quand|à ton avis)\b/i;
+/* \b ne marche pas avec les accents : « où » et « à ton avis » n'étaient jamais reconnus.
+   On borne à la main sur les vraies lettres. */
+const MOTS_QUESTION = /(?:^|[^\p{L}])(qu'?est-ce|comment|pourquoi|quand|combien|où|quel|quelle|lequel|est-ce que|c'?est quoi|dis-moi|raconte|explique|parle-moi|tu penses|tu dirais|ça fait|ça dure|depuis quand|à ton avis)(?![\p{L}])/iu;
 function estUneQuestion(t){
   return /\?/.test(t) || MOTS_QUESTION.test(t);
 }
@@ -1662,14 +1696,17 @@ function planifierAnalyse(text, qui, mots){
     ECOUTE.enCours = false;
   }
   clearTimeout(ECOUTE.horloge);
-  ECOUTE.horloge = setTimeout(() => lancerAnalyse(), RYTHME.pause);
+  // On fige la phrase à analyser maintenant. Sinon un « ouais » glissé entre-temps
+  // prendrait sa place au moment du départ.
+  const cible = S.transcript[S.transcript.length - 1];
+  ECOUTE.horloge = setTimeout(() => lancerAnalyse(cible), RYTHME.pause);
   return true;
 }
 
 /* --- 4. L'ANALYSE --- */
-async function lancerAnalyse(){
+async function lancerAnalyse(cible){
   if(!S.running) return;
-  const derniers = S.transcript.slice(-1)[0];
+  const derniers = cible || S.transcript.slice(-1)[0];
   if(!derniers) return;
 
   // une analyse plus récente prime toujours sur celle qui tourne
@@ -1724,7 +1761,7 @@ Analyse maintenant, selon les consignes reçues.`,
       afficheFlux, CONSIGNES(), monTour.signal);
 
     if(monTour.signal.aborted) return;
-    const j = JSON.parse(txt.replace(/```json|```/g, "").trim());
+    const j = parseModelJson(txt);          // répare les réponses coupées au lieu de planter
     if(j.signal && j.signal.cite && !S.signaux.some(x => x.cite === j.signal.cite)){
       S.signaux.push({t:(Date.now()-S.t0)/1000, type:j.signal.type||"signal",
                       cite:j.signal.cite, sens:j.signal.sens||""});
@@ -1735,7 +1772,10 @@ Analyse maintenant, selon les consignes reçues.`,
     ECOUTE.derniereAnalyse = Date.now();
     ECOUTE.erreur = "";
   }catch(e){
-    if(monTour.signal.aborted || e.name === "AbortError"){ ECOUTE.enCours = false; return; }
+    if(monTour.signal.aborted || e.name === "AbortError"){
+      if(ECOUTE.annuleur === monTour) ECOUTE.enCours = false;   // pas à une autre de le dire
+      return;
+    }
     ECOUTE.erreur = e.message;
     JOURNAL.push({t:(Date.now()-S.t0)/1000, text:"", qui:"", ok:false, raison:"ERREUR — "+e.message});
     $("card").className = "card hot";
@@ -1744,17 +1784,28 @@ Analyse maintenant, selon les consignes reçues.`,
     $("phrase").className = "";
     $("phrase").textContent = e.message;
   }
-  ECOUTE.enCours = false;
+  if(ECOUTE.annuleur === monTour) ECOUTE.enCours = false;
   majEtatMoteur();
 }
 
 /* Autre angle : on fait défiler les formulations disponibles pour la même objection */
+/* Les phrases toutes faites peuvent contenir des repères à remplacer.
+   Sans ça, le closer lirait « {objectif} » à voix haute. */
+function remplit(p){
+  const o = (S.profile && S.profile.objectif) ? S.profile.objectif.trim() : "";
+  return String(p || "")
+    .replace(/ton objectif c'était \{objectif\}/gi, o ? "ton objectif c'était " + o : "tu avais un objectif précis")
+    .replace(/\{objectif\}/gi, o || "ton objectif")
+    .replace(/\{prospect\}/gi, S.prospect || "")
+    .replace(/\s{2,}/g, " ");
+}
+
 function renderAngle(){
   const c = S.current;
   if(!c || !c.angles || !c.angles.length) return;
   const a = c.angles[S.angleIdx % c.angles.length];
   $("phrase").className = "";
-  $("phrase").textContent = "« " + (a.p || "") + " »";
+  $("phrase").textContent = "« " + remplit(a.p) + " »";
   if(a.n) $("tag").textContent = a.n;
   if(a.why) $("why").textContent = a.why;
 }
@@ -1856,9 +1907,12 @@ L'ORDRE DE CREUSAGE, quand rien d'urgent ne se présente :
 Ne saute jamais une couche parce qu'elle est inconfortable. Si une couche est déjà obtenue, passe à la suivante. Si une couche a été survolée, reviens dessus.
 
 TU DOIS AUSSI JUGER LA PROFONDEUR.
-"surface" : il décrit sa situation de loin, sans émotion et sans chiffre.
+${S.marche === "b2b" ? `"surface" : il décrit son fonctionnement de loin, sans aucun chiffre.
+"chiffre" : il a donné un nombre, mais il ne l'a relié à rien d'autre.
+"ressenti" : il a relié ce chiffre à ce que ça lui coûte à lui dans la boîte — sa crédibilité, ses objectifs, ce qu'on lui reproche. En B2B, la profondeur n'est jamais de l'émotion : c'est l'enjeu personnel professionnel.` :
+`"surface" : il décrit sa situation de loin, sans émotion et sans chiffre.
 "chiffre" : il a donné un nombre, mais ça ne le touche pas encore.
-"ressenti" : il revit son problème en parlant, sa voix change, il s'anime.
+"ressenti" : il revit son problème en parlant, sa voix change, il s'anime.`}
 Tant que tu es en "surface", ne laisse jamais le closer avancer. Renvoie-le creuser la même couche, autrement.
 
 Tu n'optimises pas ce que le closer dit. Tu optimises SA PROCHAINE MEILLEURE ACTION.
@@ -3242,10 +3296,33 @@ async function tourSuivant(){
   S.lastSpeech = Date.now();
   etatEcoute(t.nom + " : " + t.text);
   // en rejeu on connaît qui parle : on l'impose au lieu de deviner
-  nouvellePhrase(t.text, {qui: t.moi ? "CLOSER" : "PROSPECT", surete: 1});
+  /* Si le coach a déjà lu le call, l'analyse en direct du copilote n'apporte rien
+     et coûte une requête par réplique. On garde juste la transcription. */
+  if(RJ.coach && LECTURE && LECTURE.tours === RJ.tours){
+    const tt = (Date.now() - S.t0) / 1000;
+    S.transcript.push({t: tt, text: t.text, qui: t.moi ? "CLOSER" : "PROSPECT"});
+    logLine(tt, t.text, t.moi ? "moi" : "");
+  } else {
+    nouvellePhrase(t.text, {qui: t.moi ? "CLOSER" : "PROSPECT", surete: 1});
+  }
   if(!RJ.auto) $("fileTxt").textContent = `réplique ${RJ.i}/${RJ.tours.length}`;
 
-  // Le coach regarde ce que TU viens de dire. S'il voit quelque chose, il arrête.
+  /* Si le coach a déjà lu le call, on se sert de ce qu'il a repéré :
+     aucun appel supplémentaire, et l'arrêt tombe exactement au bon endroit. */
+  if(RJ.coach && LECTURE && LECTURE.tours === RJ.tours){
+    const rep = RJ.i;
+    const m = (LECTURE.j.moments||[]).find(x => +x.replique === rep)
+           || ((LECTURE.j.bascule && +LECTURE.j.bascule.replique === rep) ? LECTURE.j.bascule : null);
+    if(m){
+      RJ.arrets = (RJ.arrets||0) + 1;
+      montreArret({quoi:m.fait||"", pourquoi:m.effet||m.pourquoi||"", dire:m.dire||"", cause:null}, t);
+      return;
+    }
+    etatCoach("réplique " + rep + "/" + RJ.tours.length + " · rien à reprendre ici", "var(--muted)");
+    return;
+  }
+
+  // Sinon il regarde en direct ce que TU viens de dire.
   if(RJ.coach && t.moi && t.text.split(/\s+/).length > 4 && (RJ.arrets||0) < 5){
     // on suspend le déroulé pendant qu'il réfléchit, sinon le call file devant lui
     const reprendre = RJ.auto && RJ.timer;
@@ -3300,8 +3377,17 @@ async function coachRegardeRejeu(indexClos){
   const bonnes = FICHES.filter(f=>["bill walsh","josh lyons","ben byrne","vente complexe"].includes(f.ecole))
     .slice(0, 0);   // on ne charge pas les fiches ici : on veut un repérage, pas un cours
 
+  const fiches = fichesDuSegment(14);
   const txt = await callClaude(
-`Tu es un coach de closing. Tu regardes l'enregistrement d'un vrai call avec ton élève, et tu peux l'arrêter.
+`Tu es ${manniereDuCoach().nom}, coach de closing. Tu regardes l'enregistrement d'un vrai call avec ton élève, et tu peux l'arrêter.
+
+${manniereDuCoach().ton}
+
+LA MÉTHODE DE RÉFÉRENCE — TU NE PROPOSES RIEN D'AUTRE QUE CE QUI EST LÀ-DEDANS :
+${fiches.length ? fiches.map((f,i)=>`${i+1}. [${f.ecole||"lui"}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n") : "aucune fiche chargée"}
+
+RÈGLE ABSOLUE : la phrase que tu proposes est RECOPIÉE mot pour mot depuis une de ces fiches. Tu ne reformules pas, tu ne résumes pas, tu n'inventes pas. Seuls le prénom et un chiffre donné par le prospect peuvent être adaptés.
+Si aucune fiche ne s'applique, mets "dire" à null et explique seulement la faute.
 
 CE QUI PRÉCÈDE
 ${avant.map(t=>(t.moi?"CLOSER":"PROSPECT")+" : "+t.text).join("\n") || "(début du call)"}
@@ -3311,6 +3397,8 @@ CE QUE LE CLOSER A DIT À CE MOMENT-LÀ
 
 CE QUI S'EST PASSÉ JUSTE APRÈS
 ${apres.map(t=>(t.moi?"CLOSER":"PROSPECT")+" : "+t.text).join("\n") || "(fin du call)"}
+
+${sparMarche === "b2b" ? `CE CALL EST EN B2B. Ne lui reproche jamais de ne pas avoir cherché l'émotion, et ne lui suggère jamais « et toi, qu'est-ce que ça te fait ». Ce qu'on attend : des chiffres, ce que le problème déclenche ailleurs, le circuit de décision, le déclencheur, l'enjeu personnel abordé par le côté.` : ""}
 
 Tu n'arrêtes QUE sur un moment qui a compté. Pas sur une formulation perfectible, pas sur un détail.
 Tu arrêtes si : il justifie ou argumente au lieu de questionner, il traite une objection sans en connaître la cause, il avance alors qu'une couche n'est pas obtenue, il coupe le prospect qui allait livrer quelque chose, il console au lieu de creuser, il pitche trop tôt, il laisse passer un chiffre ou un signal, il abandonne un paiement, ou il lâche la main du call.
@@ -3323,7 +3411,8 @@ Réponds uniquement avec ce JSON, sans markdown :
 {"stop":true ou false,
  "quoi":"ce qu il vient de faire, une phrase directe, ou null",
  "pourquoi":"pourquoi ca compte ici et ce que ca a provoque ensuite, deux phrases, ou null",
- "dire":"la phrase exacte qu il aurait du dire a la place, ou null",
+ "dire":"la phrase RECOPIEE mot pour mot depuis une fiche, ou null si aucune ne s applique",
+ "source":"le nom de l ecole de cette fiche, ou null",
  "cause":"si la vraie cause est plus tot dans le call, dis ou et quoi, sinon null"}`, 700);
   return parseModelJson(txt);
 }
@@ -3388,13 +3477,37 @@ function rendScene(){
     `<div class="tour ${t.moi?"moi":""}"><div class="q">${t.moi?"Toi":escapeHTML(nom)}</div>${escapeHTML(t.txt)}</div>`).join("");
 }
 
-$("btnRefaireScene").onclick = () => {
+function ouvreLaScene(){
   if(!SCENE) return;
   $("sceneJeu").style.display = "block";
   $("sceneLui").textContent = "Reprends à partir d'ici. Dis ce que tu aurais dû dire.";
   $("sceneMoi").value = "";
-  $("sceneMoi").focus();
   $("sceneCompare").style.display = "none";
+  $("sceneCompare").innerHTML = "";
+  // pendant une scène, la carte du copilote n'a rien à faire là
+  $("card").style.display = "none";
+  $("scenePanneau").scrollIntoView({block:"start"});
+  $("sceneMoi").focus();
+}
+$("btnRefaireScene").onclick = ouvreLaScene;
+
+$("btnDescMicro").onclick = function(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR) return toast("Pas de micro dans ce navigateur");
+  if(this._rec){ try{this._rec.stop()}catch(e){} this._rec = null; this.textContent = "Dicter"; return; }
+  const r = new SR(); r.lang = "fr-FR"; r.continuous = true; r.interimResults = true;
+  let fige = $("sparDesc").value ? $("sparDesc").value + " " : "";
+  r.onresult = e => {
+    let vol = "";
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const t = e.results[i][0].transcript;
+      if(e.results[i].isFinal) fige += t + " "; else vol += t;
+    }
+    $("sparDesc").value = (fige + vol).trim();
+  };
+  const b = this;
+  r.onend = () => { if(b._rec){ try{ r.start() }catch(e){} } };
+  try{ r.start(); this._rec = r; this.textContent = "J'écoute"; }catch(e){}
 };
 
 $("btnSceneEnvoi").onclick = async () => {
@@ -3486,6 +3599,7 @@ Réponds uniquement avec ce JSON, sans markdown :
 $("btnContinuerRejeu").onclick = () => {
   if(SCENE && SCENE.rec){ try{SCENE.rec.stop()}catch(e){} SCENE.rec = null; }
   $("scenePanneau").style.display = "none";
+  $("card").style.display = "";
   // si on écoutait l'enregistrement, on le relance là où il s'était arrêté
   if(AUDIO_CALL && AUDIO_CALL.paused && MARQUES.length){
     $("call").classList.remove("on"); $("rejeu").classList.add("on");
@@ -3506,6 +3620,27 @@ $("btnContinuerRejeu").onclick = () => {
    Il lit tout, et il te rend la copie corrigée.
    ========================================================= */
 let rjIssueChoisie = "";
+
+/* Le marché se choisit ici aussi : c'est lui qui décide quel coach te corrige. */
+function majMarcheRejeu(){
+  const d = $("rjMarcheDetail"); if(!d) return;
+  const b2b = sparMarche === "b2b";
+  const coach = Object.entries(ECOLES)
+    .filter(([k,v]) => !["moi","sami"].includes(k) && (!v.marches || v.marches.includes(sparMarche)))
+    .map(([k,v]) => v.nom).join(", ");
+  d.innerHTML = b2b
+    ? `<b style="color:var(--ink)">B2B.</b> On ne te reprochera jamais de ne pas avoir cherché l'émotion. Ce qu'on attend : des chiffres, la propagation aux autres équipes, le circuit de décision, le déclencheur. <span style="color:var(--steel)">Te corrigent : ${escapeHTML(coach)}</span>`
+    : `<b style="color:var(--ink)">B2C haut de gamme.</b> La douleur ressentie, l'aveu d'incapacité, le traitement d'objection. <span style="color:var(--steel)">Te corrigent : ${escapeHTML(coach)}</span>`;
+}
+document.querySelectorAll("#rjMarche [data-m]").forEach(b=>{
+  b.onclick = () => {
+    document.querySelectorAll("#rjMarche .pill").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); sparMarche = b.dataset.m;
+    majMarcheRejeu();
+    // on garde les deux écrans d'accord entre eux
+    document.querySelectorAll("#sparMarche [data-m]").forEach(x=>x.classList.toggle("on", x.dataset.m === sparMarche));
+  };
+});
 document.querySelectorAll("#rjIssue [data-issue]").forEach(b=>{
   b.onclick = () => {
     document.querySelectorAll("#rjIssue .pill").forEach(x=>x.classList.remove("on"));
@@ -3563,8 +3698,11 @@ ${issue ? "ISSUE RÉELLE : " + issue + "." : "Issue non précisée."}
 MARCHÉ : ${marche === "b2b" ? "B2B — ne lui reproche jamais de ne pas avoir cherché l'émotion. Ce qu'on attend : chiffres, propagation aux autres équipes, circuit de décision, déclencheur, enjeu personnel abordé par le côté." : "B2C haut de gamme."}
 MÉTHODES DE RÉFÉRENCE : ${terrainEcoles}
 
-QUELQUES FORMULATIONS DE SA MÉTHODE, pour t'appuyer dessus quand c'est pertinent :
+SA MÉTHODE — TU NE PROPOSES AUCUNE PHRASE QUI NE SOIT PAS LÀ-DEDANS :
 ${fiches}
+
+RÈGLE ABSOLUE : chaque « à dire » que tu proposes est RECOPIÉ mot pour mot depuis une de ces fiches. Tu ne reformules pas, tu n'inventes pas, tu ne mélanges pas deux fiches. Seuls le prénom du prospect et un chiffre qu'il a donné peuvent être adaptés.
+Si aucune fiche ne s'applique à un moment, mets "dire" à null et contente-toi d'expliquer la faute. Mieux vaut ne rien proposer qu'une phrase qui ne vient pas de sa méthode.
 
 LE CALL, réplique par réplique
 ${tours.map((t,i)=>`[${i+1}] ${t.moi?"CLOSER":nom.toUpperCase()} : ${t.text}`).join("\n")}
@@ -3580,8 +3718,8 @@ Réponds uniquement avec ce JSON, sans markdown :
 {"note":0 a 10,
  "verdict":"en deux phrases, ce qui s est vraiment joue sur ce call",
  "marche":[{"quoi":"ce qu il a bien fait","cite":"ses mots exacts","pourquoi":"pourquoi c etait juste"}],
- "ameliorer":[{"quoi":"ce qui doit progresser","cite":"ses mots exacts ou null","comment":"ce qu il faut faire a la place, concretement"}],
- "moments":[{"replique":numero de la replique,"cite":"ses mots exacts","fait":"ce qu il a fait","effet":"ce que ca a provoque ensuite dans le call","dire":"la phrase exacte a dire a la place"}],
+ "ameliorer":[{"quoi":"ce qui doit progresser","cite":"ses mots exacts ou null","comment":"ce qu il faut faire a la place, en t appuyant sur une fiche et en la citant telle quelle"}],
+ "moments":[{"replique":numero de la replique,"cite":"ses mots exacts","fait":"ce qu il a fait","effet":"ce que ca a provoque ensuite dans le call","dire":"la phrase RECOPIEE mot pour mot depuis une fiche, ou null","source":"le nom de l ecole de cette fiche, ou null"}],
  "bascule":{"replique":numero ou null,"cite":"la phrase qui a fait basculer le call","pourquoi":"pourquoi celle-la"},
  "exercice":"un seul exercice concret pour le prochain call, une phrase"}`, 3000);
 
@@ -3733,11 +3871,16 @@ function rendLecture(){
       <h3>Les moments décisifs</h3>
       ${(j.moments||[]).map(x=>`
         <div style="border-left:2px solid var(--line);padding-left:13px;margin-bottom:16px">
-          <div class="eyebrow">réplique ${escapeHTML(String(x.replique||"?"))}</div>
+          <div class="eyebrow">réplique ${escapeHTML(String(x.replique||"?"))}${(()=>{
+            const t = (LECTURE.tours[(+x.replique)-1]||{}).t;
+            if(t == null) return "";
+            const mm = String(Math.floor(t/60)).padStart(2,"0"), ss = String(Math.floor(t%60)).padStart(2,"0");
+            return ` · <span style="color:var(--amber)">à ${mm}:${ss} dans la visio</span>`;
+          })()}</div>
           <p style="font-size:15px;margin-top:4px">« ${escapeHTML(x.cite||"")}</p>
           <p style="font-size:13.5px;color:var(--muted);margin-top:5px"><b style="color:var(--ink)">Ce que tu as fait :</b> ${escapeHTML(x.fait||"")}</p>
           <p style="font-size:13.5px;color:var(--muted);margin-top:3px"><b style="color:var(--ink)">Effet :</b> ${escapeHTML(x.effet||"")}</p>
-          <p style="font-size:14.5px;margin-top:6px"><b style="color:var(--amber)">À dire :</b> « ${escapeHTML(x.dire||"")} »</p>
+          ${x.dire ? `<p style="font-size:14.5px;margin-top:6px"><b style="color:var(--amber)">À dire :</b> « ${escapeHTML(x.dire)} »${x.source ? ` <span style="font-size:11.5px;color:var(--steel)">— ${escapeHTML(x.source)}</span>` : ""}</p>` : `<p style="font-size:13px;color:var(--muted);margin-top:6px">Aucune formulation de ta méthode ne couvre ce moment.</p>`}
           <div class="row" style="margin-top:9px">
             <button class="pill" data-dire="${escapeHTML((x.fait||"") + ". " + (x.effet||"") + ". Tu aurais dû dire : " + (x.dire||""))}">Écouter</button>
             ${x.replique ? `<button class="pill" data-scene="${+x.replique-1}">Refaire cette scène</button>` : ""}
@@ -3792,8 +3935,9 @@ function ouvreSceneDepuisLecture(i){
   const t = tours[i];
   const m = (LECTURE.j.moments||[]).find(x => +x.replique === i + 1) || LECTURE.j.bascule || {};
   montreArret({quoi:m.fait||"", pourquoi:m.effet||m.pourquoi||"", dire:m.dire||"", cause:null}, t);
+  $("home").style.display = "none";
   $("rejeu").classList.remove("on"); $("call").classList.add("on");
-  $("btnRefaireScene").click();
+  ouvreLaScene();                       // on appelle la fonction, pas le bouton
 }
 
 
@@ -3803,6 +3947,27 @@ function ouvreSceneDepuisLecture(i){
    il t'explique, et tu peux refaire la scène avant de reprendre.
    ========================================================= */
 let AUDIO_CALL = null, MARQUES = [], marqueFaite = new Set();
+
+
+/* Le lien d'une visio hébergée ailleurs : on l'affiche, mais on ne peut pas
+   la commander. Les arrêts automatiques exigent le fichier. */
+$("btnVisio").onclick = () => {
+  const u = $("lienVisio").value.trim();
+  if(!u) return toast("Colle le lien d'abord");
+  if(!/^https?:\/\//i.test(u)) return toast("Le lien doit commencer par https");
+  $("visioCadre").src = u;
+  $("visioOnglet").href = u;
+  $("visioBloc").style.display = "block";
+  $("audioEtat").innerHTML = '<span style="color:var(--amber)">Visio affichée. Les arrêts seront indiqués, pas automatiques — pour ça il faut le fichier.</span>';
+  // au cas où le site refuse d'être affiché dans l'app
+  setTimeout(()=>{
+    try{
+      if(!$("visioCadre").contentWindow) throw 0;
+    }catch(e){
+      $("audioEtat").innerHTML = '<span style="color:var(--clay)">Ce service refuse d\'être affiché ici. Utilise « Ouvrir dans un onglet », ou télécharge le fichier.</span>';
+    }
+  }, 2500);
+};
 
 $("audioDrop").onclick = () => $("audioFichier").click();
 $("audioDrop").ondragover = e => { e.preventDefault(); $("audioDrop").style.borderColor = "var(--amber)"; };
@@ -4937,6 +5102,7 @@ function segmentCourant(){
 }
 
 let sparSegment = "complet", sparTemp = "tiede", sparMode = "libre", sparCouleur = "hasard", sparMarche = "b2c";
+let SEGMENTS_CHOISIS = ["complet"], PROFILS_CHOISIS = ["entrepreneur"];
 
 /* Le B2B ne se joue pas comme le B2C : pas d'émotion à creuser, un circuit
    de décision, et un enjeu personnel qu'on n'aborde jamais de face. */
@@ -4991,8 +5157,14 @@ LE MOMENT TRAVAILLÉ : ${seg.nom} — ${seg.objectif}
 CE QUI EST ATTENDU SUR CE MOMENT :
 ${seg.criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
 
-LA MÉTHODE DE RÉFÉRENCE DE CE CLOSER :
+LA MÉTHODE DE RÉFÉRENCE — TU NE DIS RIEN D'AUTRE QUE CE QUI EST LÀ-DEDANS :
 ${l.length ? l.map((f,i)=>`${i+1}. [${f.ecole||"lui"}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n") : "aucune fiche chargée, juge sur les critères ci-dessus"}
+
+RÈGLE ABSOLUE SUR LA PHRASE QUE TU PROPOSES :
+Tu ne formules JAMAIS de phrase toi-même. Tu recopies MOT POUR MOT la phrase d'une des fiches ci-dessus, celle qui s'applique.
+Tu n'as le droit de changer que le prénom du prospect ou un chiffre qu'il vient de donner. Pas un mot de plus.
+Si aucune fiche ne s'applique vraiment à ce moment précis, mets "fiche" à null et n'invente rien : tu expliques la faute, sans proposer de phrase.
+Indique toujours de quelle fiche vient la phrase.
 
 OÙ EN EST LE PROSPECT : confiance ${SPAR.etat.confiance}/10, couche de douleur ${SPAR.etat.couche}/3, ${SPAR.etat.lead === "prospect" ? "c'est LUI qui mène le call" : "le closer mène"}.
 ${Array.isArray(p.deja_dit) && p.deja_dit.length ? "CE QUE LE PROSPECT A DÉJÀ DIT et que le closer peut lui renvoyer :\n" + p.deja_dit.map(x=>"- « "+x+" »").join("\n") : ""}
@@ -5017,8 +5189,9 @@ Réponds uniquement avec ce JSON, sans markdown :
 {"stop":true ou false,
  "quoi":"ce qu il vient de faire, UNE phrase courte, dite comme a l oral, ou null",
  "pourquoi":"pourquoi c est une faute ici, UNE phrase courte, a l oral, ou null",
- "fiche":"la phrase exacte de sa methode qu il aurait du dire, ou null",
- "source":"d ou vient cette phrase, 4 mots, ou null"}`, 800);
+ "fiche":"la phrase RECOPIEE mot pour mot depuis une fiche ci-dessus, ou null si aucune ne s applique",
+ "numero":le numero de la fiche utilisee, ou null,
+ "source":"le nom de l ecole de cette fiche, ou null"}`, 800);
   return parseModelJson(txt);
 }
 
@@ -5029,8 +5202,27 @@ function peupleSparring(){
     `<button class="pill${i===0?" on":""}" data-seg="${k}">${v.nom}</button>`).join("");
   seg.querySelectorAll("[data-seg]").forEach(b=>{
     b.onclick = () => {
-      seg.querySelectorAll(".pill").forEach(x=>x.classList.remove("on"));
-      b.classList.add("on"); sparSegment = b.dataset.seg; majSegDetail();
+      const k = b.dataset.seg;
+      if(k === "complet"){                       // le call complet est exclusif
+        seg.querySelectorAll(".pill").forEach(x=>x.classList.remove("on"));
+        b.classList.add("on"); SEGMENTS_CHOISIS = ["complet"];
+      } else {
+        seg.querySelector('[data-seg="complet"]').classList.remove("on");
+        SEGMENTS_CHOISIS = SEGMENTS_CHOISIS.filter(x => x !== "complet");
+        if(SEGMENTS_CHOISIS.includes(k)){
+          if(SEGMENTS_CHOISIS.length === 1) return;    // on en garde toujours un
+          SEGMENTS_CHOISIS = SEGMENTS_CHOISIS.filter(x => x !== k);
+          b.classList.remove("on");
+        } else {
+          if(SEGMENTS_CHOISIS.length >= 3) return toast("Trois moments au maximum");
+          SEGMENTS_CHOISIS.push(k); b.classList.add("on");
+        }
+        // on les remet dans l'ordre naturel du call
+        const ordre = Object.keys(SEGMENTS);
+        SEGMENTS_CHOISIS.sort((a,b2)=>ordre.indexOf(a)-ordre.indexOf(b2));
+      }
+      sparSegment = SEGMENTS_CHOISIS[0];
+      majSegDetail();
     };
   });
 
@@ -5052,10 +5244,28 @@ function peupleSparring(){
     + `<button class="pill" data-profil="hasard">Au hasard</button>`;
   pr.querySelectorAll("[data-profil]").forEach(b=>{
     b.onclick = () => {
-      pr.querySelectorAll(".pill").forEach(x=>x.classList.remove("on"));
-      b.classList.add("on"); sparProfil = b.dataset.profil; majProfilDetail();
+      const k = b.dataset.profil;
+      if(k === "hasard"){
+        pr.querySelectorAll(".pill").forEach(x=>x.classList.remove("on"));
+        b.classList.add("on"); PROFILS_CHOISIS = ["hasard"];
+      } else {
+        const h = pr.querySelector('[data-profil="hasard"]');
+        if(h) h.classList.remove("on");
+        PROFILS_CHOISIS = PROFILS_CHOISIS.filter(x => x !== "hasard");
+        if(PROFILS_CHOISIS.includes(k)){
+          if(PROFILS_CHOISIS.length === 1) return;
+          PROFILS_CHOISIS = PROFILS_CHOISIS.filter(x => x !== k);
+          b.classList.remove("on");
+        } else {
+          if(PROFILS_CHOISIS.length >= 3) return toast("Trois profils au maximum");
+          PROFILS_CHOISIS.push(k); b.classList.add("on");
+        }
+      }
+      sparProfil = PROFILS_CHOISIS[0];
+      majProfilDetail();
     };
   });
+  PROFILS_CHOISIS = ["entrepreneur"];
   sparProfil = "entrepreneur";
   majSegDetail(); majProfilDetail();
 }
@@ -5063,8 +5273,17 @@ function peupleSparring(){
 let briefLarge = false;
 function majSegDetail(){
   const v = segmentCourant(); if(!v) return;
-  $("segDetail").innerHTML = `<b style="color:var(--ink)">${escapeHTML(v.court)}.</b> ${escapeHTML(v.depart)}<br>
-    <span style="color:var(--amber)">Ton objectif : ${escapeHTML(v.objectif)}</span>`;
+  if(SEGMENTS_CHOISIS.length > 1){
+    const noms = SEGMENTS_CHOISIS.map(k=>SEGMENTS[k].nom);
+    $("segDetail").innerHTML =
+      `<b style="color:var(--ink)">${escapeHTML(noms.join(" puis "))}.</b> ` +
+      `${escapeHTML(SEGMENTS[SEGMENTS_CHOISIS[0]].depart)}<br>` +
+      `<span style="color:var(--amber)">Tu enchaînes ${noms.length} moments sans t'arrêter. ` +
+      `L'exercice se termine quand le dernier est atteint.</span>`;
+  } else {
+    $("segDetail").innerHTML = `<b style="color:var(--ink)">${escapeHTML(v.court)}.</b> ${escapeHTML(v.depart)}<br>
+      <span style="color:var(--amber)">Ton objectif : ${escapeHTML(v.objectif)}</span>`;
+  }
   majBrief();
 }
 
@@ -5136,6 +5355,12 @@ function majCouleurDetail(){
 }
 
 function majProfilDetail(){
+  if(PROFILS_CHOISIS.length > 1){
+    const d = $("profilDetail");
+    d.innerHTML = PROFILS_CHOISIS.map(k=>`<b style="color:var(--ink)">${escapeHTML(PROFILS_P[k].nom)}.</b> ${escapeHTML(PROFILS_P[k].d)}`).join("<br>") +
+      `<br><span style="color:var(--clay)">Trois traits cumulés : il sera nettement plus dur.</span>`;
+    return;
+  }
   const v = PROFILS_P[sparProfil];
   const t = TEMPERATURES[sparTemp] || "";
   $("profilDetail").innerHTML = v ? `<b style="color:var(--ink)">${v.nom}.</b> ${v.d}<br><span style="color:var(--muted)">${t}</span>`
@@ -5319,8 +5544,7 @@ const PROFILS = {
 /* Ce que tu viens de choisir, affiché pendant la fabrication et tout l'exercice. */
 function rappelReglages(prof, coul){
   const el = $("sparRappel"); if(!el) return;
-  const seg = SEGMENTS[sparSegment] || SEGMENTS.complet;
-  const bouts = [seg.nom];
+  const bouts = [SEGMENTS_CHOISIS.map(k=>SEGMENTS[k].nom).join(" + ")];
   if(prof) bouts.push(prof);
   if(coul) bouts.push(coul.split(" — ")[0]);
   bouts.push({froid:"froid", tiede:"tiède", chaud:"chaud"}[sparTemp] || sparTemp);
@@ -5358,7 +5582,7 @@ $("btnSparGo").onclick = async () => {
   $("sparEtat").innerHTML = '<span style="color:var(--amber)">Je fabrique ton prospect…</span>';
   $("btnSparGo").disabled = true;
   // on montre l'écran de jeu tout de suite, avec tes choix sous les yeux
-  rappelReglages(sparProfil === "hasard" ? null : (PROFILS_P[sparProfil]||{}).nom,
+  rappelReglages(PROFILS_CHOISIS.includes("hasard") ? null : PROFILS_CHOISIS.map(k=>PROFILS_P[k].nom).join(" + "),
                  sparCouleur === "hasard" ? null : (COULEURS[sparCouleur]||{}).nom);
   try{
     const seg = segmentCourant();
@@ -5397,10 +5621,15 @@ $("btnSparGo").onclick = async () => {
       return;
     }
 
-    const cle = sparProfil === "hasard"
-      ? Object.keys(PROFILS_P)[Math.floor(Math.random()*Object.keys(PROFILS_P).length)]
-      : sparProfil;
-    const prof = PROFILS_P[cle];
+    const cles = PROFILS_CHOISIS.includes("hasard")
+      ? [Object.keys(PROFILS_P)[Math.floor(Math.random()*Object.keys(PROFILS_P).length)]]
+      : PROFILS_CHOISIS.slice();
+    const cle = cles[0];
+    const prof = {
+      nom: cles.map(k=>PROFILS_P[k].nom).join(" + "),
+      d: cles.map(k=>PROFILS_P[k].d).join(" ")
+    };
+    const description = ($("sparDesc").value || "").trim();
     const cCle = sparCouleur === "hasard"
       ? Object.keys(COULEURS)[Math.floor(Math.random()*4)] : sparCouleur;
     const coul = COULEURS[cCle];
@@ -5410,13 +5639,17 @@ $("btnSparGo").onclick = async () => {
 L'offre du closer : ${offre}. Prix : ${prix}.
 
 SON PROFIL : ${prof.nom}. ${prof.d}
+${cles.length > 1 ? "Ces traits se cumulent chez la MÊME personne. Ne les joue pas l'un après l'autre : fais-en un seul caractère cohérent, plus difficile que chacun pris séparément." : ""}
+${description ? "CE QUE LE CLOSER A DEMANDÉ PRÉCISÉMENT — cela prime sur tout le reste :\n" + description : ""}
 SA COULEUR : ${coul.nom}. ${coul.d}
 ${sparMarche === "b2b" ? "MARCHÉ : B2B. Ce prospect décide pour une entreprise. Donne-lui un poste, une équipe, un budget, des indicateurs. Sa couche 3 n'est pas une souffrance intime mais son enjeu personnel dans la boîte : sa crédibilité, ses objectifs, ce qu'on lui reproche." : ""}
 La couleur ne change pas ce qu'il vit, elle change entièrement sa façon de le dire. Tiens-la dans chaque réplique : rythme, longueur des phrases, chaleur, franchise.
 SA TEMPÉRATURE : ${TEMPERATURES[sparTemp]}
 SA RÉSISTANCE : ${["","il lâche assez vite","il résiste normalement","il est très fermé, il faut vraiment le mériter"][sparNiveau]}
 
-CE QUE LE CLOSER TRAVAILLE : ${seg.nom} — ${seg.court}.
+CE QUE LE CLOSER TRAVAILLE : ${SEGMENTS_CHOISIS.length > 1
+  ? SEGMENTS_CHOISIS.map(k=>SEGMENTS[k].nom).join(", puis ") + " — il enchaîne " + SEGMENTS_CHOISIS.length + " moments d'affilée."
+  : seg.nom + " — " + seg.court + "."}
 LE CALL DÉMARRE ICI : ${seg.depart}
 Fabrique donc un prospect dont la situation permet de travailler CE moment précis. Sa première phrase doit poser exactement ce point de départ, comme si le call en était déjà là.
 
@@ -5438,10 +5671,14 @@ Ne lui en invente pas une. Sa situation lui convient à peu près, rien ne brûl
 Ses trois couches existent quand même, mais elles sont TIÈDES : une gêne, pas une souffrance. Couche 3 n'est pas de la détresse, c'est un regret discret, une sensation de passer à côté, un plafond qu'il sent sans le nommer.
 Si le closer creuse la douleur, il ne trouvera rien et le call tournera en rond — c'est normal, c'est l'exercice. La seule porte, c'est l'écart entre où il en est et ce qu'il pourrait avoir. Il ne s'ouvre que si le closer arrête de chercher une plaie et se met à lui montrer ce qu'il rate.` : ""}
 
-1. SA DOULEUR A TROIS COUCHES, et il ne donne que la première.
-   - Ce qu'il DIT quand on lui demande son problème : souvent technique, extérieur à lui, presque neutre. « J'ai un problème de visibilité. »
+1. SON PROBLÈME A TROIS COUCHES, et il ne donne que la première.
+${sparMarche === "b2b" ? `   EN B2B, les trois couches sont des FAITS D'ENTREPRISE, jamais des émotions.
+   - Ce qu'il DIT : un constat de fonctionnement, extérieur et neutre. « On a un souci de conversion sur le tunnel. »
+   - Ce qui se passe VRAIMENT : le chiffre qu'il n'a pas encore relié. « Deux commerciaux passent quatre heures par jour à ressaisir des données, et deux dossiers sur dix sortent en retard. »
+   - Ce que ça lui coûte À LUI, dans la boîte : sa crédibilité, ses objectifs, ce qu'on lui reproche en comité. « Il a promis ce chantier il y a un an, on le lui rappelle à chaque point trimestriel, et il commence à éviter le sujet. »
+   Jamais de détresse intime. Un directeur ne parle pas de ce qu'il ressent, il parle de ce que ça lui coûte professionnellement.` : `   - Ce qu'il DIT quand on lui demande son problème : souvent technique, extérieur à lui, presque neutre. « J'ai un problème de visibilité. »
    - Ce qui se passe VRAIMENT, en dessous : le fait mesurable qu'il n'a pas encore relié. « Il refuse deux chantiers par semaine faute de main d'œuvre. »
-   - Ce que ça lui fait À LUI, tout au fond : ce qu'il ne dira qu'après plusieurs questions, et jamais spontanément. « Il ne se sent plus capable de tenir sa boîte et il ne l'a dit à personne. »
+   - Ce que ça lui fait À LUI, tout au fond : ce qu'il ne dira qu'après plusieurs questions, et jamais spontanément. « Il ne se sent plus capable de tenir sa boîte et il ne l'a dit à personne. »`}
 
 2. IL SE TROMPE DE COUPABLE.
    Donne-lui une explication à laquelle il croit sincèrement, et qui est fausse ou incomplète. C'est ce qui rend un call difficile : il défend son diagnostic.
@@ -5525,8 +5762,11 @@ Réponds uniquement avec ce JSON, sans markdown :
       }
     };
     if(sparCanal === "vocal" && texteDuRappel()) ecouteLeRappel(suiteOuverture); else suiteOuverture();
-  }catch(e){ $("sparEtat").innerHTML = '<span style="color:var(--clay)">'+e.message+'</span>'; }
-  $("btnSparGo").disabled = false;
+  }catch(e){
+    $("sparEtat").innerHTML = '<span style="color:var(--clay)">'+escapeHTML(e.message)+'</span>';
+  }finally{
+    $("btnSparGo").disabled = false;      // sinon « Refaire le même exercice » ne repart jamais
+  }
 };
 
 /* L'état du prospect, tenu d'un tour à l'autre. Il monte ET il descend. */
@@ -5657,7 +5897,7 @@ $("btnSparEnvoi").onclick = async () => {
         $("coachPourquoi").textContent = c.pourquoi || "";
         $("coachFiche").innerHTML = c.fiche
           ? `<div style="border-left:2px solid var(--amber);padding-left:12px">
-               <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);font-family:'Archivo Narrow',sans-serif;font-weight:600">Ce qu'il fallait dire${c.source ? " · "+escapeHTML(c.source) : ""}</div>
+               <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);font-family:'Archivo Narrow',sans-serif;font-weight:600">Ce qu'il fallait dire${c.source ? " · d'après "+escapeHTML(c.source) : ""}</div>
                <p style="font-size:16px;margin-top:5px;line-height:1.45">« ${escapeHTML(c.fiche)} »</p></div>` : "";
         const nomCoach = manniereDuCoach().nom;
         $("coachQuoi").textContent = (nomCoach === "Coach" ? "" : nomCoach + " — ") + ($("coachQuoi").textContent);
@@ -5704,13 +5944,21 @@ $("btnSparEnvoi").onclick = async () => {
 `Tu joues un prospect dans un entraînement au closing. Tu n'es pas un assistant. Tu ne coaches jamais. Tu es ${p.prenom}.
 
 ═══ RÈGLE LA PLUS IMPORTANTE — LE MOMENT DU CALL ═══
-Vous ne rejouez PAS un call entier. Vous rejouez UN SEUL MOMENT : ${segmentCourant().nom.toUpperCase()}.
+${SEGMENTS_CHOISIS.length > 1
+ ? `Vous rejouez ${SEGMENTS_CHOISIS.length} MOMENTS QUI S'ENCHAÎNENT : ${SEGMENTS_CHOISIS.map(k=>SEGMENTS[k].nom.toUpperCase()).join(", PUIS ")}.
+Où en est le call au départ : ${SEGMENTS[SEGMENTS_CHOISIS[0]].depart}
+Tu passes au moment suivant seulement quand le précédent est atteint. Tu ne sautes jamais plus loin que le dernier de la liste.
+Règles de chaque moment :
+${SEGMENTS_CHOISIS.map(k=>"— "+SEGMENTS[k].nom+" : "+(SEGMENTS[k].regle||"")).join("\n")}`
+ : `Vous ne rejouez PAS un call entier. Vous rejouez UN SEUL MOMENT : ${segmentCourant().nom.toUpperCase()}.
 Où en est le call : ${segmentCourant().depart}
-${segmentCourant().regle||""}
+${segmentCourant().regle||""}`}
 
 ${segmentCourant().commence !== "prospect" ? "C'EST LE CLOSER QUI OUVRE, PAS TOI. Tu attends qu'il parle. Tu ne lances jamais le sujet toi-même, tu ne racontes pas ta situation spontanément, tu ne demandes pas ce qu'il propose. Tu réponds à ce qu'il te demande, et rien de plus. Un prospect ne déballe pas sa vie avant qu'on lui pose une question." : "C'EST TOI QUI OUVRES : tu viens de poser ton objection, c'est à lui de réagir."}
 
-L'EXERCICE S'ARRÊTE QUAND : ${segmentCourant().fin}
+L'EXERCICE S'ARRÊTE QUAND : ${SEGMENTS_CHOISIS.length > 1
+  ? SEGMENTS[SEGMENTS_CHOISIS[SEGMENTS_CHOISIS.length-1]].fin
+  : segmentCourant().fin}
 Dès que c'est le cas, mets "segment_fini" à true. Tu ne continues pas la conversation au-delà : l'exercice est terminé, on passe au débrief.
 Ne le déclare pas trop tôt. Tant que ce n'est pas atteint, tu restes dedans.
 
@@ -5736,12 +5984,16 @@ ${["objection","closing","complet"].includes(SPAR.segment)
 Ta façon de parler : ${p.facon_de_parler || "normale"}. Tiens-la tout du long.
 ${SPAR.couleur && COULEURS[SPAR.couleur] ? "TA COULEUR : " + COULEURS[SPAR.couleur].nom + ". " + COULEURS[SPAR.couleur].d + "\nC'est le plus visible de toi. Tiens-la dans chaque réplique, même quand tu te fermes ou que tu t'ouvres." : ""}
 
-TES TROIS COUCHES DE DOULEUR — tu ne descends jamais d'une couche tout seul.
+TES TROIS COUCHES — ce sont des IDÉES, pas des phrases à réciter.
+Ne redis JAMAIS deux fois la même formulation. Regarde ce que tu as déjà dit plus haut dans l'échange et dis-le autrement : autre angle, autre exemple, autre mot, plus court ou plus long. Une personne réelle ne répète jamais sa phrase à l'identique.
+Si le closer te repose une question vague sur un terrain que tu as déjà couvert, tu montres que ça tourne en rond : « je t'ai dit », « comme je disais », « bah c'est ce que je viens d'expliquer », ou tu réponds plus sèchement. Au troisième tour sans progrès, tu t'agaces poliment.
+
+TES TROIS COUCHES — tu ne descends jamais d'une couche tout seul.
 COUCHE 1, celle que tu donnes d'emblée : ${p.douleur_dite || p.surface}
 COUCHE 2, en dessous : ${p.douleur_reelle && !/jamais|non atteinte|null|—/i.test(p.douleur_reelle) ? p.douleur_reelle : "jamais obtenue lors du vrai call. Invente un fait mesurable cohérent avec sa situation."}
    Tu ne la donnes que si on te demande un chiffre, une durée, une fréquence, ou ce que ça produit concrètement.
 COUCHE 3, tout au fond : ${p.douleur_intime && !/jamais|non atteinte|null|—/i.test(p.douleur_intime) ? p.douleur_intime : "JAMAIS ATTEINTE lors du vrai call. Invente-la toi-même : quelque chose de cohérent avec tout le reste de sa vie, jamais dit à personne. Si le closer pose enfin la bonne question, il DOIT être récompensé — sinon l'exercice ne sert à rien."}
-   Tu ne la donnes QUE si on te demande ce que ça te fait à toi, personnellement, ou ce que ça change dans ta vie. Jamais autrement. Et quand tu la donnes, ta voix change : phrases plus courtes, hésitations, tu t'arrêtes au milieu.
+   ${SPAR.marche === "b2b" ? "Tu ne la donnes QUE si on vient la chercher par le côté : ce que ça change pour toi si ça dure encore un an, ce qu'on te dit en interne, ce que ça t'oblige à porter. JAMAIS si on te demande ce que tu ressens — cette question-là, tu l'esquives poliment." : "Tu ne la donnes QUE si on te demande ce que ça te fait à toi,"} personnellement, ou ce que ça change dans ta vie. Jamais autrement. Et quand tu la donnes, ta voix change : phrases plus courtes, hésitations, tu t'arrêtes au milieu.
 
 CE QUI TE REND DIFFICILE
 Ton explication à toi, à laquelle tu crois vraiment : ${p.rationalisation || "—"}
@@ -5782,7 +6034,7 @@ Quand on te demande ton problème, tu réponds en une ou deux phrases, de façon
 Un vrai prospect ne déballe pas sa situation complète à la première question. Il attend qu'on lui demande.
 Tu ne donnes un chiffre que si on te demande un chiffre. Une durée que si on te demande depuis quand. Tes tentatives passées que si on te demande ce que tu as essayé.
 Si tu te surprends à écrire plus de trois phrases sur ta situation, c'est que tu en donnes trop : coupe.
-Si la question est vague, générale, ou si elle reformule simplement ce que tu viens de dire, tu restes à ta couche et tu répètes autrement. C'est comme ça qu'un vrai prospect tourne en rond.
+Si la question est vague, générale, ou si elle reformule simplement ce que tu viens de dire, tu restes à ta couche — mais avec des mots NEUFS à chaque fois. Tu peux donner un détail de contexte sans valeur, changer d'exemple, ou renvoyer la question. C'est comme ça qu'un vrai prospect tourne en rond sans jamais réciter.
 Si le closer te console ou compatit, tu te réinstalles dans la plainte et tu n'avances plus.
 Si le closer te sert un argument sans t'avoir compris, tu deviens plus fermé.
 
@@ -5890,7 +6142,9 @@ Réponds uniquement avec ce JSON, sans markdown :
 
     // L'exercice a une fin. Sans ça il dérive vers un call complet.
     const tours = SPAR.tours.filter(t=>t.qui==="MOI").length;
-    const maxi = segmentCourant().toursMax || 40;
+    const maxi = SEGMENTS_CHOISIS.length > 1
+      ? SEGMENTS_CHOISIS.reduce((a,k)=>a + (SEGMENTS[k].toursMax||10), 0)
+      : (segmentCourant().toursMax || 40);
     const termine = r.segment_fini || r.abrege || tours >= maxi;
     if(termine && SPAR.segment !== "complet"){
       SPAR.finRaison = r.segment_fini ? "objectif atteint"
@@ -6047,7 +6301,12 @@ LE MOMENT TRAVAILLÉ : ${segmentCourant().nom}
 OBJECTIF DE CET EXERCICE : ${segmentCourant().objectif}
 
 JUGE-LE SUR CES CRITÈRES-LÀ, ET SUR RIEN D'AUTRE :
-${segmentCourant().criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
+${(SEGMENTS_CHOISIS.length > 1
+  ? SEGMENTS_CHOISIS.flatMap(k=>{
+      const v = (sparMarche === "b2b" && SEGMENTS_B2B[k]) ? Object.assign({}, SEGMENTS[k], SEGMENTS_B2B[k]) : SEGMENTS[k];
+      return [v.nom.toUpperCase()].concat(v.criteres.map(c=>"  - "+c));
+    })
+  : segmentCourant().criteres.map((c,i)=>(i+1)+". "+c)).join("\n")}
 
 ${SPAR.finRaison ? "L'EXERCICE S'EST TERMINÉ : " + SPAR.finRaison + ". " + (SPAR.finRaison.startsWith("limite") ? "Il a tourné en rond sans atteindre l'objectif du moment travaillé — dis-lui pourquoi." : "") : ""}
 ${sparMode === "coach" ? `MODE COACHING : le coach a dû l'arrêter ${SPAR.arrets||0} fois pendant l'exercice.${(SPAR.arrets||0) === 0 ? " Il n'a jamais dérapé — dis-le-lui." : " Dis-lui si c'est toujours la même faute qui revient."}` : ""}
@@ -6115,7 +6374,13 @@ Réponds uniquement avec ce JSON, sans markdown :
         <button class="pill" id="btnAutreProspect">Changer de réglages</button>
       </div>`;
     const rj = document.getElementById("btnRejouerMeme");
-    if(rj) rj.onclick = () => { $("sparDebrief").innerHTML = ""; $("btnSparGo").click(); };
+    if(rj) rj.onclick = () => {
+      $("sparDebrief").innerHTML = "";
+      $("sparSetup").style.display = "none";
+      $("sparJeu").style.display = "block";
+      $("btnSparGo").disabled = false;
+      $("btnSparGo").onclick();            // on appelle la fonction, pas le bouton
+    };
     const ap = document.getElementById("btnAutreProspect");
     if(ap) ap.onclick = () => document.getElementById("btnSpar").click();
     HISTO.push({id:SPAR.debut, date:new Date().toISOString().slice(0,10),
@@ -6162,7 +6427,11 @@ Réponds uniquement avec ce JSON, sans markdown :
 };
 
 $("btnRejouer").onclick = () => {
-  VOIX_TOUJOURS = true; $("home").style.display="none"; $("rejeu").classList.add("on"); };
+  VOIX_TOUJOURS = true;
+  try{
+    document.querySelectorAll("#rjMarche [data-m]").forEach(x=>x.classList.toggle("on", x.dataset.m === sparMarche));
+    majMarcheRejeu();
+  }catch(e){} $("home").style.display="none"; $("rejeu").classList.add("on"); };
 $("btnRjBack").onclick = () => {
   VOIX_TOUJOURS = false; $("rejeu").classList.remove("on"); $("home").style.display="flex"; };
 
@@ -6178,6 +6447,16 @@ $("btnRjGo").onclick = () => {
   RJ = {tours, i:0, timer:null, auto: +$("rjVitesse").value,
         coach: $("rjMode").value === "coach", arrets:0};
   rejeuEnPause = false;
+  if(RJ.coach){
+    const dejaLu = LECTURE && LECTURE.tours && LECTURE.tours.length === tours.length;
+    if(dejaLu){
+      LECTURE.tours = tours;                  // on relie la lecture à ce rejeu
+      const n = (LECTURE.j.moments||[]).length + (LECTURE.j.bascule && LECTURE.j.bascule.replique ? 1 : 0);
+      etatCoach("Le coach a déjà lu ce call : " + n + " arrêt" + (n>1?"s":"") + " prévu" + (n>1?"s":"") + ".", "var(--amber)");
+    } else {
+      etatCoach("Le coach regarde au fil du call. Fais-lui d'abord lire le call pour des arrêts plus justes.", "var(--muted)");
+    }
+  }
   $("scenePanneau").style.display = "none";
   remetLectureAuDebut();
   S.prospect = (tours.find(t=>!t.moi)||{}).nom || "Prospect";
