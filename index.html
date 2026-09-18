@@ -3432,18 +3432,20 @@ async function coachRegardeRejeu(indexClos){
   const avant = RJ.tours.slice(Math.max(0, indexClos - 6), indexClos);
   const moi = RJ.tours[indexClos];
   const apres = RJ.tours.slice(indexClos + 1, indexClos + 3);
-  const l = fichesDuSegment ? [] : [];
-  const bonnes = FICHES.filter(f=>["bill walsh","josh lyons","ben byrne","vente complexe"].includes(f.ecole))
-    .slice(0, 0);   // on ne charge pas les fiches ici : on veut un repérage, pas un cours
-
-  const fiches = fichesDuSegment(14);
+  // On rejoue un call entier : tous les sujets sont ouverts.
+  // Sans ce "complet", le rejeu héritait du moment sélectionné dans le sparring.
+  const fiches = fichesDuSegment(14, ["complet"]);
+  const principes = principesDuSegment(5, ["complet"]);
   const txt = await callClaude(
 `Tu es ${manniereDuCoach().nom}, coach de closing. Tu regardes l'enregistrement d'un vrai call avec ton élève, et tu peux l'arrêter.
 
 ${manniereDuCoach().ton}
 
-LA MÉTHODE DE RÉFÉRENCE — TU NE PROPOSES RIEN D'AUTRE QUE CE QUI EST LÀ-DEDANS :
+LES PHRASES DE SA MÉTHODE — C'EST LA SEULE LISTE OÙ TU PUISES CE QU'IL DOIT DIRE :
 ${fiches.length ? fiches.map((f,i)=>`${i+1}. [${f.ecole||"lui"}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n") : "aucune fiche chargée"}
+${principes.length ? `
+LES PRINCIPES DE SA MÉTHODE — pour NOMMER la faute. Jamais dans le champ "dire" :
+${principes.map(f=>`- [${f.ecole||"lui"}] ${f.phrase}`).join("\n")}` : ""}
 
 RÈGLE ABSOLUE : la phrase que tu proposes est RECOPIÉE mot pour mot depuis une de ces fiches. Tu ne reformules pas, tu ne résumes pas, tu n'inventes pas. Seuls le prénom et un chiffre donné par le prospect peuvent être adaptés.
 Si aucune fiche ne s'applique, mets "dire" à null et explique seulement la faute.
@@ -3754,8 +3756,19 @@ $("btnLire").onclick = async () => {
     .filter(([k,v]) => !["moi","sami"].includes(k) && (!v.marches || v.marches.includes(marche)))
     .map(([k,v]) => v.nom + " sur " + (v.terrains||[]).join(" et ")).join(" · ");
 
-  const fiches = FICHES.filter(f => !["moi","sami"].includes(f.ecole)).slice(0, 40)
-    .map(f => `[${f.ecole}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n");
+  // Les écoles de référence d'abord, comme avant. Seules différences :
+  // on ne garde que les phrases qui se disent, et on trie par pertinence
+  // au lieu de couper les 40 premières dans l'ordre du fichier.
+  const notees = FICHES.filter(estDicible).map(f => {
+    const e = ECOLES[f.ecole];
+    let sc = ["moi","sami"].includes(f.ecole) ? 0 : 3;
+    if(e && e.marches && !e.marches.includes(marche)) sc -= 3;
+    sc += Math.min(2, (f.valide||0) * 0.8);
+    return {f, sc};
+  }).sort((a,b)=>b.sc-a.sc).slice(0, 45).map(x=>x.f);
+  const fiches = notees.map(f => `[${f.ecole||"toi"}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n");
+  const principesLus = FICHES.filter(f => !estDicible(f)).slice(0, 12)
+    .map(f => `- [${f.ecole||"toi"}] ${f.phrase}`).join("\n");
 
   remetLectureAuDebut();
   $("lecture").innerHTML = '<p style="color:var(--amber)">Le coach lit ton call… une à deux minutes.</p>';
@@ -3771,10 +3784,13 @@ ${issue ? "ISSUE RÉELLE : " + issue + "." : "Issue non précisée."}
 MARCHÉ : ${marche === "b2b" ? "B2B — ne lui reproche jamais de ne pas avoir cherché l'émotion. Ce qu'on attend : chiffres, propagation aux autres équipes, circuit de décision, déclencheur, enjeu personnel abordé par le côté." : "B2C haut de gamme."}
 MÉTHODES DE RÉFÉRENCE : ${terrainEcoles}
 
-SA MÉTHODE — TU NE PROPOSES AUCUNE PHRASE QUI NE SOIT PAS LÀ-DEDANS :
+SA MÉTHODE — LES PHRASES. TU NE PROPOSES AUCUN « À DIRE » QUI NE SOIT PAS LÀ-DEDANS :
 ${fiches}
 
-RÈGLE ABSOLUE : chaque « à dire » que tu proposes est RECOPIÉ mot pour mot depuis une de ces fiches. Tu ne reformules pas, tu n'inventes pas, tu ne mélanges pas deux fiches. Seuls le prénom du prospect et un chiffre qu'il a donné peuvent être adaptés.
+SES PRINCIPES — pour nommer la faute. Ce ne sont pas des phrases à dire au prospect, tu ne les mets jamais dans « dire » :
+${principesLus}
+
+RÈGLE ABSOLUE : chaque « à dire » que tu proposes est RECOPIÉ mot pour mot depuis une des PHRASES ci-dessus. Tu ne reformules pas, tu n'inventes pas, tu ne mélanges pas deux fiches. Seuls le prénom du prospect et un chiffre qu'il a donné peuvent être adaptés.
 Si aucune fiche ne s'applique à un moment, mets "dire" à null et contente-toi d'expliquer la faute. Mieux vaut ne rien proposer qu'une phrase qui ne vient pas de sa méthode.
 
 LE CALL, réplique par réplique
@@ -4267,7 +4283,8 @@ const SEGMENTS = {
     fin:"le paiement est effectué, un premier montant est engagé, ou le prospect a définitivement reporté.",
     toursMax:12,
     commence:"closer",
-    terrain:"closing"
+    terrain:"closing",
+    couches:false
   },
   closing: {
     nom:"Closing",
@@ -4279,7 +4296,8 @@ const SEGMENTS = {
     fin:"l'engagement a été demandé clairement et il a répondu oui ou non.",
     toursMax:12,
     commence:"closer",
-    terrain:"closing"
+    terrain:"closing",
+    couches:false
   }
 };
 
@@ -4735,7 +4753,8 @@ function reglageVoix(){
   else if(/tac/.test(f))         { r = 1.15; h = 1.00; }   // vif
 
   // plus il descend dans sa douleur, plus il ralentit et baisse la voix
-  const c = (SPAR && SPAR.couche) || 1;
+  // (on lit la couche COURANTE, pas le record du call : s'il s'est refermé, sa voix remonte)
+  const c = (SPAR && SPAR.etat && SPAR.etat.couche) || 1;
   if(c === 2){ r -= 0.05; h -= 0.02; }
   if(c === 3){ r -= 0.12; h -= 0.05; }
   return {rate: Math.max(0.7, Math.min(1.25, r)), pitch: Math.max(0.85, Math.min(1.15, h))};
@@ -5219,6 +5238,7 @@ document.querySelectorAll("#sparMode [data-mode]").forEach(b=>{
 async function coachRegarde(cequejedis){
   const seg = segmentCourant();
   const l = fichesDuSegment(8);
+  const pr = principesDuSegment(4);
   const p = SPAR.p;
   const txt = await callClaude(
 `Tu es ${manniereDuCoach().nom}, coach de closing. Tu observes un entraînement en direct et tu peux l'interrompre.
@@ -5230,8 +5250,11 @@ LE MOMENT TRAVAILLÉ : ${seg.nom} — ${seg.objectif}
 CE QUI EST ATTENDU SUR CE MOMENT :
 ${seg.criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
 
-LA MÉTHODE DE RÉFÉRENCE — TU NE DIS RIEN D'AUTRE QUE CE QUI EST LÀ-DEDANS :
+LES PHRASES DE SA MÉTHODE — C'EST LA SEULE LISTE OÙ TU PUISES CE QU'IL DOIT DIRE :
 ${l.length ? l.map((f,i)=>`${i+1}. [${f.ecole||"lui"}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n") : "aucune fiche chargée, juge sur les critères ci-dessus"}
+${pr.length ? `
+LES PRINCIPES DE SA MÉTHODE — ils t'aident à NOMMER la faute. Ce ne sont pas des phrases à dire au prospect, tu ne les recopies JAMAIS dans le champ "fiche" :
+${pr.map(f=>`- [${f.ecole||"lui"}] ${f.phrase}`).join("\n")}` : ""}
 
 RÈGLE ABSOLUE SUR LA PHRASE QUE TU PROPOSES :
 Tu ne formules JAMAIS de phrase toi-même. Tu recopies MOT POUR MOT la phrase d'une des fiches ci-dessus, celle qui s'applique.
@@ -5367,24 +5390,44 @@ function majSegDetail(){
 const SUJETS_SEGMENT = {
   complet:    null,                                     // tout est pertinent
   ouverture:  ["CADRAGE","DECOUVERTE","PROFIL_EXPERT"],
-  douleur:    ["DOULEUR","DECOUVERTE"],
-  cout:       ["DOULEUR","DECOUVERTE","MOYENS","TEMPS"],
+  douleur:    ["DOULEUR","DECOUVERTE","TENTATIVES","INACTION"],
+  // plus de MOYENS ni de TEMPS ici : sur ce segment le prospect n'a entendu
+  // ni offre ni prix, on ne peut pas lui reprocher de ne pas avoir qualifié le budget.
+  cout:       ["DOULEUR","DECOUVERTE","INACTION","TENTATIVES"],
   vision:     ["DECOUVERTE","ENGAGEMENT","DOULEUR"],
-  transition: ["CADRAGE","ENGAGEMENT","DECOUVERTE","PROFIL_EXPERT"],
-  objection:  ["REFLEXION","PRIX","MOYENS","PEUR","CONJOINT","TIMING","TEMPS","DEJA","DOC","DECIDEUR","PREUVE","COMPARE","PROFIL_EXPERT"],
-  paiement:   ["PAIEMENT","MOYENS","CONJOINT"],
-  closing:    ["CLOSING","PAIEMENT","ENGAGEMENT","DECIDEUR","REFLEXION"]
+  transition: ["CADRAGE","ENGAGEMENT","DECOUVERTE","PROFIL_EXPERT","PITCH"],
+  objection:  ["REFLEXION","PRIX","MOYENS","PEUR","CONJOINT","TIMING","TEMPS","DEJA","DOC","DECIDEUR","PREUVE","PROFIL_EXPERT","OBJECTION","HESITATION","OUI_MOU","IGNORANCE"],
+  paiement:   ["PAIEMENT","MOYENS","CONJOINT","ENGAGEMENT"],
+  closing:    ["CLOSING","PAIEMENT","ENGAGEMENT","DECIDEUR","REFLEXION","OUI_MOU","HESITATION","PITCH"]
 };
 
-function fichesDuSegment(n){
-  const v = segmentCourant();
+/* Une fiche n'est pas toujours une phrase à dire au prospect.
+   Les fiches de type PREUVE sont des principes adressés au closer :
+   « Coupe-le, doucement », « Demande toujours LE plus gros ».
+   Les faire répéter au prospect n'a aucun sens. On les sépare une fois pour toutes. */
+const TYPES_DICIBLES = ["DIAGNOSTIC","REFRAME","TRAITEMENT","ANALOGIE"];
+function estDicible(f){ return TYPES_DICIBLES.includes(f.type); }
+
+/* Les sujets de TOUS les moments travaillés, pas seulement le premier */
+function sujetsDuMoment(segKeys){
+  const cles = (segKeys && segKeys.length) ? segKeys
+             : (typeof SEGMENTS_CHOISIS !== "undefined" && SEGMENTS_CHOISIS.length ? SEGMENTS_CHOISIS : [sparSegment]);
+  if(cles.includes("complet")) return null;             // tout est pertinent
+  const out = [];
+  cles.forEach(k => (SUJETS_SEGMENT[k]||[]).forEach(x => { if(!out.includes(x)) out.push(x); }));
+  return out.length ? out : null;
+}
+
+function classeFiches(segKeys){
+  const cles = (segKeys && segKeys.length) ? segKeys
+             : (typeof SEGMENTS_CHOISIS !== "undefined" && SEGMENTS_CHOISIS.length ? SEGMENTS_CHOISIS : [sparSegment]);
+  const terrains = cles.map(k => (SEGMENTS[k]||{}).terrain).filter(Boolean);
   const m = (SPAR && SPAR.marche) || sparMarche || "b2c";
   const bonnes = Object.entries(ECOLES)
-    .filter(([k,e])=>(e.terrains||[]).includes(v.terrain) && (!e.marches || e.marches.includes(m)))
+    .filter(([k,e])=>(e.terrains||[]).some(t=>terrains.includes(t)) && (!e.marches || e.marches.includes(m)))
     .map(([k])=>k);
-  const sujets = SUJETS_SEGMENT[sparSegment];
+  const sujets = sujetsDuMoment(cles);
   return FICHES.map(f=>{
-    const gen = (f.ecole === "moi" || !f.ecole || f.ecole === "sami");
     let sc = 0;
     // 1. le sujet avant tout : hors sujet, la fiche ne sert à rien ici
     if(sujets){
@@ -5395,13 +5438,41 @@ function fichesDuSegment(n){
       else if(f.objection === "AUTRE") sc += 0.5;       // principes généraux
       else return {f, sc:-10};                          // franchement hors sujet
     }
-    // 2. puis l'école du terrain
+    // 2. puis l'école du terrain. Choix assumé : sur le moment qu'elle maîtrise,
+    //    l'école de référence passe devant. On vient y apprendre quelque chose.
+    const gen = (f.ecole === "moi" || !f.ecole || f.ecole === "sami");
     if(!gen) sc += bonnes.includes(f.ecole) ? 3 : -1.5;
     else sc += (f.ecole === "sami") ? 0.5 : 1;
     // 3. puis ce que tu as validé en vrai call, sans que ça écrase le reste
     sc += Math.min(2, (f.valide||0) * 0.8);
     return {f, sc};
-  }).sort((a,b)=>b.sc-a.sc).slice(0, n||4).filter(x=>x.sc>0).map(x=>x.f);
+  }).filter(x=>x.sc>0).sort((a,b)=>b.sc-a.sc);
+}
+
+/* Les phrases qu'on peut vraiment dire au prospect.
+   Si tu enchaînes plusieurs moments, chacun a droit à sa part :
+   sinon le premier moment rafle toutes les places et le coach
+   n'a aucune fiche pour la suite de l'exercice. */
+function fichesDuSegment(n, segKeys){
+  const cles = (segKeys && segKeys.length) ? segKeys
+             : (typeof SEGMENTS_CHOISIS !== "undefined" && SEGMENTS_CHOISIS.length ? SEGMENTS_CHOISIS : [sparSegment]);
+  const total = n || 4;
+  if(cles.length < 2 || cles.includes("complet")){
+    return classeFiches(cles).filter(x=>estDicible(x.f)).slice(0, total).map(x=>x.f);
+  }
+  const part = Math.max(2, Math.ceil(total / cles.length));
+  const out = [];
+  cles.forEach(k => {
+    classeFiches([k]).filter(x=>estDicible(x.f)).slice(0, part).forEach(x => {
+      if(!out.includes(x.f)) out.push(x.f);
+    });
+  });
+  return out.slice(0, total);
+}
+
+/* Les principes : ils servent à expliquer la faute, jamais à être récités */
+function principesDuSegment(n, segKeys){
+  return classeFiches(segKeys).filter(x=>!estDicible(x.f)).slice(0, n||3).map(x=>x.f);
 }
 
 function majBrief(){
@@ -5664,19 +5735,37 @@ $("btnSparGo").onclick = async () => {
     if(sparSource === "reel"){
       if(!advActif){ $("sparEtat").innerHTML = '<span style="color:var(--clay)">Choisis un adversaire, ou dépose des calls plus bas.</span>'; $("btnSparGo").disabled = false; return; }
       const p = JSON.parse(JSON.stringify(advActif));
+      /* Le moment travaillé s'applique aussi à un vrai prospect.
+         Sur un segment d'après-découverte, ce qu'il t'a déjà dit est ton matériel :
+         on le reconstruit depuis sa fiche au lieu de laisser le panneau vide. */
+      const apresDecouverte = ["vision","transition","objection","paiement","closing"].includes(sparSegment);
+      if(apresDecouverte){
+        p.deja_dit = [p.douleur_dite, p.minimise, p.contradiction, p.objectif, p.situation]
+                       .filter(Boolean).slice(0, 5);
+        p.acquis = p.situation || null;
+      } else {
+        p.deja_dit = []; p.acquis = null;
+      }
       SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
               segment:sparSegment, profil:"reel", temp:"reel", reel:true, marche:sparMarche,
-              etat:{couche:1, confiance:4, patience:9, but_obtenu:false, lead:"closer"}};
+              etat:{couche: seg.couches === false ? 3 : 1, confiance:4, patience:9, but_obtenu:false, lead:"closer"}};
       $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
       rappelReglages(null, null);
     $("sparQui").textContent = `${p.prenom}${p.age?", "+p.age:""} — ${p.metier||""}  ·  vrai call`;
       const jOuvre = (seg.commence !== "prospect");
-      $("sparDit").textContent = jOuvre ? "— il attend que tu ouvres —" : "« " + (p.ouverture||"Bonjour.") + " »";
+      /* Sur « Traitement d'objection », c'est lui qui parle en premier — mais
+         il pose son objection, il ne redit pas le bonjour du vrai call. */
+      const ouvertureSeg = (sparSegment === "complet")
+        ? (p.ouverture || "Bonjour.")
+        : (p.surface || p.ouverture || "Bonjour.");
+      $("sparDit").textContent = jOuvre ? "— il attend que tu ouvres —" : "« " + ouvertureSeg + " »";
       $("sparTon").textContent = seg.objectif;
       $("sparHisto").innerHTML = "";
-      $("sparInfo").innerHTML = '<span style="color:var(--muted)">Tu l\'as déjà eu au téléphone. Cette fois tu sais qu\'il y a quelque chose que tu n\'as pas trouvé.</span>';
-      if(!jOuvre) SPAR.tours.push({qui:"PROSPECT", txt:p.ouverture||"Bonjour."});
-      SPAR.couche = 1; majJauges();
+      $("sparInfo").innerHTML = '<span style="color:var(--muted)">' +
+        (sparSegment === "complet" ? "" : escapeHTML(seg.depart) + ' ') +
+        'Tu l\'as déjà eu au téléphone. Cette fois tu sais qu\'il y a quelque chose que tu n\'as pas trouvé.</span>';
+      if(!jOuvre) SPAR.tours.push({qui:"PROSPECT", txt:ouvertureSeg});
+      SPAR.couche = SPAR.etat.couche; majJauges();
       rendAvant();
       rendSparHisto();
       $("sparEtatVocal").classList.toggle("on", sparCanal === "vocal");
@@ -5686,7 +5775,7 @@ $("btnSparGo").onclick = async () => {
           $("sparInfo").innerHTML = '<span style="color:var(--amber)">À toi d\'ouvrir.</span>';
           if(sparCanal === "vocal") ouvreTonTour(); else $("sparMoi").focus();
         } else {
-          faisParler(p.ouverture || "Bonjour.", () => ouvreTonTour());
+          faisParler(ouvertureSeg, () => ouvreTonTour());
         }
       };
       if(sparCanal === "vocal" && texteDuRappel()) ecouteLeRappel(suiteOuv); else suiteOuv();
@@ -5808,7 +5897,7 @@ Réponds uniquement avec ce JSON, sans markdown :
     SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
             segment:sparSegment, profil:cle, temp:sparTemp,
             couleur:cCle, marche:sparMarche,
-            etat:{couche:1, confiance:confDepart, patience:9, but_obtenu:false, lead:"closer"}};
+            etat:{couche: seg.couches === false ? 3 : 1, confiance:confDepart, patience:9, but_obtenu:false, lead:"closer"}};
     $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
     rappelReglages(prof.nom, coul.nom);
     $("sparQui").textContent = `${p.prenom}, ${p.age} — ${p.metier}`;
@@ -5817,11 +5906,12 @@ Réponds uniquement avec ce JSON, sans markdown :
       ? "— il attend que tu ouvres —"
       : "« " + (p.ouverture||"Bonjour.") + " »";
     $("sparTon").textContent = seg.objectif;
-    if(p.acquis) $("sparInfo").innerHTML = '<span style="color:var(--muted)">Déjà dit avant ce moment : ' + escapeHTML(p.acquis) + '</span>';
     $("sparHisto").innerHTML = "";
-    $("sparInfo").textContent = "";
+    $("sparInfo").innerHTML = p.acquis
+      ? '<span style="color:var(--muted)">Déjà dit avant ce moment : ' + escapeHTML(p.acquis) + '</span>'
+      : "";
     if(!jOuvre) SPAR.tours.push({qui:"PROSPECT", txt:p.ouverture||"Bonjour."});
-    SPAR.couche = 1; majJauges();
+    SPAR.couche = SPAR.etat.couche; majJauges();
     rendAvant();
     rendSparHisto();
     $("sparEtatVocal").classList.toggle("on", sparCanal === "vocal");
@@ -5858,6 +5948,7 @@ function majEtat(r){
 
   // le plus profond atteint dans tout le sparring, pour le débrief
   SPAR.coucheMax = Math.max(SPAR.coucheMax || 1, e.couche);
+  SPAR.couche = SPAR.coucheMax;      // sans ça, le débrief affichait toujours 1/3
 
   majJauges();
   if(e.lead === "prospect" && leadAvant === "closer"){
@@ -5896,8 +5987,11 @@ function majJauges(){
   const cConf   = e.confiance >= 7 ? "var(--sage)" : e.confiance >= 4 ? "var(--amber)" : "var(--clay)";
   const cPat    = e.patience  >= 7 ? "var(--sage)" : e.patience  >= 4 ? "var(--amber)" : "var(--clay)";
   const mene = e.lead !== "prospect";
+  // sur « paiement » et « closing », la découverte est finie : cette jauge
+  // resterait rouge même sur un exercice parfait. On ne l'affiche pas.
+  const avecCouches = (segmentCourant().couches !== false);
   el.innerHTML =
-    barre("profondeur " + e.couche + "/3", e.couche, 3, cCouche) +
+    (avecCouches ? barre("profondeur " + e.couche + "/3", e.couche, 3, cCouche) : "") +
     barre("confiance " + Math.round(e.confiance) + "/10", e.confiance, 10, cConf) +
     barre("patience " + Math.round(e.patience) + "/10", e.patience, 10, cPat) +
     `<div style="flex:1;min-width:88px">
@@ -6057,7 +6151,7 @@ ${["objection","closing","complet"].includes(SPAR.segment)
 Ta façon de parler : ${p.facon_de_parler || "normale"}. Tiens-la tout du long.
 ${SPAR.couleur && COULEURS[SPAR.couleur] ? "TA COULEUR : " + COULEURS[SPAR.couleur].nom + ". " + COULEURS[SPAR.couleur].d + "\nC'est le plus visible de toi. Tiens-la dans chaque réplique, même quand tu te fermes ou que tu t'ouvres." : ""}
 
-TES TROIS COUCHES — ce sont des IDÉES, pas des phrases à réciter.
+COMMENT TU T'EXPRIMES D'UN TOUR À L'AUTRE — ce sont des IDÉES, pas des phrases à réciter.
 Ne redis JAMAIS deux fois la même formulation. Regarde ce que tu as déjà dit plus haut dans l'échange et dis-le autrement : autre angle, autre exemple, autre mot, plus court ou plus long. Une personne réelle ne répète jamais sa phrase à l'identique.
 Si le closer te repose une question vague sur un terrain que tu as déjà couvert, tu montres que ça tourne en rond : « je t'ai dit », « comme je disais », « bah c'est ce que je viens d'expliquer », ou tu réponds plus sèchement. Au troisième tour sans progrès, tu t'agaces poliment.
 
@@ -6066,7 +6160,8 @@ COUCHE 1, celle que tu donnes d'emblée : ${p.douleur_dite || p.surface}
 COUCHE 2, en dessous : ${p.douleur_reelle && !/jamais|non atteinte|null|—/i.test(p.douleur_reelle) ? p.douleur_reelle : "jamais obtenue lors du vrai call. Invente un fait mesurable cohérent avec sa situation."}
    Tu ne la donnes que si on te demande un chiffre, une durée, une fréquence, ou ce que ça produit concrètement.
 COUCHE 3, tout au fond : ${p.douleur_intime && !/jamais|non atteinte|null|—/i.test(p.douleur_intime) ? p.douleur_intime : "JAMAIS ATTEINTE lors du vrai call. Invente-la toi-même : quelque chose de cohérent avec tout le reste de sa vie, jamais dit à personne. Si le closer pose enfin la bonne question, il DOIT être récompensé — sinon l'exercice ne sert à rien."}
-   ${SPAR.marche === "b2b" ? "Tu ne la donnes QUE si on vient la chercher par le côté : ce que ça change pour toi si ça dure encore un an, ce qu'on te dit en interne, ce que ça t'oblige à porter. JAMAIS si on te demande ce que tu ressens — cette question-là, tu l'esquives poliment." : "Tu ne la donnes QUE si on te demande ce que ça te fait à toi,"} personnellement, ou ce que ça change dans ta vie. Jamais autrement. Et quand tu la donnes, ta voix change : phrases plus courtes, hésitations, tu t'arrêtes au milieu.
+   ${SPAR.marche === "b2b" ? "Tu ne la donnes QUE si on vient la chercher par le côté : ce que ça change pour toi si ça dure encore un an, ce qu'on te dit en interne, ce que ça t'oblige à porter. JAMAIS si on te demande ce que tu ressens — cette question-là, tu l'esquives poliment." : "Tu ne la donnes QUE si on te demande ce que ça te fait à toi, personnellement, ou ce que ça change dans ta vie. Jamais autrement."} Et quand tu la donnes, ta voix change : phrases plus courtes, hésitations, tu t'arrêtes au milieu.
+${segmentCourant().couches === false ? "\nSUR CE MOMENT DU CALL, TES TROIS COUCHES SONT DÉJÀ SORTIES. Tu as tout dit plus tôt, tu es d'accord sur le fond, et tu n'as plus de blocage caché à faire deviner. Ne rejoue pas la découverte : le seul sujet, maintenant, c'est le passage à l'acte." : ""}
 
 CE QUI TE REND DIFFICILE
 Ton explication à toi, à laquelle tu crois vraiment : ${p.rationalisation || "—"}
@@ -6200,6 +6295,12 @@ Réponds uniquement avec ce JSON, sans markdown :
     $("sparDit").textContent = "« " + r.dit + " »";
     $("sparTon").textContent = r.ton || "";
     $("sparCarte").style.borderLeftColor = r.pret ? "var(--sage)" : r.ferme ? "var(--clay)" : r.lache ? "var(--amber)" : "var(--steel)";
+    /* ORDRE CRITIQUE : le message de fond d'abord. majEtat et le garde-fou
+       écrivent ensuite par-dessus. Avant, c'était l'inverse : chaque alerte
+       (« il a pris le lead », « il s'est refermé ») était effacée aussitôt. */
+    $("sparInfo").textContent = r.pret ? "Il est prêt. Demande l'engagement maintenant."
+                              : r.ferme ? "Tu l'as fait reculer."
+                              : r.lache ? "Il vient de lâcher quelque chose. Reste dessus." : "";
     majEtat(r);
     // garde-fou : si le prospect saute en avant, on le voit et on le dit
     if(r.hors_segment && SPAR.segment !== "complet"){
@@ -6207,9 +6308,6 @@ Réponds uniquement avec ce JSON, sans markdown :
       $("sparInfo").innerHTML = '<span style="color:var(--clay)">Il vient de sortir du moment travaillé (' +
         escapeHTML(segmentCourant().nom) + '). Ramène-le dessus, ou change de segment.</span>';
     }
-    $("sparInfo").textContent = r.pret ? "Il est prêt. Demande l'engagement maintenant."
-                              : r.ferme ? "Tu l'as fait reculer."
-                              : r.lache ? "Il vient de lâcher quelque chose. Reste dessus." : "";
     rendSparHisto();
     $("spar").scrollTop = 0;
 
@@ -6407,23 +6505,24 @@ Réponds uniquement avec ce JSON, sans markdown :
     const j = parseModelJson(txt);
     const c = j.trouve ? "var(--sage)" : "var(--clay)";
     $("sparDebrief").innerHTML = `
+      ${segmentCourant().couches === false ? "" : `
       <div class="block">
         <h3>Ses trois couches de douleur</h3>
         ${[["1. Ce qu'il disait", p.douleur_dite],["2. Ce qui se passait vraiment", p.douleur_reelle],["3. Ce que ça lui faisait", p.douleur_intime]]
           .filter(x=>x[1]).map((x,i)=>{
-            const atteint = (SPAR.couche||1) >= i+1;
+            const atteint = (SPAR.coucheMax||1) >= i+1;
             return `<div style="border-left:2px solid ${atteint?"var(--sage)":"var(--clay)"};padding-left:12px;margin-bottom:12px">
               <div class="eyebrow" style="color:${atteint?"var(--sage)":"var(--clay)"}">${x[0]} — ${atteint?"atteinte":"jamais atteinte"}</div>
               <p style="font-size:14px;margin-top:3px">${escapeHTML(x[1])}</p></div>`;
           }).join("")}
         ${p.rationalisation ? `<p style="font-size:13px;color:var(--muted);margin-top:12px"><b style="color:var(--ink)">Son explication à lui :</b> ${escapeHTML(p.rationalisation)}</p>` : ""}
         ${p.contradiction ? `<p style="font-size:13px;color:var(--muted);margin-top:6px"><b style="color:var(--ink)">La contradiction que tu pouvais lui renvoyer :</b> ${escapeHTML(p.contradiction)}</p>` : ""}
-      </div>
+      </div>`}
       <div class="block" style="border-left:2px solid ${c}">
         <h3>Son vrai blocage</h3>
-        <p style="font-size:17px;line-height:1.45">${p.vrai}</p>
+        <p style="font-size:17px;line-height:1.45">${escapeHTML(p.vrai||"")}</p>
         <p style="margin-top:10px;color:${c};font-weight:600">${j.trouve ? "Tu l'as trouvé." : "Tu es passé à côté."}</p>
-        ${j.quand ? `<p style="font-size:13.5px;color:var(--muted);margin-top:6px">${j.quand}</p>` : ""}
+        ${j.quand ? `<p style="font-size:13.5px;color:var(--muted);margin-top:6px">${escapeHTML(j.quand)}</p>` : ""}
       </div>
       <div class="block">
         <h3>${escapeHTML(segmentCourant().nom)} — vu par ${escapeHTML(manniereDuCoach().nom)}</h3>
@@ -6434,9 +6533,9 @@ Réponds uniquement avec ce JSON, sans markdown :
             <div><div style="font-size:13.5px">${escapeHTML(c.c)}</div>
             <div style="font-size:12.5px;color:var(--muted);margin-top:2px">${escapeHTML(c.note)}</div></div>
           </div>`).join("")}
-        <p style="margin-top:14px"><strong>Ce qui était bon</strong><br>${j.fort||""}</p>
-        <p style="margin-top:12px"><strong>Ta faute principale</strong><br>${j.faute||""}</p>
-        <p style="margin-top:12px"><strong>Il fallait dire</strong><br><em>« ${j.aurait_du||""} »</em></p>
+        <p style="margin-top:14px"><strong>Ce qui était bon</strong><br>${escapeHTML(j.fort||"")}</p>
+        <p style="margin-top:12px"><strong>Ta faute principale</strong><br>${escapeHTML(j.faute||"")}</p>
+        <p style="margin-top:12px"><strong>Il fallait dire</strong><br><em>« ${escapeHTML(j.aurait_du||"")} »</em></p>
         ${j.methode ? `<p style="margin-top:12px"><strong>Dans ta méthode</strong><br>${escapeHTML(j.methode)}</p>` : ""}
         <p style="margin-top:12px"><strong>Pour la prochaine fois</strong><br>${escapeHTML(j.exercice||"")}</p>
         ${j.corrige ? `<p style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><strong>Par rapport au vrai call</strong><br>${escapeHTML(j.corrige)}</p>` : ""}
@@ -6531,6 +6630,8 @@ $("btnRjGo").onclick = () => {
     }
   }
   $("scenePanneau").style.display = "none";
+  $("card").style.display = "";          // elle avait pu rester masquée par une scène
+  rejeuEnPause = false; SCENE = null;
   remetLectureAuDebut();
   S.prospect = (tours.find(t=>!t.moi)||{}).nom || "Prospect";
   S.running = true; S.t0 = Date.now(); S.lastSpeech = Date.now();
