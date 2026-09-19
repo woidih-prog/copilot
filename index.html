@@ -966,9 +966,9 @@ let COMPTEUR = {direct:0, fond:0};
 /* ÉCONOMIE — moins de tours envoyés, moins de fiches, plus de patience avant de parler.
    Chaque cran divise à peu près la dépense par deux. */
 const ECOS = {
-  serre:  {nom:"Serré",  tours:4, fiches:3, motsMin:8, motsAntic:10, attente:900,  antic:false},
-  normal: {nom:"Normal", tours:6, fiches:4, motsMin:5, motsAntic:6,  attente:400,  antic:true},
-  large:  {nom:"Large",  tours:10,fiches:6, motsMin:3, motsAntic:4,  attente:300,  antic:true}
+  serre:  {nom:"Serré",  tours:8, fiches:3, motsMin:8, motsAntic:10, attente:900,  antic:false},
+  normal: {nom:"Normal", tours:14,fiches:4, motsMin:5, motsAntic:6,  attente:400,  antic:true},
+  large:  {nom:"Large",  tours:22,fiches:6, motsMin:3, motsAntic:4,  attente:300,  antic:true}
 };
 let ECO = ECOS.normal;
 
@@ -1291,6 +1291,7 @@ const S = {
   running:false, muted:false, t0:0, prospect:"",
   transcript:[], events:[], lastSpeech:0,
   current:null, angleIdx:0, driftCount:0, qCount:0, beat:0, saidAtObj:"", moiQuiParle:false, etape:null, faites:[], signaux:[],
+  acquis:[], posees:[],
   lastObjectionAt:0, lastObjectionId:null, profile:{objectif:null}
 };
 
@@ -1539,6 +1540,9 @@ function majEtatMoteur(){
   const depuis = ECOUTE.derniereAnalyse ? Math.round((Date.now()-ECOUTE.derniereAnalyse)/1000) : null;
   const bouts = [];
   bouts.push(ECOUTE.actif ? "micro actif" : "micro coupé");
+  // Sans réglage des voix, toutes les phrases sont étiquetées par le bouton.
+  // Une mauvaise étiquette fausse toute l'analyse : il faut le voir en permanence.
+  if(!CALIBRE) bouts.push("voix non réglées — étiquette à la main");
   bouts.push(ECOUTE.entendues + " phrase" + (ECOUTE.entendues>1?"s":""));
   if(ECOUTE.enCours) bouts.push("analyse…");
   else if(depuis !== null) bouts.push("analysé il y a " + depuis + " s");
@@ -1627,7 +1631,13 @@ function nouvellePhrase(text, detecte){
   const mots = text.split(/\s+/).length;
 
   // repères pour le rapport et les alertes
-  if(!duProspect && estUneQuestion(text)) S.qCount++;
+  if(!duProspect && estUneQuestion(text)){
+    S.qCount++;
+    // On garde tes questions : c'est ce qui empêche le copilote de te faire
+    // reposer trois fois la même. Avant, il ne les revoyait jamais.
+    S.posees.push(text.slice(0, 120));
+    if(S.posees.length > 12) S.posees = S.posees.slice(-12);
+  }
 
   const hit = duProspect ? KB.find(o => o.patterns.some(r => r.test(text))) : null;
   if(hit && (!S.current || S.current.id !== hit.id)){
@@ -1665,6 +1675,9 @@ function estUneQuestion(t){
   return /\?/.test(t) || MOTS_QUESTION.test(t);
 }
 
+/* Les moments de ton pitch qui méritent une analyse malgré tout */
+const ANNONCE_CLOSER = /(\d[\d\s]{2,}\s*(euros?|€)|le prix (c'?est|est)|l'?accompagnement (c'?est|est)|ça (te )?coûte|je te propose|voilà ce qu'?on (fait|met en place)|on part sur|ce que je te propose)/i;
+
 function planifierAnalyse(text, qui, mots){
   const brut = text.trim();
 
@@ -1681,9 +1694,11 @@ function planifierAnalyse(text, qui, mots){
   if(POLITESSE.test(brut))       return note(brut, qui, false, "politesse d'ouverture");
   if(mots < ECO.motsMin)         return note(brut, qui, false, "trop court (" + mots + " mots)");
 
-  // On analyse ce que dit le prospect ET tes questions.
-  // Ton pitch, non : il n'apprend rien au copilote et il coûte.
-  if(qui === "CLOSER" && !estUneQuestion(brut)){
+  // On analyse ce que dit le prospect, tes questions, et les moments de ton
+  // pitch qui changent la donne : l'annonce du prix, la présentation de l'offre,
+  // ou un tunnel trop long. Avant, tout ton pitch passait à la trappe — le
+  // copilote ne savait donc jamais que tu venais d'annoncer ton prix.
+  if(qui === "CLOSER" && !estUneQuestion(brut) && !ANNONCE_CLOSER.test(brut) && mots < 40){
     return note(brut, qui, false, "ton pitch, pas une question");
   }
 
@@ -1849,9 +1864,9 @@ function fireDrift(title,desc){
 function idleCard(){
   S.current = null; S.beat = 0;
   $("card").className = "card";
-  $("tag").className = "tag blue"; $("tag").textContent = "En écoute";
-  $("cause").textContent = "";
-  $("action").textContent = "OUVRE PAR LE CHALLENGE";
+  $("tag").className = "tag blue"; $("tag").textContent = "Avant que ça commence";
+  $("cause").textContent = "Suggestion d'ouverture — rien n'a encore été dit.";
+  $("action").textContent = "À TOI D'OUVRIR";
   $("phrase").className = "";
   $("phrase").textContent = "« " + ouvertureAdaptee() + " »";
   $("why").classList.remove("on");
@@ -1862,6 +1877,12 @@ function CONSIGNES(){
 
 TRAME DU CALL (ordre de référence, on peut revenir en arrière) :
 ${TRAME.map(e=>e.c+' — '+e.but).join('\n')}
+
+TU AS LA MÉMOIRE DU CALL, SERS-T'EN.
+Plus haut, tu reçois ce que le prospect a déjà donné et les questions que le closer a déjà posées. C'est ton fil.
+Ne fais jamais reposer une question déjà posée, même reformulée. Ne redemande jamais une information déjà obtenue.
+Ta phrase doit s'accrocher aux mots que le prospect vient de dire, pas partir d'une fiche. Les fiches donnent l'orientation ; ce sont ses mots à lui qui donnent la formulation.
+Quand le closer vient de parler, tiens-en compte : sa question a peut-être déjà ouvert ce que tu allais chercher.
 
 RÈGLE DE PRIORITÉ — SUIS LA CONVERSATION AVANT LA TRAME.
 Le dernier sujet réellement développé par le PROSPECT est prioritaire. Ne ramène jamais la discussion à une étape précédente simplement parce qu'elle manque dans la trame. La trame est une carte de vérification, pas un script à imposer.
@@ -2028,6 +2049,12 @@ function etatDuCall(){
 Objectif chiffré : ${S.profile.objectif || "pas encore donné"}
 Objections déjà apparues : ${objs}
 Durée écoulée : ${fmt((Date.now()-S.t0)/1000)}
+CE QUE LE PROSPECT A DÉJÀ DONNÉ depuis le début — ne le redemande jamais : ${
+  S.acquis.length ? "\n" + S.acquis.map(x=>"  - "+x).join("\n") : "rien encore"
+}
+QUESTIONS QUE LE CLOSER A DÉJÀ POSÉES — n'en propose aucune qui refasse le même travail : ${
+  S.posees.length ? "\n" + S.posees.slice(-8).map(x=>"  - "+x).join("\n") : "aucune"
+}
 SITUATION DU PROSPECT : ${(SITUATIONS[S.situation]||SITUATIONS.etabli).nom}${S.domaine ? " — "+S.domaine : ""}
 COMMENT CREUSER CE PROFIL : ${(SITUATIONS[S.situation]||SITUATIONS.etabli).creuse}
 ${S.marche === "b2b" ? CONSIGNE_B2B : ""}
@@ -2071,6 +2098,13 @@ function majTrame(code){
 
 function appliquer(j, cands){
   const org0 = $("origine"); if(org0) org0.textContent = "";   // on repart propre à chaque carte
+
+  /* Ce que le prospect a réellement donné, accumulé depuis le début.
+     Sans ça, chaque analyse redécouvrait le call. */
+  if(j.certain && !S.acquis.some(x => x === j.certain)){
+    S.acquis.push(j.certain);
+    if(S.acquis.length > 16) S.acquis = S.acquis.slice(-16);
+  }
   // La carte reste lisible — mais seulement tant que rien de neuf n'a été dit.
   // Une carte qui parle d'une phrase déjà dépassée ne sert à rien.
   // En manuel, c'est toi qui fais défiler. Sinon la carte la plus récente gagne
@@ -2096,9 +2130,12 @@ function appliquer(j, cands){
   const cause = (j.cause && j.preuve) ? j.cause : "";
   const preuve = j.preuve ? "D'après ses mots : « "+j.preuve+" »" : "";
 
-  // Si l'IA ne parle plus d'objection depuis quatre tours, c'est que le prospect
-  // est passé à autre chose. On lâche l'ancienne au lieu de s'y accrocher.
-  if(S.current && temps === "attendre" && (S.transcript.length - (S.tourObjection||0)) > 4){
+  /* On lâche l'objection en cours dès que le prospect est passé à autre chose,
+     quel que soit le temps renvoyé. Avant, il fallait que le modèle dise
+     « attendre » ET que quatre tours soient passés : autrement dit, presque
+     jamais. Le copilote restait accroché à une objection morte. */
+  if(S.current && (!j.objection || (temps !== "traitement" && temps !== "isoler"))
+     && (S.transcript.length - (S.tourObjection||0)) > 3){
     S.current = null; S.beat = 0; S.angleIdx = 0;
   }
 
@@ -2375,6 +2412,11 @@ $("btnStart").onclick = async () => {
   S.situation = SITUATION;
   S.marche = MARCHE;
   S.running = true; S.t0 = Date.now(); S.lastSpeech = Date.now();
+  // C'est le closer qui ouvre le call. Le bouton partait sur PROSPECT :
+  // ta première phrase était donc archivée comme venant du prospect.
+  S.moiQuiParle = true;
+  $("btnQui").textContent = "MOI qui parle";
+  $("btnQui").classList.add("moi");
   $("home").style.display="none";
   $("call").classList.add("on");
   demarreMesure();
@@ -4194,7 +4236,7 @@ const SEGMENTS = {
     court:"De l'ouverture au closing",
     depart:"Le call commence. Le prospect vient de décrocher.",
     objectif:"Mener le call du début à la fin.",
-    criteres:["A-t-il ouvert par le challenge, sans vendre le futur ?","A-t-il obtenu une douleur ressentie et chiffrée ?","A-t-il isolé avant de traiter ?","A-t-il demandé l'engagement ?"],
+    criteres:["A-t-il ouvert par le challenge, sans vendre le futur ?","A-t-il fait l'état des lieux — chiffres, durée, tentatives, objectif — AVANT de chercher le ressenti ?","A-t-il obtenu une douleur ressentie et chiffrée ?","A-t-il isolé avant de traiter ?","A-t-il demandé l'engagement ?"],
     regle:"Le call se déroule normalement, dans son ordre naturel.",
     fin:"le call va au bout : engagement obtenu, paiement fait, ou le prospect met fin.",
     toursMax:60,
@@ -4213,10 +4255,30 @@ const SEGMENTS = {
     commence:"closer",
     terrain:"cadrage"
   },
+  situation: {
+    nom:"État des lieux",
+    court:"Collecter la matière avant de creuser",
+    depart:"Le prospect vient de donner son plus gros challenge, en une phrase. Rien n'est encore chiffré, ni daté, ni relié à quoi que ce soit.",
+    objectif:"Obtenir la matière du call : où il en est vraiment, depuis quand, ce qu'il a déjà tenté, et ce qu'il vise.",
+    criteres:[
+      "A-t-il fait préciser POURQUOI c'est un problème, avant de demander des chiffres ?",
+      "A-t-il obtenu un ordre de grandeur chiffré : revenus, heures, clients, mois perdus ?",
+      "A-t-il obtenu depuis combien de temps ça dure ?",
+      "A-t-il fait dire ce qui a déjà été tenté, et pourquoi ça n'a pas tenu ?",
+      "A-t-il obtenu l'objectif chiffré, pour pouvoir mesurer l'écart ?",
+      "S'est-il contenté d'un ordre de grandeur, au lieu de le laisser fouiller dans ses tableaux ?",
+      "Ses questions servaient-elles la vente, ou ressemblaient-elles à un audit de consultant ?"
+    ],
+    regle:"INTERDIT : tu n'as entendu ni offre ni prix. AUCUNE objection commerciale.\nAUTORISÉ ET NORMAL : donner tes chiffres seulement si on te les demande, de façon précise. Tu ne déballes rien spontanément. Si on te demande vaguement « raconte-moi », tu restes général.\nTu ne ressens rien à ce stade : tu donnes des faits, sur un ton neutre. La couche 2 ne s'ouvre pas ici.",
+    fin:"le closer a obtenu au minimum : un chiffre de départ, une durée, une tentative passée et un objectif chiffré.",
+    toursMax:12,
+    commence:"closer",
+    terrain:"decouverte"
+  },
   douleur: {
     nom:"Dosage de la douleur",
     court:"Creuser jusqu'au ressenti, sans aller trop loin",
-    depart:"Le prospect vient d'énoncer son problème principal, calmement, sans émotion. Il le décrit de loin.",
+    depart:"Le prospect a déjà donné son problème, ses chiffres, la durée et ce qu'il a tenté. Tout est posé, mais il le décrit calmement, de loin, sans émotion.",
     objectif:"L'amener à ressentir sa douleur, pas à la raconter. Puis s'arrêter au bon moment.",
     criteres:["Est-il passé de la description au ressenti ?","A-t-il posé la question de trop après une réponse polie ?","A-t-il élargi au-delà du business ?","S'est-il arrêté quand le prospect a craqué, ou a-t-il insisté jusqu'à l'anesthésier ?","A-t-il évité de consoler et d'en faire une victime ?"],
     regle:"INTERDIT : tu n'as entendu ni offre ni prix. AUCUNE objection commerciale. Pas de « c'est cher », pas de « je dois en parler à ma femme », pas de « je vais réfléchir ».\nAUTORISÉ ET MÊME SOUHAITABLE : laisser filtrer un signal faible — une phrase glissée au passage qui annonce ton futur frein, sur le ton de la confidence. Mais un signal se glisse, il ne se pose pas et il ne se défend pas. Si le closer rebondit dessus, tu ne développes pas : tu reviens à ta situation.",
@@ -5136,6 +5198,16 @@ const SEGMENTS_B2B = {
    "A-t-il évité tout registre affectif ?"
   ]
  },
+ "situation": {
+  "objectif": "Obtenir le fonctionnement actuel, ce qui casse dedans, et ce que ça coûte en temps ou en production.",
+  "criteres": [
+   "A-t-il demandé ce qui CASSE dans le fonctionnement, plutôt que quels outils ils utilisent ?",
+   "Est-il parti large avant de resserrer sur le coût ?",
+   "A-t-il obtenu un fait mesurable — temps, argent, clients, marge ?",
+   "A-t-il fait dire ce qui a déjà été tenté en interne, et pourquoi ça n'a pas tenu ?",
+   "Chaque question servait-elle l'urgence, le calendrier ou le circuit de décision ?"
+  ]
+ },
  "douleur": {
   "objectif": "Chiffrer le problème et le faire remonter jusqu'à l'enjeu personnel, sans jamais parler d'émotion.",
   "criteres": [
@@ -5237,8 +5309,10 @@ document.querySelectorAll("#sparMode [data-mode]").forEach(b=>{
    Si tu sors de la méthode, il coupe et il t'explique. Comme en vrai coaching. */
 async function coachRegarde(cequejedis){
   const seg = segmentCourant();
-  const l = fichesDuSegment(8);
+  const l = fichesPourCoach(8);
+  SPAR.fichesCoach = l;                 // la liste exacte envoyée au coach
   const pr = principesDuSegment(4);
+  const dejaServies = (SPAR.fichesUtilisees||[]).slice(-4).length;
   const p = SPAR.p;
   const txt = await callClaude(
 `Tu es ${manniereDuCoach().nom}, coach de closing. Tu observes un entraînement en direct et tu peux l'interrompre.
@@ -5252,6 +5326,7 @@ ${seg.criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
 
 LES PHRASES DE SA MÉTHODE — C'EST LA SEULE LISTE OÙ TU PUISES CE QU'IL DOIT DIRE :
 ${l.length ? l.map((f,i)=>`${i+1}. [${f.ecole||"lui"}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n") : "aucune fiche chargée, juge sur les critères ci-dessus"}
+${dejaServies ? "Ces fiches sont déjà triées pour toi : les plus hautes sont celles qui n'ont pas encore servi dans cet exercice. Ne choisis pas systématiquement la première. Prends celle qui correspond vraiment à la faute que tu vois. Si c'en est une que tu as déjà utilisée et qu'elle seule convient, reprends-la." : ""}
 ${pr.length ? `
 LES PRINCIPES DE SA MÉTHODE — ils t'aident à NOMMER la faute. Ce ne sont pas des phrases à dire au prospect, tu ne les recopies JAMAIS dans le champ "fiche" :
 ${pr.map(f=>`- [${f.ecole||"lui"}] ${f.phrase}`).join("\n")}` : ""}
@@ -5286,7 +5361,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "quoi":"ce qu il vient de faire, UNE phrase courte, dite comme a l oral, ou null",
  "pourquoi":"pourquoi c est une faute ici, UNE phrase courte, a l oral, ou null",
  "fiche":"la phrase RECOPIEE mot pour mot depuis une fiche ci-dessus, ou null si aucune ne s applique",
- "numero":le numero de la fiche utilisee, ou null,
+ "numero":le numero exact de la fiche que tu as reprise dans la liste ci-dessus, ou null,
  "source":"le nom de l ecole de cette fiche, ou null"}`, 800);
   return parseModelJson(txt);
 }
@@ -5390,6 +5465,7 @@ function majSegDetail(){
 const SUJETS_SEGMENT = {
   complet:    null,                                     // tout est pertinent
   ouverture:  ["CADRAGE","DECOUVERTE","PROFIL_EXPERT"],
+  situation:  ["DECOUVERTE","TENTATIVES","DEJA","PROFIL_EXPERT","CADRAGE"],
   douleur:    ["DOULEUR","DECOUVERTE","TENTATIVES","INACTION"],
   // plus de MOYENS ni de TEMPS ici : sur ce segment le prospect n'a entendu
   // ni offre ni prix, on ne peut pas lui reprocher de ne pas avoir qualifié le budget.
@@ -5468,6 +5544,63 @@ function fichesDuSegment(n, segKeys){
     });
   });
   return out.slice(0, total);
+}
+
+/* Une fiche, identifiée de façon stable, pour se souvenir qu'elle a servi */
+function ficheCle(f){
+  if(!f) return "";
+  return String(f.id || ((f.ecole||"") + "|" + (f.situation||f.label||"") + "|" + (f.phrase||"")));
+}
+
+/* Les fiches que le coach a le droit de te ressortir maintenant.
+   Même classement que d'habitude, plus deux règles :
+   une fiche servie dans les quatre dernières interventions est pénalisée,
+   et on ouvre la liste à plusieurs écoles au lieu d'empiler la même. */
+function fichesPourCoach(n){
+  const util = Array.isArray(SPAR && SPAR.fichesUtilisees) ? SPAR.fichesUtilisees : [];
+  const recents = new Set(util.slice(-4));
+  const pool = classeFiches().filter(x=>estDicible(x.f)).map(x=>{
+    const cle = ficheCle(x.f);
+    let sc = x.sc;
+    if(recents.has(cle)) sc -= 6;            // déjà servie à l'instant
+    else if(!util.includes(cle)) sc += 2.5;  // jamais servie de tout l'exercice
+    return {f:x.f, sc, source:x.f.ecole||"lui"};
+  }).filter(x=>x.sc>0).sort((a,b)=>b.sc-a.sc);
+  if(!pool.length) return [];
+
+  const max = n || 8, choisis = [], reste = pool.slice(), sources = new Set();
+  // premier passage : la meilleure de chaque école, dans l'ordre du score
+  while(choisis.length < max && reste.length){
+    let pos = reste.findIndex(x=>!sources.has(x.source));
+    if(pos < 0) pos = 0;
+    const x = reste.splice(pos,1)[0];
+    choisis.push(x); sources.add(x.source);
+  }
+  // second passage : on complète par pertinence pure
+  for(const x of reste){
+    if(choisis.length >= max) break;
+    if(!choisis.some(y=>ficheCle(y.f)===ficheCle(x.f))) choisis.push(x);
+  }
+  return choisis.map(x=>x.f);
+}
+
+/* On note la fiche qui vient de servir. On travaille sur la liste
+   exacte envoyée au coach, pas sur une liste recalculée après coup :
+   sinon le numéro renvoyé ne désigne plus la même fiche. */
+function enregistreFicheCoach(c){
+  const fiches = (SPAR && SPAR.fichesCoach) || [];
+  if(!SPAR || !c || !c.stop || !c.fiche || !fiches.length) return;
+  const num = Number(c.numero);
+  let f = Number.isFinite(num) && num >= 1 && num <= fiches.length ? fiches[num-1] : null;
+  // le numéro est peu fiable : on recoupe toujours avec le texte
+  const dit = String(c.fiche).trim();
+  const parTexte = fiches.find(x=>(x.phrase||"").trim() === dit)
+                || fiches.find(x=>dit && (x.phrase||"").trim().slice(0,40) === dit.slice(0,40));
+  if(parTexte) f = parTexte;
+  if(!f) return;
+  SPAR.fichesUtilisees = Array.isArray(SPAR.fichesUtilisees) ? SPAR.fichesUtilisees : [];
+  SPAR.fichesUtilisees.push(ficheCle(f));
+  if(SPAR.fichesUtilisees.length > 12) SPAR.fichesUtilisees = SPAR.fichesUtilisees.slice(-12);
 }
 
 /* Les principes : ils servent à expliquer la faute, jamais à être récités */
@@ -5748,6 +5881,7 @@ $("btnSparGo").onclick = async () => {
       }
       SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
               segment:sparSegment, profil:"reel", temp:"reel", reel:true, marche:sparMarche,
+              fichesUtilisees:[], fichesCoach:[],
               etat:{couche: seg.couches === false ? 3 : 1, confiance:4, patience:9, but_obtenu:false, lead:"closer"}};
       $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
       rappelReglages(null, null);
@@ -5815,6 +5949,7 @@ CE QUE LE CLOSER TRAVAILLE : ${SEGMENTS_CHOISIS.length > 1
 LE CALL DÉMARRE ICI : ${seg.depart}
 Fabrique donc un prospect dont la situation permet de travailler CE moment précis. Sa première phrase doit poser exactement ce point de départ, comme si le call en était déjà là.
 
+${sparSegment === "douleur" || sparSegment === "cout" ? `L'ÉTAT DES LIEUX A DÉJÀ ÉTÉ FAIT AVANT CE MOMENT — remplis "deja_dit" avec ses chiffres, sa durée et ce qu'il a tenté. C'est la matière que le closer va utiliser pour creuser.` : ""}
 ${["vision","transition","objection","paiement","closing"].includes(sparSegment) ? `CE MOMENT ARRIVE TARD DANS LE CALL — remplis "deja_dit".` : `CE MOMENT EST UN MOMENT DE CREUSAGE. Mets "deja_dit" à [] — un tableau VIDE, sans aucune phrase.
 Le closer doit aller chercher ces informations lui-même : c'est tout l'objet de l'exercice. Ne lui donne rien d'avance.
 Ton prospect arrive avec une seule chose en tête, formulée de façon extérieure et vague. Il ne déballe rien d'autre tant qu'on ne lui pose pas la bonne question.`}
@@ -5825,7 +5960,7 @@ Remplis donc "deja_dit" avec quatre à six phrases EXACTES que ce prospect a pro
 
 UN VRAI PROSPECT N'EST PAS RANGÉ. Fabrique-le comme dans la vraie vie :
 
-${["ouverture","douleur","cout"].includes(sparSegment) ? `CE PROSPECT DOIT ÊTRE AVARE DE SES INFORMATIONS.
+${["ouverture","situation","douleur","cout"].includes(sparSegment) ? `CE PROSPECT DOIT ÊTRE AVARE DE SES INFORMATIONS.
 Le closer travaille son creusage : s'il obtient tout sans effort, l'exercice ne sert à rien.
 Ta première phrase ne contient aucun chiffre, aucune durée, aucune tentative passée. Elle énonce une gêne, rien de plus.` : ""}
 ${["content","curieux2","etudiant","confort","curiosite"].includes(cle) ? `ATTENTION — CE PROSPECT N'A PAS DE VRAIE DOULEUR.
@@ -5897,6 +6032,7 @@ Réponds uniquement avec ce JSON, sans markdown :
     SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
             segment:sparSegment, profil:cle, temp:sparTemp,
             couleur:cCle, marche:sparMarche,
+            fichesUtilisees:[], fichesCoach:[],
             etat:{couche: seg.couches === false ? 3 : 1, confiance:confDepart, patience:9, but_obtenu:false, lead:"closer"}};
     $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
     rappelReglages(prof.nom, coul.nom);
@@ -6056,6 +6192,7 @@ $("btnSparEnvoi").onclick = async () => {
     try{
       const c = await coachRegarde(m);
       if(c && c.stop){
+        enregistreFicheCoach(c);
         SPAR.arrets = (SPAR.arrets||0) + 1;
         SPAR.dernierRefus = m;
         SPAR.essais = SPAR.essais || [];
@@ -6150,6 +6287,11 @@ ${["objection","closing","complet"].includes(SPAR.segment)
   : "Ton futur frein, que tu ne poses PAS encore à ce stade du call : "+p.surface+" — garde-le pour toi, il n'a pas lieu d'être maintenant."}
 Ta façon de parler : ${p.facon_de_parler || "normale"}. Tiens-la tout du long.
 ${SPAR.couleur && COULEURS[SPAR.couleur] ? "TA COULEUR : " + COULEURS[SPAR.couleur].nom + ". " + COULEURS[SPAR.couleur].d + "\nC'est le plus visible de toi. Tiens-la dans chaque réplique, même quand tu te fermes ou que tu t'ouvres." : ""}
+
+LES FAITS AVANT LE RESSENTI — RÈGLE ABSOLUE.
+Tu ne descends JAMAIS en couche 2 ou 3 tant que le closer ne t'a pas fait dire, par des questions précises : où tu en es aujourd'hui en chiffres, depuis combien de temps ça dure, ce que tu as déjà tenté, et ce que tu vises.
+S'il te demande ce que ça te fait avant d'avoir cette matière, tu réponds à côté, poliment et brièvement : « bah c'est embêtant », « on fait avec ». Tu ne t'ouvres pas. Une question émotionnelle posée sur du vide sonne comme un script, et tu le lui fais sentir en restant en surface.
+Tu ne déballes pas tes chiffres spontanément non plus. Tu les donnes quand on te les demande, un par un, et seulement ceux qu'on te demande.
 
 COMMENT TU T'EXPRIMES D'UN TOUR À L'AUTRE — ce sont des IDÉES, pas des phrases à réciter.
 Ne redis JAMAIS deux fois la même formulation. Regarde ce que tu as déjà dit plus haut dans l'échange et dis-le autrement : autre angle, autre exemple, autre mot, plus court ou plus long. Une personne réelle ne répète jamais sa phrase à l'identique.
