@@ -2007,10 +2007,14 @@ SÉPARE TOUJOURS le certain de l'interprétation.
 RÈGLE ABSOLUE — n'invente jamais.
 Tu ne dois attribuer au prospect aucune émotion, peur, difficulté financière, doute ou intention qu'il n'a pas prononcée lui-même. Si tu remplis le champ "cause", tu dois recopier dans "preuve" les mots exacts du prospect qui la prouvent, tirés de la conversation ci-dessus. Si tu ne peux pas citer ces mots, alors cause = null, preuve = null, et le temps est "diagnostic". Ne suppose jamais une peur d'échouer, un manque d'argent ou une hésitation non exprimée.
 
-Si une formulation numérotée ci-dessus colle vraiment, sers-t'en et indique son numéro. Sinon mets fiche à null. Ne force jamais une fiche hors sujet.
+LA PHRASE QUE TU PROPOSES — TU ADAPTES, TU N'INVENTES PAS.
+Tu pars du MÉCANISME d'une des fiches numérotées ci-dessus, puis tu formules avec les mots, les chiffres et la situation de CE prospect. Indique le numéro de la fiche dont tu es parti.
+Tu gardes le levier, l'angle et le registre de la fiche. Tu changes le prénom, les chiffres, l'exemple, tout ce qui appartient au cas de la fiche et pas à celui-ci. Si la phrase de la fiche colle déjà, reprends-la telle quelle.
+Ta phrase reste courte et parlée, comme celles des fiches. Aucune formule de vendeur.
+Si aucun mécanisme ne s'applique ici, mets fiche à null et phrase à null plutôt que de forcer.
 
 Réponds uniquement avec ce JSON, dans cet ordre exact, sans markdown :
-{"temps":"attendre|creuser|isoler|traitement|closing","action":"consigne de 5 mots max, en majuscules","phrase":"ce que le closer dit, ou null si temps=attendre","certain":"ce que le prospect a dit, dans ses mots, ou null","incertain":"ce qui reste a verifier, 8 mots max, ou null","freins":["liste des freins encore ouverts"],"objection":"nom court ou null","etape":"code de la trame","manque":"ce qui reste a obtenir a cette etape, 10 mots max","cause":"cause certaine en 5 mots ou null","preuve":"mots exacts du prospect ou null","raison":"pourquoi, en une phrase","fiche":null}`;
+{"temps":"attendre|creuser|isoler|traitement|closing","action":"consigne de 5 mots max, en majuscules","phrase":"ce que le closer dit, ou null si temps=attendre","certain":"ce que le prospect a dit, dans ses mots, ou null","incertain":"ce qui reste a verifier, 8 mots max, ou null","freins":["liste des freins encore ouverts"],"objection":"nom court ou null","etape":"code de la trame","manque":"ce qui reste a obtenir a cette etape, 10 mots max","cause":"cause certaine en 5 mots ou null","preuve":"mots exacts du prospect ou null","raison":"pourquoi, en une phrase","fiche":"le numero de la fiche dont tu es parti, ou null","fiche_origine":"la phrase d origine de cette fiche, recopiee telle quelle, ou null"}`;
 }
 
 
@@ -2213,8 +2217,16 @@ function appliquer(j, cands){
   const org = $("origine");
   if(org){
     const e = fRetenue && fRetenue.f ? (fRetenue.f.ecole || "") : "";
-    org.textContent = !e || e === "moi" ? "" :
-      e === "sami" ? "d'après Sami" : "d'après " + e + " — adapté en français";
+    const base = !e || e === "moi" ? "" :
+      e === "sami" ? "d'après Sami" : "d'après " + e;
+    /* La fiche d'origine, en petit. Le copilote adapte désormais la
+       formulation : sans ce repère, tu ne peux pas juger s'il est resté
+       dans ta méthode ou s'il a inventé. */
+    const brute = fRetenue && fRetenue.f ? String(fRetenue.f.phrase||"") : "";
+    const adapte = brute && j.phrase &&
+      brute.trim().toLowerCase() !== String(j.phrase).trim().toLowerCase();
+    org.innerHTML = escapeHTML(base) +
+      (adapte ? `<span style="color:#4C5862;text-transform:none;letter-spacing:0;font-weight:400"> · fiche : « ${escapeHTML(brute)} »</span>` : "");
     org.style.color = (e && e !== "moi" && e !== "sami") ? "var(--amber)" : "var(--muted)";
   }
 
@@ -3489,7 +3501,12 @@ ${principes.length ? `
 LES PRINCIPES DE SA MÉTHODE — pour NOMMER la faute. Jamais dans le champ "dire" :
 ${principes.map(f=>`- [${f.ecole||"lui"}] ${f.phrase}`).join("\n")}` : ""}
 
-RÈGLE ABSOLUE : la phrase que tu proposes est RECOPIÉE mot pour mot depuis une de ces fiches. Tu ne reformules pas, tu ne résumes pas, tu n'inventes pas. Seuls le prénom et un chiffre donné par le prospect peuvent être adaptés.
+RÈGLE SUR LA PHRASE QUE TU PROPOSES — TU ADAPTES, TU N'INVENTES PAS.
+Tu ne pars JAMAIS d'une page blanche. Tu choisis d'abord une fiche pour son MÉCANISME — ce que le champ "pourquoi" explique. Puis tu formules la phrase toi-même, avec les mots, les chiffres et la situation du prospect.
+Ce que tu gardes de la fiche, sans jamais le déformer : le levier, l'angle, l'ordre des idées, le registre. Ce que tu changes : le prénom, les chiffres, l'exemple, tout ce qui est propre au cas de la fiche et ne correspond pas à celui-ci.
+Si la phrase de la fiche colle déjà parfaitement, reprends-la telle quelle. Adapter n'est pas une obligation, c'est une permission.
+Ta phrase reste COURTE et PARLÉE, comme celles des fiches. Pas de formule de vendeur, pas de « je comprends tout à fait », pas de « et si je te disais que ». Si ta phrase ne ressemble pas à celles de la liste, c'est que tu as quitté sa méthode.
+Si aucune fiche ne fournit un mécanisme qui s'applique ici, mets "fiche" à null et n'invente rien : tu expliques la faute, sans proposer de phrase.
 Si aucune fiche ne s'applique, mets "dire" à null et explique seulement la faute.
 
 CE QUI PRÉCÈDE
@@ -3514,7 +3531,8 @@ Réponds uniquement avec ce JSON, sans markdown :
 {"stop":true ou false,
  "quoi":"ce qu il vient de faire, une phrase directe, ou null",
  "pourquoi":"pourquoi ca compte ici et ce que ca a provoque ensuite, deux phrases, ou null",
- "dire":"la phrase RECOPIEE mot pour mot depuis une fiche, ou null si aucune ne s applique",
+ "dire":"la phrase a dire, adaptee a ce moment a partir du mecanisme d une fiche, ou null",
+ "fiche_origine":"la phrase d origine de la fiche dont tu es parti, recopiee telle quelle, ou null",
  "source":"le nom de l ecole de cette fiche, ou null",
  "cause":"si la vraie cause est plus tot dans le call, dis ou et quoi, sinon null"}`, 700);
   return parseModelJson(txt);
@@ -3526,10 +3544,15 @@ function montreArret(c, t){
   $("sceneQuand").textContent = "réplique " + RJ.i + "/" + RJ.tours.length + " — « " + t.text.slice(0, 70) + (t.text.length>70?"…":"") + " »";
   $("sceneQuoi").textContent = c.quoi || "";
   $("scenePourquoi").textContent = (c.pourquoi || "") + (c.cause ? "\n\nLa cause est plus tôt : " + c.cause : "");
+  const origRejeu = (c.fiche_origine && String(c.fiche_origine).trim().toLowerCase()
+                       !== String(c.dire||"").trim().toLowerCase()) ? c.fiche_origine : null;
   $("sceneDire").innerHTML = c.dire
     ? `<div style="border-left:2px solid var(--amber);padding-left:12px">
          <div class="eyebrow" style="color:var(--amber)">Ce qu'il fallait dire</div>
-         <p style="font-size:16px;margin-top:4px;line-height:1.45">« ${escapeHTML(c.dire)} »</p></div>` : "";
+         <p style="font-size:16px;margin-top:4px;line-height:1.45">« ${escapeHTML(c.dire)} »</p>
+         ${origRejeu ? `<p style="font-size:12px;color:var(--muted);margin-top:9px;line-height:1.45">
+           <span style="color:#4C5862">La fiche d'origine :</span><br>« ${escapeHTML(origRejeu)} »</p>` : ""}
+       </div>` : "";
   $("sceneJeu").style.display = "none";
   $("sceneCompare").style.display = "none";
   $("sceneCompare").innerHTML = "";
@@ -3832,7 +3855,13 @@ ${fiches}
 SES PRINCIPES — pour nommer la faute. Ce ne sont pas des phrases à dire au prospect, tu ne les mets jamais dans « dire » :
 ${principesLus}
 
-RÈGLE ABSOLUE : chaque « à dire » que tu proposes est RECOPIÉ mot pour mot depuis une des PHRASES ci-dessus. Tu ne reformules pas, tu n'inventes pas, tu ne mélanges pas deux fiches. Seuls le prénom du prospect et un chiffre qu'il a donné peuvent être adaptés.
+RÈGLE SUR CHAQUE « À DIRE » — TU ADAPTES, TU N'INVENTES PAS.
+Tu ne pars JAMAIS d'une page blanche. Tu choisis d'abord une fiche pour son MÉCANISME — ce que le champ "pourquoi" explique. Puis tu formules la phrase toi-même, avec les mots, les chiffres et la situation du prospect.
+Ce que tu gardes de la fiche, sans jamais le déformer : le levier, l'angle, l'ordre des idées, le registre. Ce que tu changes : le prénom, les chiffres, l'exemple, tout ce qui est propre au cas de la fiche et ne correspond pas à celui-ci.
+Si la phrase de la fiche colle déjà parfaitement, reprends-la telle quelle. Adapter n'est pas une obligation, c'est une permission.
+Ta phrase reste COURTE et PARLÉE, comme celles des fiches. Pas de formule de vendeur, pas de « je comprends tout à fait », pas de « et si je te disais que ». Si ta phrase ne ressemble pas à celles de la liste, c'est que tu as quitté sa méthode.
+Si aucune fiche ne fournit un mécanisme qui s'applique ici, mets "fiche" à null et n'invente rien : tu expliques la faute, sans proposer de phrase.
+Tu ne mélanges jamais deux fiches : un « à dire » part d'un seul mécanisme.
 Si aucune fiche ne s'applique à un moment, mets "dire" à null et contente-toi d'expliquer la faute. Mieux vaut ne rien proposer qu'une phrase qui ne vient pas de sa méthode.
 
 LE CALL, réplique par réplique
@@ -3850,7 +3879,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "verdict":"en deux phrases, ce qui s est vraiment joue sur ce call",
  "marche":[{"quoi":"ce qu il a bien fait","cite":"ses mots exacts","pourquoi":"pourquoi c etait juste"}],
  "ameliorer":[{"quoi":"ce qui doit progresser","cite":"ses mots exacts ou null","comment":"ce qu il faut faire a la place, en t appuyant sur une fiche et en la citant telle quelle"}],
- "moments":[{"replique":numero de la replique,"cite":"ses mots exacts","fait":"ce qu il a fait","effet":"ce que ca a provoque ensuite dans le call","dire":"la phrase RECOPIEE mot pour mot depuis une fiche, ou null","source":"le nom de l ecole de cette fiche, ou null"}],
+ "moments":[{"replique":numero de la replique,"cite":"ses mots exacts","fait":"ce qu il a fait","effet":"ce que ca a provoque ensuite dans le call","dire":"la phrase a dire, adaptee a ce moment a partir du mecanisme d une fiche, ou null","fiche_origine":"la phrase d origine de la fiche dont tu es parti, recopiee telle quelle, ou null","source":"le nom de l ecole de cette fiche, ou null"}],
  "bascule":{"replique":numero ou null,"cite":"la phrase qui a fait basculer le call","pourquoi":"pourquoi celle-la"},
  "exercice":"un seul exercice concret pour le prochain call, une phrase"}`, 3000);
 
@@ -5324,6 +5353,9 @@ LE MOMENT TRAVAILLÉ : ${seg.nom} — ${seg.objectif}
 CE QUI EST ATTENDU SUR CE MOMENT :
 ${seg.criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
 
+LA DERNIÈRE CHOSE QUE LE PROSPECT A DITE — c'est à ÇA que ta phrase doit répondre :
+« ${(SPAR.tours||[]).filter(t=>t.qui==="PROSPECT").slice(-1).map(t=>t.txt).join("") || "—"} »
+
 LES PHRASES DE SA MÉTHODE — C'EST LA SEULE LISTE OÙ TU PUISES CE QU'IL DOIT DIRE :
 ${l.length ? l.map((f,i)=>`${i+1}. [${f.ecole||"lui"}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n") : "aucune fiche chargée, juge sur les critères ci-dessus"}
 ${dejaServies ? "Ces fiches sont déjà triées pour toi : les plus hautes sont celles qui n'ont pas encore servi dans cet exercice. Ne choisis pas systématiquement la première. Prends celle qui correspond vraiment à la faute que tu vois. Si c'en est une que tu as déjà utilisée et qu'elle seule convient, reprends-la." : ""}
@@ -5331,11 +5363,13 @@ ${pr.length ? `
 LES PRINCIPES DE SA MÉTHODE — ils t'aident à NOMMER la faute. Ce ne sont pas des phrases à dire au prospect, tu ne les recopies JAMAIS dans le champ "fiche" :
 ${pr.map(f=>`- [${f.ecole||"lui"}] ${f.phrase}`).join("\n")}` : ""}
 
-RÈGLE ABSOLUE SUR LA PHRASE QUE TU PROPOSES :
-Tu ne formules JAMAIS de phrase toi-même. Tu recopies MOT POUR MOT la phrase d'une des fiches ci-dessus, celle qui s'applique.
-Tu n'as le droit de changer que le prénom du prospect ou un chiffre qu'il vient de donner. Pas un mot de plus.
-Si aucune fiche ne s'applique vraiment à ce moment précis, mets "fiche" à null et n'invente rien : tu expliques la faute, sans proposer de phrase.
-Indique toujours de quelle fiche vient la phrase.
+RÈGLE SUR LA PHRASE QUE TU PROPOSES — TU ADAPTES, TU N'INVENTES PAS.
+Tu ne pars JAMAIS d'une page blanche. Tu choisis d'abord une fiche pour son MÉCANISME — le levier que son champ "pourquoi" explique. Puis tu formules la phrase toi-même, avec les mots, les chiffres et la situation de CE prospect.
+Ce que tu gardes de la fiche, sans jamais le déformer : le levier, l'angle, l'ordre des idées, le registre. Ce que tu changes : le prénom, les chiffres, l'exemple, tout ce qui appartient au cas de la fiche et pas à celui-ci.
+Si la phrase de la fiche colle déjà parfaitement, reprends-la telle quelle. Adapter est une permission, pas une obligation.
+Ta phrase reste COURTE et PARLÉE, comme celles de la liste. Pas de formule de vendeur, pas de « je comprends tout à fait », pas de « et si je te disais que ». Si ta phrase ne ressemble pas à celles de la liste, c'est que tu as quitté sa méthode.
+Si aucune fiche ne fournit un mécanisme qui s'applique ici, mets "fiche" à null et n'invente rien : tu expliques la faute, sans proposer de phrase.
+Indique toujours de quelle fiche vient le mécanisme.
 
 OÙ EN EST LE PROSPECT : confiance ${SPAR.etat.confiance}/10, couche de douleur ${SPAR.etat.couche}/3, ${SPAR.etat.lead === "prospect" ? "c'est LUI qui mène le call" : "le closer mène"}.
 ${Array.isArray(p.deja_dit) && p.deja_dit.length ? "CE QUE LE PROSPECT A DÉJÀ DIT et que le closer peut lui renvoyer :\n" + p.deja_dit.map(x=>"- « "+x+" »").join("\n") : ""}
@@ -5360,8 +5394,8 @@ Réponds uniquement avec ce JSON, sans markdown :
 {"stop":true ou false,
  "quoi":"ce qu il vient de faire, UNE phrase courte, dite comme a l oral, ou null",
  "pourquoi":"pourquoi c est une faute ici, UNE phrase courte, a l oral, ou null",
- "fiche":"la phrase RECOPIEE mot pour mot depuis une fiche ci-dessus, ou null si aucune ne s applique",
- "numero":le numero exact de la fiche que tu as reprise dans la liste ci-dessus, ou null,
+ "fiche":"la phrase a dire, adaptee a ce moment precis a partir du mecanisme d une fiche ci-dessus, ou null si aucune ne s applique",
+ "numero":le numero exact de la fiche dont tu as repris le mecanisme, ou null,
  "source":"le nom de l ecole de cette fiche, ou null"}`, 800);
   return parseModelJson(txt);
 }
@@ -5587,16 +5621,26 @@ function fichesPourCoach(n){
 /* On note la fiche qui vient de servir. On travaille sur la liste
    exacte envoyée au coach, pas sur une liste recalculée après coup :
    sinon le numéro renvoyé ne désigne plus la même fiche. */
+/* Une phrase qui ne vient d'aucune fiche de la liste est une invention.
+   On préfère n'en afficher aucune plutôt qu'une phrase hors méthode. */
+function ficheDeLaListe(c){
+  const fiches = (SPAR && SPAR.fichesCoach) || [];
+  if(!c || !c.fiche || !fiches.length) return null;
+  /* La phrase est maintenant adaptée au prospect : on ne peut plus la
+     retrouver par son texte. Le numéro devient la source principale. */
+  const num = Number(c.numero);
+  if(Number.isFinite(num) && num >= 1 && num <= fiches.length) return fiches[num-1];
+  const dit = String(c.fiche).trim().toLowerCase();
+  const court = x => String(x||"").trim().toLowerCase().slice(0,40);
+  return fiches.find(x => String(x.phrase||"").trim().toLowerCase() === dit)
+      || fiches.find(x => dit && court(x.phrase) === court(dit))
+      || null;
+}
+
 function enregistreFicheCoach(c){
   const fiches = (SPAR && SPAR.fichesCoach) || [];
   if(!SPAR || !c || !c.stop || !c.fiche || !fiches.length) return;
-  const num = Number(c.numero);
-  let f = Number.isFinite(num) && num >= 1 && num <= fiches.length ? fiches[num-1] : null;
-  // le numéro est peu fiable : on recoupe toujours avec le texte
-  const dit = String(c.fiche).trim();
-  const parTexte = fiches.find(x=>(x.phrase||"").trim() === dit)
-                || fiches.find(x=>dit && (x.phrase||"").trim().slice(0,40) === dit.slice(0,40));
-  if(parTexte) f = parTexte;
+  const f = ficheDeLaListe(c);
   if(!f) return;
   SPAR.fichesUtilisees = Array.isArray(SPAR.fichesUtilisees) ? SPAR.fichesUtilisees : [];
   SPAR.fichesUtilisees.push(ficheCle(f));
@@ -6199,10 +6243,19 @@ $("btnSparEnvoi").onclick = async () => {
         SPAR.essais.push({dit:m, reproche:(c.quoi||"") + " " + (c.fiche ? "Il fallait dire : "+c.fiche : "")});
         $("coachQuoi").textContent = c.quoi || "Tu sors de ta méthode.";
         $("coachPourquoi").textContent = c.pourquoi || "";
+        /* On montre toujours la fiche d'origine sous la phrase adaptée.
+           Sans ça, impossible de savoir si le coach a adapté ou dérivé. */
+        const fOrig = ficheDeLaListe(c);
+        const memeTexte = fOrig && String(fOrig.phrase||"").trim().toLowerCase()
+                                  === String(c.fiche||"").trim().toLowerCase();
         $("coachFiche").innerHTML = c.fiche
           ? `<div style="border-left:2px solid var(--amber);padding-left:12px">
                <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);font-family:'Archivo Narrow',sans-serif;font-weight:600">Ce qu'il fallait dire${c.source ? " · d'après "+escapeHTML(c.source) : ""}</div>
-               <p style="font-size:16px;margin-top:5px;line-height:1.45">« ${escapeHTML(c.fiche)} »</p></div>` : "";
+               <p style="font-size:16px;margin-top:5px;line-height:1.45">« ${escapeHTML(c.fiche)} »</p>
+               ${fOrig && !memeTexte ? `<p style="font-size:12px;color:var(--muted);margin-top:9px;line-height:1.45">
+                 <span style="color:#4C5862">La fiche d'origine — ${escapeHTML(fOrig.label||fOrig.situation||"")} :</span><br>
+                 « ${escapeHTML(fOrig.phrase)} »</p>` : ""}
+             </div>` : "";
         const nomCoach = manniereDuCoach().nom;
         $("coachQuoi").textContent = (nomCoach === "Coach" ? "" : nomCoach + " — ") + ($("coachQuoi").textContent);
         $("coachCarte").style.display = "block";
