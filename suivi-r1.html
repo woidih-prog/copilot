@@ -104,6 +104,7 @@ label{display:block;font-size:12.5px;color:var(--muted);margin:12px 0 5px}
 
 #onde{height:34px;display:flex;align-items:flex-end;gap:3px;margin:14px 0}
 #onde i{flex:1;background:var(--line);border-radius:2px;height:12%;transition:height .1s}
+#onde2 i{flex:1;background:var(--line);border-radius:2px;height:12%;transition:height .1s}
 .chrono{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:44px;letter-spacing:.02em}
 
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(90px);
@@ -173,6 +174,7 @@ a{color:var(--steel)}
       <p class="note" style="margin-bottom:14px">Dis qui c'est, ce qu'il fait, ce qu'il veut, ce qui bloque, et ce que vous avez décidé. En vrac, dans le désordre. Le tri, c'est mon travail.</p>
       <div id="onde"></div>
       <div class="chrono" id="chrono">0:00</div>
+      <p id="etatEcoute" style="font-size:12.5px;color:var(--muted);margin-top:6px"></p>
       <div class="row" style="margin-top:14px">
         <button class="pill" id="btnDicte">Commencer à dicter</button>
         <button class="pill" id="btnStopDicte" style="display:none">Terminer</button>
@@ -194,6 +196,7 @@ a{color:var(--steel)}
       </div>
       <textarea id="ecoute" placeholder="La transcription s'écrit ici en direct."></textarea>
       <p class="err" id="micErr2" style="margin-top:9px"></p>
+      <p class="note" style="margin-top:9px">L'écoute se relance toute seule quand le navigateur coupe. Tant que la ligne au-dessus dit « écoute en cours », rien n'est perdu.</p>
     </div>
 
     <!-- coller -->
@@ -391,36 +394,156 @@ async function assureMicro(){
   catch(e){ FLUX_MICRO = null; return false; }
 }
 
-function nouveauMicro(surTexte, surErreur){
-  const R = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!R){ surErreur("Ce navigateur ne sait pas transcrire. Utilise Chrome, ou colle un texte."); return null; }
-  const rec = new R();
-  rec.lang = "fr-FR"; rec.continuous = true; rec.interimResults = true;
-  // Chrome jette régulièrement des erreurs passagères sur les longues écoutes :
-  // coupure réseau d'une seconde, silence, redémarrage interne. Elles ne doivent
-  // PAS arrêter un call de quinze minutes. Seules deux erreurs sont vraiment finales.
-  const FATALES = {"not-allowed":"Micro refusé. Autorise-le dans les réglages du navigateur.",
-                   "service-not-allowed":"Micro bloqué par le navigateur.",
-                   "audio-capture":"Aucun micro trouvé."};
-  rec.onerror = e => {
-    if(FATALES[e.error]){ rec._fatal = true; surErreur(FATALES[e.error]); return; }
-    // passagère : on note et on laisse le redémarrage automatique faire son travail
-    rec._passageres = (rec._passageres || 0) + 1;
-    if(rec._passageres > 40){ rec._fatal = true; surErreur("Trop de coupures. Vérifie ta connexion."); }
+/* ============================================================
+   MOTEUR D'ÉCOUTE — réécrit.
+
+   POURQUOI ÇA S'ARRÊTAIT AU BOUT DE CINQ MINUTES.
+
+   1. « no-speech » était compté comme une panne. Chrome envoie cette
+      erreur à chaque silence un peu long. Sur un call au haut-parleur,
+      il y en a des dizaines : blancs, tours de parole, voix trop faible.
+      Au quarantième, l'ancien code décidait qu'il y avait « trop de
+      coupures » et coupait tout. Quarante silences, sur un vrai call,
+      c'est atteint en quelques minutes. Un silence n'est pas une panne.
+      Il ne compte plus.
+
+   2. On relançait toujours le MÊME objet de reconnaissance. Après
+      plusieurs redémarrages, Chrome dégrade la session : start() ne
+      renvoie plus d'erreur, mais plus aucun texte non plus. L'écran
+      restait vivant, le chrono tournait, et plus un mot n'arrivait.
+      On crée maintenant un objet NEUF à chaque relance.
+
+   3. Rien ne surveillait le silence anormal. Un chien de garde vérifie
+      toutes les cinq secondes. Si plus rien n'arrive alors qu'on est
+      censé écouter, il force une relance, sans rien perdre du texte.
+
+   4. Le texte vivait à l'intérieur de l'objet de reconnaissance, donc
+      il repartait à zéro à chaque objet neuf. Il vit désormais dehors.
+   ============================================================ */
+function ecouteRobuste(opts){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){
+    opts.onErreur("Ce navigateur ne sait pas transcrire. Utilise Chrome, ou colle un texte.");
+    return null;
+  }
+
+  // Ces trois-là seulement sont définitives. Tout le reste se relance.
+  const FATALES = {
+    "not-allowed":        "Micro refusé. Autorise-le dans les réglages du navigateur.",
+    "service-not-allowed":"Micro bloqué par le navigateur.",
+    "audio-capture":      "Aucun micro trouvé."
   };
-  let fige = "";
-  rec._texte = () => fige;
-  rec.onresult = e => {
-    rec._passageres = 0;                    // ça remarche, on repart de zéro
-    let vol = "";
-    for(let i = e.resultIndex; i < e.results.length; i++){
-      const t = e.results[i][0].transcript;
-      if(e.results[i].isFinal) fige += t + " "; else vol += t;
-    }
-    surTexte((fige + vol).trim());
+
+  let rec = null;            // l'objet du moment
+  let fige = "";             // le texte définitif : il survit aux relances
+  let vol = "";              // ce qui est encore en cours de reconnaissance
+  let actif = false;         // l'utilisateur veut écouter
+  let arreteParNous = false;
+  let dernierMot = Date.now();
+  let silence = 0;           // secondes sans rien entendre
+  let pannes = 0;            // échecs durs consécutifs
+  let relances = 0;
+  let garde = null;
+
+  function publie(){ opts.onTexte((fige + vol).trim()); }
+  function etat(){
+    if(opts.onEtat) opts.onEtat({
+      mots: (fige + vol).split(/\s+/).filter(Boolean).length,
+      silence, relances, actif
+    });
+  }
+
+  function cree(){
+    const r = new SR();
+    r.lang = "fr-FR";
+    r.continuous = true;
+    r.interimResults = true;
+
+    r.onresult = e => {
+      pannes = 0;
+      dernierMot = Date.now();
+      vol = "";
+      for(let i = e.resultIndex; i < e.results.length; i++){
+        const t = e.results[i][0].transcript;
+        if(e.results[i].isFinal) fige += t + " "; else vol += t;
+      }
+      publie();
+    };
+
+    r.onerror = e => {
+      if(FATALES[e.error]){ actif = false; stop(); opts.onErreur(FATALES[e.error]); return; }
+      // « no-speech » et « aborted » sont la vie normale d'un long call.
+      // On ne les compte pas.
+      if(e.error !== "no-speech" && e.error !== "aborted") pannes++;
+    };
+
+    // Chrome coupe tout seul, souvent. On repart, toujours.
+    r.onend = () => {
+      if(!actif || arreteParNous) return;
+      if(vol){ fige += vol + " "; vol = ""; publie(); }
+      relance();
+    };
+
+    return r;
+  }
+
+  function relance(){
+    if(!actif) return;
+    relances++;
+    // Un objet NEUF à chaque fois. C'est le cœur du correctif.
+    try{ if(rec){ rec.onend = null; rec.onerror = null; rec.onresult = null; rec.abort(); } }catch(e){}
+    rec = cree();
+    // Pause croissante si ça enchaîne les échecs, jamais plus de deux secondes.
+    const pause = Math.min(2000, 250 + pannes * 250);
+    setTimeout(()=>{
+      if(!actif) return;
+      try{ rec.start(); }
+      catch(e){
+        pannes++;
+        if(pannes > 25){ actif = false; clearInterval(garde); opts.onErreur("Le micro ne répond plus. Arrête, puis relance l'écoute."); return; }
+        relance();
+      }
+    }, pause);
+  }
+
+  function demarre(){
+    actif = true; arreteParNous = false;
+    pannes = 0; relances = 0; dernierMot = Date.now(); silence = 0;
+    rec = cree();
+    try{ rec.start(); }
+    catch(e){ opts.onErreur("Le micro est déjà pris par une autre page."); actif = false; return false; }
+
+    clearInterval(garde);
+    garde = setInterval(()=>{
+      if(!actif) return;
+      silence = Math.round((Date.now() - dernierMot)/1000);
+      etat();
+      // CHIEN DE GARDE : plus rien depuis vingt-cinq secondes alors qu'on
+      // est censé écouter. Chrome a décroché en silence. On repart à neuf.
+      if(silence >= 25){ dernierMot = Date.now(); relance(); }
+    }, 5000);
+    etat();
+    return true;
+  }
+
+  function stop(){
+    actif = false; arreteParNous = true;
+    clearInterval(garde); garde = null;
+    if(vol){ fige += vol + " "; vol = ""; publie(); }
+    try{ if(rec){ rec.onend = null; rec.stop(); } }catch(e){}
+    rec = null;
+    etat();
+  }
+
+  return {
+    start: demarre,
+    stop,
+    enVie: () => actif,
+    texte: () => (fige + vol).trim(),
+    amorce: t => { fige = t ? t + " " : ""; }
   };
-  return rec;
 }
+
 function animeOnde(el, actif){
   el.innerHTML = Array.from({length:34}, ()=>"<i></i>").join("");
   const barres = [...el.children];
@@ -430,8 +553,21 @@ function animeOnde(el, actif){
   }, 130);
 }
 
+/* La ligne d'état : elle dit toujours la vérité sur ce qui se passe.
+   Avant, on ne voyait jamais que l'écoute avait décroché. */
+function ligneEtat(el, e){
+  if(!el) return;
+  if(!e.actif){ el.textContent = ""; return; }
+  const alerte = e.silence >= 20;
+  el.innerHTML = '<span style="color:' + (alerte ? "var(--amber)" : "var(--sage)") + '">'
+    + (alerte ? "rien entendu depuis " + e.silence + " s — je relance" : "écoute en cours")
+    + " · " + e.mots + " mots"
+    + (e.relances ? " · " + e.relances + " relance" + (e.relances>1?"s":"") : "")
+    + "</span>";
+}
+
 /* ================= CAPTURE ================= */
-let MODE = "dicter", recDicte = null, recEcoute = null, tDicte = 0, tEcoute = 0, chr1 = null, chr2 = null;
+let MODE = "dicter", ecDicte = null, ecEcoute = null, tDicte = 0, tEcoute = 0, chr1 = null, chr2 = null;
 
 document.querySelectorAll("[data-mode]").forEach(b=>{
   b.onclick = () => {
@@ -446,17 +582,23 @@ document.querySelectorAll("[data-mode]").forEach(b=>{
 $("btnDicte").onclick = async () => {
   await assureMicro();
   $("micErr").textContent = "";
-  recDicte = nouveauMicro(t => $("dictee").value = t, e => { $("micErr").textContent = e; arreteDicte(); });
-  if(!recDicte) return;
-  try{ recDicte.start(); }catch(e){ $("micErr").textContent = "Le micro est déjà pris."; return; }
+  ecDicte = ecouteRobuste({
+    onTexte: t => $("dictee").value = t,
+    onErreur: e => { $("micErr").textContent = e; arreteDicte(); },
+    onEtat: e => ligneEtat($("etatEcoute"), e)
+  });
+  if(!ecDicte) return;
+  ecDicte.amorce($("dictee").value.trim());
+  if(!ecDicte.start()) { ecDicte = null; return; }
   tDicte = Date.now();
   $("btnDicte").style.display="none"; $("btnStopDicte").style.display="inline-block";
-  animeOnde($("onde"), ()=>!!recDicte);
+  animeOnde($("onde"), ()=>!!ecDicte);
   chr1 = setInterval(()=> $("chrono").textContent = mmss((Date.now()-tDicte)/1000), 300);
 };
 function arreteDicte(){
-  if(recDicte){ try{recDicte.stop()}catch(e){} recDicte = null; }
+  if(ecDicte){ ecDicte.stop(); ecDicte = null; }
   clearInterval(chr1);
+  if($("etatEcoute")) $("etatEcoute").textContent = "";
   $("btnDicte").style.display="inline-block"; $("btnStopDicte").style.display="none";
 }
 $("btnStopDicte").onclick = arreteDicte;
@@ -464,33 +606,21 @@ $("btnStopDicte").onclick = arreteDicte;
 $("btnEcoute").onclick = async () => {
   await assureMicro();
   $("micErr2").textContent = "";
-  recEcoute = nouveauMicro(t => $("ecoute").value = t, e => { $("micErr2").textContent = e; arreteEcoute(); });
-  if(!recEcoute) return;
-  // Un R1 dure dix à quinze minutes. Chrome coupe la reconnaissance toutes les
-  // minutes environ, et parfois plusieurs fois d'affilée. On relance sans relâche,
-  // avec une petite pause pour éviter les rafales.
-  recEcoute.onend = () => {
-    if(!recEcoute || recEcoute._fatal) return;
-    setTimeout(()=>{
-      if(recEcoute && !recEcoute._fatal){
-        try{ recEcoute.start() }catch(e){}
-      }
-    }, 300);
-  };
-  try{ recEcoute.start(); }catch(e){ $("micErr2").textContent = "Le micro est déjà pris."; return; }
+  ecEcoute = ecouteRobuste({
+    onTexte: t => $("ecoute").value = t,
+    onErreur: e => { $("micErr2").textContent = e; arreteEcoute(); },
+    onEtat: e => ligneEtat($("etatEcoute2"), e)
+  });
+  if(!ecEcoute) return;
+  ecEcoute.amorce($("ecoute").value.trim());
+  if(!ecEcoute.start()) { ecEcoute = null; return; }
   tEcoute = Date.now();
   $("btnEcoute").style.display="none"; $("btnStopEcoute").style.display="inline-block";
-  animeOnde($("onde2"), ()=>!!recEcoute);
-  chr2 = setInterval(()=>{
-    $("chrono2").textContent = mmss((Date.now()-tEcoute)/1000);
-    const mots = ($("ecoute").value || "").split(/\s+/).filter(Boolean).length;
-    $("etatEcoute2").innerHTML = recEcoute
-      ? '<span style="color:var(--sage)">écoute en cours · ' + mots + ' mots transcrits</span>'
-      : "";
-  }, 500);
+  animeOnde($("onde2"), ()=>!!ecEcoute);
+  chr2 = setInterval(()=> $("chrono2").textContent = mmss((Date.now()-tEcoute)/1000), 500);
 };
 function arreteEcoute(){
-  if(recEcoute){ const r = recEcoute; recEcoute = null; r.onend = null; try{r.stop()}catch(e){} }
+  if(ecEcoute){ ecEcoute.stop(); ecEcoute = null; }
   clearInterval(chr2);
   if($("etatEcoute2")) $("etatEcoute2").textContent = "";
   $("btnEcoute").style.display="inline-block"; $("btnStopEcoute").style.display="none";
@@ -769,6 +899,8 @@ $("btnNouveau").onclick = () => {
   $("dictee").value = ""; $("ecoute").value = ""; $("colle").value = "";
   $("chrono").textContent = "0:00"; $("chrono2").textContent = "0:00";
   $("etatSynth").textContent = ""; $("micErr").textContent = ""; $("micErr2").textContent = "";
+  if($("etatEcoute")) $("etatEcoute").textContent = "";
+  if($("etatEcoute2")) $("etatEcoute2").textContent = "";
   $("home").classList.remove("on"); $("capture").classList.add("on");
   $("capture").scrollTop = 0;
 };
@@ -776,6 +908,22 @@ $("btnRetour").onclick = () => { arreteDicte(); arreteEcoute(); retourHome(); };
 $("btnFicheRetour").onclick = retourHome;
 $("btnRegle").onclick = () => { $("home").classList.remove("on"); $("regle").classList.add("on"); $("memEtat").textContent = "Tes fiches sont gardées dans : " + MEM + "."; };
 $("btnRegleRetour").onclick = retourHome;
+
+/* Un onglet mis en arrière-plan sur mobile suspend le micro sans prévenir.
+   Au retour, on relance l'écoute plutôt que de laisser un chrono qui tourne
+   dans le vide. */
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState !== "visible") return;
+  if(ecEcoute && ecEcoute.enVie()) return;
+  if(ecEcoute){ toast("L'écoute avait été suspendue — relance-la"); }
+});
+
+/* On ne perd pas un call par un clic malheureux sur Retour ou Actualiser. */
+window.addEventListener("beforeunload", e => {
+  if((ecEcoute && ecEcoute.enVie()) || (ecDicte && ecDicte.enVie())){
+    e.preventDefault(); e.returnValue = "";
+  }
+});
 
 /* ================= RÉGLAGES ================= */
 $("btnCle").onclick = async () => {
