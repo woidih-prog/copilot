@@ -187,6 +187,7 @@ a{color:var(--steel)}
     <div class="block" id="modeEcouter" style="display:none">
       <h3>Pendant le call</h3>
       <p class="note" style="margin-bottom:14px">Mets ton téléphone sur <b style="color:var(--ink)">haut-parleur</b>, pose-le à côté de cet écran, et lance l'écoute. Préviens ton interlocuteur que tu enregistres : c'est la loi, et ça se dit en une phrase.</p>
+      <p class="note" style="margin-bottom:14px;border-left:2px solid var(--amber);padding-left:11px">Il faut <b style="color:var(--ink)">deux appareils</b>. Le téléphone pour l'appel, en haut-parleur, et cette page ouverte sur un autre appareil — ordinateur ou tablette — posé à côté. Si tu ouvres cette page sur le téléphone qui passe l'appel, le système ne donne jamais la voix de l'autre au navigateur : tu n'auras que la tienne.</p>
       <div id="onde2" style="height:34px;display:flex;align-items:flex-end;gap:3px;margin:14px 0"></div>
       <div class="chrono" id="chrono2">0:00</div>
       <p id="etatEcoute2" style="font-size:12.5px;color:var(--muted);margin-top:6px"></p>
@@ -390,7 +391,21 @@ let FLUX_MICRO = null;
 async function assureMicro(){
   if(FLUX_MICRO && FLUX_MICRO.active) return true;
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
-  try{ FLUX_MICRO = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}}); return true; }
+  try{
+    /* IMPORTANT — pourquoi tout est à false.
+       L'annulation d'écho est faite pour SUPPRIMER ce qui sort de ton
+       haut-parleur. Sur un call en mains libres, ce qui sort du haut-parleur,
+       c'est exactement la voix du prospect. Avec echoCancellation à true,
+       le navigateur l'effaçait : on n'entendait plus que toi.
+       La suppression de bruit et le gain automatique écrasent aussi les voix
+       lointaines. On ouvre donc le micro brut. */
+    FLUX_MICRO = await navigator.mediaDevices.getUserMedia({audio:{
+      echoCancellation:false,
+      noiseSuppression:false,
+      autoGainControl:false
+    }});
+    return true;
+  }
   catch(e){ FLUX_MICRO = null; return false; }
 }
 
