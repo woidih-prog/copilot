@@ -2043,12 +2043,11 @@ function candidats(n){
   const recent = S.transcript.slice(-4).map(x=>x.text).join(" ").toLowerCase();
   const mots = recent.replace(/[^a-zàâäéèêëïîôöùûüç\s]/g," ").split(/\s+/)
     .filter(w=>w.length>4 && !/^(alors|parce|comme|quand|aussi|voila|enfin|vraiment|beaucoup)$/.test(w));
-  return FICHES.map((f,i)=>{
+  return fichesUtilisables().map((f,i)=>{
     const hay = ((f.situation||"")+" "+(f.label||"")+" "+f.phrase).toLowerCase();
     let sc = mots.reduce((s,w)=>s+(hay.includes(w)?1:0),0);
     sc += (f.valide||0) * 1.5;                              // ce que tu as validé en call remonte
-    if(f.ecole === "moi" || !f.ecole) sc += 1;              // ta voix, pour les formulations
-    else if(f.ecole === "sami") sc += 0.5;
+    if(f.ecole === "sami") sc += 0.5;
     /* Le spécialiste du moment passe devant : Josh sur la découverte,
        Walsh sur l'objection. C'est le cœur du système. */
     /* Le bonus de terrain ne vaut que pour les spécialistes. Tes calls et ceux
@@ -3840,7 +3839,7 @@ $("btnLire").onclick = async () => {
   // Les écoles de référence d'abord, comme avant. Seules différences :
   // on ne garde que les phrases qui se disent, et on trie par pertinence
   // au lieu de couper les 40 premières dans l'ordre du fichier.
-  const notees = FICHES.filter(estDicible).map(f => {
+  const notees = fichesUtilisables().filter(estDicible).map(f => {
     const e = ECOLES[f.ecole];
     let sc = ["moi","sami"].includes(f.ecole) ? 0 : 3;
     if(e && e.marches && !e.marches.includes(marche)) sc -= 3;
@@ -5398,6 +5397,17 @@ Ce que tu gardes de la fiche, sans jamais le déformer : le levier, l'angle, l'o
 Si la phrase de la fiche colle déjà parfaitement, reprends-la telle quelle. Adapter est une permission, pas une obligation.
 Ta phrase reste COURTE et PARLÉE, comme celles de la liste. Pas de formule de vendeur, pas de « je comprends tout à fait », pas de « et si je te disais que ». Si ta phrase ne ressemble pas à celles de la liste, c'est que tu as quitté sa méthode.
 Si aucune fiche ne fournit un mécanisme qui s'applique ici, mets "fiche" à null et n'invente rien : tu expliques la faute, sans proposer de phrase.
+LE TEST DE RACCORD — À FAIRE AVANT DE CHOISIR UNE FICHE.
+Relis la DERNIÈRE phrase du prospect. La fiche que tu t'apprêtes à reprendre doit s'enchaîner dessus naturellement, comme si le closer la disait dans la seconde. Trois questions :
+1. Le prospect a-t-il donné l'information sur laquelle cette phrase s'appuie ? Une phrase qui parle d'un chiffre mensuel n'a aucun sens s'il n'a jamais parlé de mois.
+2. La ligne « situation » de la fiche décrit-elle bien le moment qu'on vit là ?
+3. Ta phrase reprend-elle ses mots ou ses chiffres à lui ?
+Un seul non, et cette fiche ne convient pas : regarde la suivante.
+Si AUCUNE ne passe le test, mets "fiche" à null et explique seulement la faute. Une phrase hors sujet est bien pire que pas de phrase : elle fait dire au closer quelque chose qui ne colle pas à la conversation, et le prospect le sent immédiatement.
+
+NE REPOSE PAS LA MÊME QUESTION SOUS UNE AUTRE SIGNATURE.
+Si tu as déjà fait dire une chose dans cet exercice, ne la refais pas dire autrement parce qu'une autre école la formule différemment. Le closer a besoin d'avancer, pas d'entendre trois fois la même question avec trois noms de coach.
+
 Indique toujours de quelle fiche vient le mécanisme.
 
 OÙ EN EST LE PROSPECT : confiance ${SPAR.etat.confiance}/10, couche de douleur ${SPAR.etat.couche}/3, ${SPAR.etat.lead === "prospect" ? "c'est LUI qui mène le call" : "le closer mène"}.
@@ -5424,7 +5434,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "quoi":"ce qu il vient de faire, UNE phrase courte, dite comme a l oral, ou null",
  "pourquoi":"pourquoi c est une faute ici, UNE phrase courte, a l oral, ou null",
  "fiche":"la phrase a dire, adaptee a ce moment precis a partir du mecanisme d une fiche ci-dessus, ou null si aucune ne s applique",
- "numero":le numero exact de la fiche dont tu as repris le mecanisme, ou null,
+ "numero":OBLIGATOIRE des que "fiche" n est pas null — le numero exact de la fiche dont tu as repris le mecanisme. Si tu ne peux pas le donner, mets "fiche" a null.,
  "source":"le nom de l ecole de cette fiche, ou null"}`, 800);
   return parseModelJson(txt);
 }
@@ -5540,6 +5550,38 @@ const SUJETS_SEGMENT = {
   closing:    ["CLOSING","PAIEMENT","ENGAGEMENT","DECIDEUR","REFLEXION","OUI_MOU","HESITATION","PITCH"]
 };
 
+/* Woidih ne veut pas que ses propres formulations lui soient renvoyées.
+   Seules les écoles parlent : Sami, Josh Lyons, Bill Walsh, Ben Byrne,
+   vente complexe. Ses fiches restent dans la base, elles ne sont
+   simplement plus proposées. Repasser à true pour les réactiver. */
+const MES_FICHES_PROPOSEES = false;
+function fichesUtilisables(){
+  return MES_FICHES_PROPOSEES ? FICHES
+       : FICHES.filter(f => f.ecole && f.ecole !== "moi");
+}
+
+/* --- Reconnaître deux fiches qui disent la même chose -----------------
+   Le vrai problème n'était pas la répétition d'une fiche, mais la
+   répétition d'un MÉCANISME sous plusieurs écoles. « Réfléchir à quoi
+   exactement ? » chez Walsh, chez Sami et chez Josh, ce sont trois
+   entrées différentes et une seule question. On compare donc les mots
+   porteurs, pas les étiquettes. */
+const MOTS_VIDES = /^(alors|parce|pour|dans|avec|sans|mais|donc|cette|celui|celle|tout|toute|tous|plus|moins|bien|très|elle|vous|nous|leur|être|avoir|faire|dire|quoi|comme|aussi|encore|jamais|toujours|est-ce|qu'est-ce)$/;
+function signature(txt){
+  const t = String(txt||"").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9\s']/g," ");
+  return new Set(t.split(/[\s']+/).filter(w => w.length > 3 && !MOTS_VIDES.test(w)));
+}
+function memeMecanisme(a, b){
+  if(!a || !b) return false;
+  const petit = Math.min(a.size, b.size);
+  if(petit < 3) return false;
+  let communs = 0;
+  a.forEach(w => { if(b.has(w)) communs++; });
+  return (communs / petit) >= 0.45;
+}
+
 /* Une fiche n'est pas toujours une phrase à dire au prospect.
    Les fiches de type PREUVE sont des principes adressés au closer :
    « Coupe-le, doucement », « Demande toujours LE plus gros ».
@@ -5566,7 +5608,7 @@ function classeFiches(segKeys){
     .filter(([k,e])=>(e.terrains||[]).some(t=>terrains.includes(t)) && (!e.marches || e.marches.includes(m)))
     .map(([k])=>k);
   const sujets = sujetsDuMoment(cles);
-  return FICHES.map(f=>{
+  return fichesUtilisables().map(f=>{
     let sc = 0;
     // 1. le sujet avant tout : hors sujet, la fiche ne sert à rien ici
     if(sujets){
@@ -5622,27 +5664,52 @@ function ficheCle(f){
 function fichesPourCoach(n){
   const util = Array.isArray(SPAR && SPAR.fichesUtilisees) ? SPAR.fichesUtilisees : [];
   const recents = new Set(util.slice(-4));
+  // les mécanismes déjà servis récemment, pas seulement les fiches
+  const mecaRecents = (SPAR && Array.isArray(SPAR.mecanismesServis))
+    ? SPAR.mecanismesServis.slice(-4).map(t => signature(t)) : [];
+
   const pool = classeFiches().filter(x=>estDicible(x.f)).map(x=>{
     const cle = ficheCle(x.f);
+    const sig = signature(x.f.phrase);
     let sc = x.sc;
-    if(recents.has(cle)) sc -= 6;            // déjà servie à l'instant
-    else if(!util.includes(cle)) sc += 2.5;  // jamais servie de tout l'exercice
-    return {f:x.f, sc, source:x.f.ecole||"lui"};
+    // La nouveauté départage deux fiches également pertinentes.
+    // Elle ne fait jamais remonter une fiche hors sujet : l'écart de rang
+    // entre deux sujets vaut au moins 2 points, on reste sous ce seuil.
+    if(recents.has(cle)) sc -= 1.5;
+    else if(!util.includes(cle)) sc += 0.8;
+    // Une fiche qui redit ce qui vient d'être dit, même sous une autre
+    // école, recule autant que celle qui a vraiment servi.
+    if(mecaRecents.some(m => memeMecanisme(sig, m))) sc -= 3;
+    return {f:x.f, sc, sig};
   }).filter(x=>x.sc>0).sort((a,b)=>b.sc-a.sc);
   if(!pool.length) return [];
 
-  const max = n || 8, choisis = [], reste = pool.slice(), sources = new Set();
-  // premier passage : la meilleure de chaque école, dans l'ordre du score
-  while(choisis.length < max && reste.length){
-    let pos = reste.findIndex(x=>!sources.has(x.source));
-    if(pos < 0) pos = 0;
-    const x = reste.splice(pos,1)[0];
-    choisis.push(x); sources.add(x.source);
-  }
-  // second passage : on complète par pertinence pure
-  for(const x of reste){
+  /* Uniquement la pertinence, et jamais deux fois le même mécanisme dans
+     la liste. Avant, on forçait une fiche par école : le coach recevait
+     trois versions de la même question, plus des fiches hors sujet
+     repêchées pour que chaque école soit représentée. */
+  const max = n || 8, choisis = [], parEcole = {};
+  /* Un plafond souple par école : le spécialiste du moment garde la
+     majorité de la liste, mais il ne la remplit pas entièrement.
+     Ce plafond n'agit qu'après coup — il ne fait jamais remonter une
+     fiche hors sujet, contrairement à l'ancienne règle « une par école ». */
+  const plafond = Math.max(2, Math.ceil(max * 0.6));
+  const passe = (x, strict) => {
+    if(choisis.some(y => memeMecanisme(y.sig, x.sig))) return false;
+    const e = x.f.ecole || "?";
+    if(strict && (parEcole[e]||0) >= plafond) return false;
+    return true;
+  };
+  for(const x of pool){
     if(choisis.length >= max) break;
-    if(!choisis.some(y=>ficheCle(y.f)===ficheCle(x.f))) choisis.push(x);
+    if(!passe(x, true)) continue;
+    choisis.push(x); parEcole[x.f.ecole||"?"] = (parEcole[x.f.ecole||"?"]||0) + 1;
+  }
+  // s'il n'y a pas assez d'écoles disponibles, on complète sans le plafond
+  for(const x of pool){
+    if(choisis.length >= max) break;
+    if(choisis.includes(x) || !passe(x, false)) continue;
+    choisis.push(x);
   }
   return choisis.map(x=>x.f);
 }
@@ -5674,6 +5741,20 @@ function enregistreFicheCoach(c){
   SPAR.fichesUtilisees = Array.isArray(SPAR.fichesUtilisees) ? SPAR.fichesUtilisees : [];
   SPAR.fichesUtilisees.push(ficheCle(f));
   if(SPAR.fichesUtilisees.length > 12) SPAR.fichesUtilisees = SPAR.fichesUtilisees.slice(-12);
+  /* On note aussi ce qui a été DIT, pas seulement la fiche d'origine :
+     c'est ce qui empêche une autre école de reposer la même question. */
+  SPAR.mecanismesServis = Array.isArray(SPAR.mecanismesServis) ? SPAR.mecanismesServis : [];
+  SPAR.mecanismesServis.push(String(c.fiche));
+  if(SPAR.mecanismesServis.length > 12) SPAR.mecanismesServis = SPAR.mecanismesServis.slice(-12);
+}
+
+/* Le numéro est devenu le seul lien fiable entre la phrase adaptée et sa
+   fiche. Sans lui, on préfère afficher l'analyse sans phrase plutôt
+   qu'une phrase dont on ne peut plus retrouver l'origine. */
+function verifieProvenance(c){
+  if(!c || !c.stop || !c.fiche) return c;
+  if(!ficheDeLaListe(c)){ c.fiche = null; c.source = null; c.numero = null; }
+  return c;
 }
 
 /* Les principes : ils servent à expliquer la faute, jamais à être récités */
@@ -6272,7 +6353,7 @@ $("btnSparEnvoi").onclick = async () => {
     phase("le coach regarde", "var(--clay)", true);
     $("sparInfo").innerHTML = '<span style="color:var(--muted)">Le coach regarde…</span>';
     try{
-      const c = await coachRegarde(m);
+      const c = verifieProvenance(await coachRegarde(m));
       if(c && c.stop){
         enregistreFicheCoach(c);
         SPAR.arrets = (SPAR.arrets||0) + 1;
