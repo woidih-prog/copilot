@@ -4910,9 +4910,16 @@ function attenteAvantEnvoi(texte){
   return Math.round(ms * sparRythme);
 }
 
-function ouvreTonTour(){
+async function ouvreTonTour(){
   if(sparCanal !== "vocal" || !SPAR) return;
-  lanceSparMicro();
+  phase("le micro s'ouvre…", "var(--muted)", true);
+  await lanceSparMicro();
+  // On laisse au navigateur le temps d'établir la liaison avant de
+  // lancer les minuteries. Sans ça, le début de ta phrase se perd.
+  for(let i = 0; i < 20 && !sparEcouteVraiment; i++){
+    await new Promise(r => setTimeout(r, 100));
+  }
+  if(!SPAR) return;
   phase("à toi", "var(--amber)", true);
   sparDernierMot = Date.now();
   clearInterval(sparVeille);
@@ -5876,6 +5883,15 @@ function rappelReglages(prof, coul){
 }
 
 $("btnSparGo").onclick = async () => {
+  /* On réveille le micro tout de suite : la demande d'accès du navigateur
+     arrive pendant la préparation du prospect, pas au moment où tu ouvres
+     la bouche. C'est ce décalage qui donnait l'impression qu'il ne
+     détectait rien au début. */
+  if(sparCanal === "vocal"){
+    $("sparEtat").textContent = "J'ouvre le micro…";
+    const micOk = await assureMicro();
+    if(!micOk) $("sparEtat").innerHTML = '<span style="color:var(--clay)">Micro refusé. Le sparring se lance quand même, tu pourras répondre à l\'écrit.</span>';
+  }
   debloqueSon();                       // on prend l'autorisation pendant que tu cliques
 
   // contrôle d'accès : seulement si une liste existe sur le serveur
@@ -6573,17 +6589,37 @@ $("btnSparIndice").onclick = () => {
 };
 
 function arreteSparMicro(){
+  sparEcouteVraiment = false;
   clearInterval(sparVeille);
   clearInterval(sparSilence);
   if(sparRec){ const r = sparRec; sparRec = null; r.onend = null; try{ r.stop() }catch(e){} }
   $("btnSparMicro").textContent = "Micro";
 }
-function lanceSparMicro(){
+let sparEcouteVraiment = false;
+
+async function lanceSparMicro(){
   if(sparRec) return true;
-  assureMicro();
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR){ toast("Pas de micro dans ce navigateur. Passe à l'écrit."); return false; }
+  /* ON ATTEND L'AUTORISATION. Avant, cet appel n'était pas attendu :
+     start() partait pendant que le navigateur affichait encore sa
+     demande d'accès, et le micro ne s'ouvrait qu'au tour suivant. */
+  $("btnSparMicro").textContent = "Micro…";
+  const ok = await assureMicro();
+  if(!ok){
+    $("btnSparMicro").textContent = "Micro";
+    $("sparInfo").innerHTML = '<span style="color:var(--clay)">Micro refusé ou indisponible. Autorise-le, ou passe à l\'écrit.</span>';
+    return false;
+  }
+  sparEcouteVraiment = false;
   sparRec = new SR(); sparRec.lang = "fr-FR"; sparRec.continuous = true; sparRec.interimResults = true;
+  /* Chrome met une à deux secondes à ouvrir sa liaison. Tant que
+     onstart n'a pas parlé, on ne prétend pas écouter. */
+  sparRec.onstart = () => {
+    sparEcouteVraiment = true;
+    $("btnSparMicro").textContent = "Micro actif";
+    if(SPAR && sparCanal === "vocal" && !sparParle) phase("à toi", "var(--amber)", true);
+  };
   let fige = "";
   sparRec.onresult = e => {
     if(sparParle) return;                 // il parle : on ne note pas sa propre voix
@@ -6602,8 +6638,14 @@ function lanceSparMicro(){
   sparRec.onerror = e => {
     if(e.error === "not-allowed"){ $("sparInfo").innerHTML = '<span style="color:var(--clay)">Micro refusé. Autorise-le, ou passe à l\'écrit.</span>'; arreteSparMicro(); }
   };
-  try{ sparRec.start(); $("btnSparMicro").textContent = "Micro actif"; return true; }
-  catch(e){ sparRec = null; return false; }
+  try{ sparRec.start(); return true; }
+  catch(e){
+    // « already started » arrive quand le tour précédent n'a pas fini de se fermer
+    const r = sparRec; sparRec = null;
+    try{ r.abort(); }catch(_){}
+    setTimeout(()=>{ if(!sparRec && SPAR && sparCanal === "vocal") lanceSparMicro(); }, 400);
+    return false;
+  }
 }
 $("btnSparMicro").onclick = () => { sparRec ? arreteSparMicro() : lanceSparMicro(); };
 $("btnSparRedire").onclick = () => {
