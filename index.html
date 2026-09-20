@@ -6974,7 +6974,15 @@ $("btnExport").onclick = () => {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(b); a.download = "ma-methode.json"; a.click();
 };
-$("btnImportKb").onclick = () => $("kbFile").click();
+$("btnImportKb").onclick = () => {
+  /* Ce bouton REMPLACE toute la base. Sans confirmation, un clic à la place
+     de « Ajouter à ma base » efface des centaines de fiches sans prévenir. */
+  if(FICHES.length && !confirm(
+      "Attention : ceci REMPLACE toute ta base.\n\n" +
+      "Tu as actuellement " + FICHES.length + " fiches. Elles seront effacées et remplacées par le fichier choisi.\n\n" +
+      "Pour ajouter sans rien perdre, annule et utilise « Ajouter à ma base ».\n\nRemplacer quand même ?")) return;
+  $("kbFile").click();
+};
 $("btnMergeKb").onclick = () => $("mergeFile").click();
 /* estimation grossière : léger ≈ 0,15 c l'analyse, puissant ≈ 1,8 c ; débrief ≈ 4 c */
 function majCout(){
