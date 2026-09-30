@@ -707,6 +707,7 @@ aside{
         <h3 style="color:var(--clay)">Stop</h3>
         <p id="coachQuoi" style="font-size:15px;line-height:1.5"></p>
         <p id="coachPourquoi" style="font-size:13.5px;color:var(--muted);margin-top:9px;line-height:1.55"></p>
+        <p id="coachRaison" style="display:none;font-size:12.5px;color:var(--steel);margin-top:9px;line-height:1.5;border-left:2px solid var(--line);padding-left:11px"></p>
         <div id="coachFiche" style="margin-top:12px"></div>
         <div class="row" style="margin-top:13px">
           <button class="pill" id="btnRefaire" style="border-color:var(--amber);color:var(--amber)">Refaire ce tour</button>
@@ -939,6 +940,20 @@ aside{
    0. APPEL CLAUDE — un seul point d'entrée
    ========================================================= */
 let API_KEY = "";
+/* =====================================================================
+   UNE SEULE CLÉ POUR TOUTES TES APPS
+   Chaque app rangeait la clé dans son propre tiroir : le copilote, Suivi R1
+   et Comprendre un coaching ne se voyaient pas. D'où la clé redemandée.
+   Maintenant elles partagent un même emplacement. Tu la mets une fois,
+   dans n'importe laquelle, et toutes la retrouvent — à condition d'être
+   ouvertes depuis la même adresse (ton site GitHub), dans le même navigateur.
+   ===================================================================== */
+const CLE_PARTAGEE = "woidih_cle_api";
+function cleCommune(){ try{ return localStorage.getItem(CLE_PARTAGEE) || ""; }catch(e){ return ""; } }
+function gardeCleCommune(k){ try{ if(k) localStorage.setItem(CLE_PARTAGEE, k); }catch(e){} }
+// on demande au navigateur de ne pas faire le ménage dans ce qu'on a gardé
+try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{}); }catch(e){}
+
 let CHOIX_MODELE = "auto";
 const LEGER = "claude-haiku-4-5-20251001";
 const PUISSANT = "claude-sonnet-4-6";
@@ -3213,9 +3228,11 @@ async function loadKey(){
   majEcoDetail(); majCout(); majParEcole(); majListeEcoles(); majLecture();
   try{ await chargeReglagesVoix(); }catch(e){}
   reprendreCall();
-  let k = await Store.get("apikey");
+  let k = cleCommune();
+  if(!k) k = await Store.get("apikey");
   if(!k) k = await Store.get("cle");
   if(k){
+    gardeCleCommune(k);   // une clé déjà posée ici profite aux autres apps
     API_KEY = k; $("apiKey").value = k;
     $("keyState").textContent = "Clé enregistrée.";
     $("keyState").style.color = "var(--sage)";
@@ -3223,6 +3240,7 @@ async function loadKey(){
 }
 $("btnKey").onclick = async () => {
   API_KEY = $("apiKey").value.trim();
+  gardeCleCommune(API_KEY);
   const saved = await Store.set("apikey", API_KEY);
   await Store.set("cle", API_KEY);   // Suivi R1 la retrouvera aussi
   $("keyState").textContent = "Test en cours…";
@@ -3952,6 +3970,13 @@ function texteDuDebrief(){
 }
 
 /* La trace écrite, exportable. On ne garde pas un débrief dans un onglet. */
+function notesDuCoach(){
+  const d = (SPAR && SPAR.dossier && SPAR.dossier.notes) || [];
+  if(!d.length) return "";
+  return "\nCE QUE TU AS LAISSÉ PASSER PENDANT L'EXERCICE, à reprendre maintenant :\n"
+    + d.map(x => `- tour ${x.tour} : ${x.quoi}${x.pourquoi ? " — " + x.pourquoi : ""}`).join("\n");
+}
+
 function debriefEnTexte(){
   if(!LECTURE) return "";
   const j = LECTURE.j, d = new Date().toLocaleDateString("fr-FR");
@@ -5378,8 +5403,22 @@ ${manniereDuCoach().ton}
 
 
 LE MOMENT TRAVAILLÉ : ${seg.nom} — ${seg.objectif}
-CE QUI EST ATTENDU SUR CE MOMENT :
+CE QUI EST ATTENDU SUR CE MOMENT — c'est le but du moment, PAS une liste de courses à réclamer tour après tour :
 ${seg.criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
+
+TU RAISONNES AVANT DE REGARDER LES FICHES. C'EST L'ORDRE, ET IL NE CHANGE PAS.
+1. Qu'est-ce que le prospect vient d'offrir ? Un chiffre, un aveu, une contradiction, une émotion, une esquive, ou rien.
+2. Qu'est-ce que le closer essayait de faire avec sa phrase ?
+3. Quel est le MEILLEUR COUP maintenant ? Décide-le avec ta tête, sans regarder les fiches.
+4. Ce coup est-il autorisé à cet instant ? Regarde la table ci-dessous. S'il manque un préalable, le coup n'est pas jouable : le vrai coup devient d'aller chercher ce qui manque.
+5. Seulement là : une fiche sert-elle ce coup ? Si oui, tu pars de son mécanisme. Si aucune ne le sert, tu expliques sans proposer de phrase.
+
+QUAND UN COUP EST JOUABLE :
+${TABLE_COUPS}
+
+Une question posée trop tôt sonne comme un script, et le prospect le sent. Le coût de l'inaction demandé alors qu'il n'a rien admis, ou le ressenti demandé alors qu'il est encore factuel et fermé, sont les deux fautes les plus fréquentes. Ne les commets pas toi-même en les réclamant au closer.
+
+${texteDossier()}
 
 LA DERNIÈRE CHOSE QUE LE PROSPECT A DITE — c'est à ÇA que ta phrase doit répondre :
 « ${(SPAR.tours||[]).filter(t=>t.qui==="PROSPECT").slice(-1).map(t=>t.txt).join("") || "—"} »
@@ -5422,6 +5461,12 @@ Il vient de reformuler après ta correction. Sois beaucoup plus indulgent : s'il
 
 CE QUE LE CLOSER S'APPRÊTE À DIRE : « ${cequejedis} »
 
+TU DOSES. Trois niveaux, et « arreter » est le plus rare :
+- laisser : ce n'est pas grave, ou il a déjà corrigé. Tu ne dis rien.
+- noter : c'est imparfait mais l'exercice peut continuer. Tu ne l'interromps pas, ça ira au débrief.
+- arreter : sans correction immédiate, la suite du call est fichue.
+« stop » vaut true uniquement pour « arreter ».
+
 Tu n'interromps QUE pour une vraie faute, pas pour une formulation perfectible. Un closer qui progresse a besoin de jouer, pas d'être coupé toutes les trente secondes.
 Interromps si, et seulement si : il justifie ou argumente au lieu de questionner, il traite une objection sans en connaître la cause, il avance alors qu'une couche n'est pas obtenue, il pose une question déjà posée, il console au lieu de creuser, il pitche avant que les conditions soient réunies, il abandonne le paiement, ou il s'écarte franchement de sa méthode alors qu'une fiche s'appliquait.
 Dans tous les autres cas, laisse-le jouer.
@@ -5433,6 +5478,13 @@ Réponds uniquement avec ce JSON, sans markdown :
 {"stop":true ou false,
  "quoi":"ce qu il vient de faire, UNE phrase courte, dite comme a l oral, ou null",
  "pourquoi":"pourquoi c est une faute ici, UNE phrase courte, a l oral, ou null",
+ "offert":"ce que le prospect vient d offrir : chiffre, aveu, contradiction, emotion, esquive, ou rien",
+ "coup":"le meilleur coup maintenant, avec tes mots, decide AVANT de regarder les fiches",
+ "jouable":true ou false — ce coup est-il autorise a cet instant selon la table,
+ "manque":"si jouable est false : le prealable qui manque, et donc le vrai coup a jouer maintenant, sinon null",
+ "gravite":"laisser si ce n est pas grave, noter si c est a voir au debrief sans couper l exercice, arreter si ca doit etre corrige tout de suite",
+ "faute_code":"deux ou trois mots stables pour nommer cette faute, toujours les memes pour la meme faute, ou null",
+ "acquis":"ce que le prospect vient de donner et qui est acquis pour la suite du call, ou null",
  "fiche":"la phrase a dire, adaptee a ce moment precis a partir du mecanisme d une fiche ci-dessus, ou null si aucune ne s applique",
  "numero":OBLIGATOIRE des que "fiche" n est pas null — le numero exact de la fiche dont tu as repris le mecanisme. Si tu ne peux pas le donner, mets "fiche" a null.,
  "source":"le nom de l ecole de cette fiche, ou null"}`, 800);
@@ -5651,6 +5703,31 @@ function fichesDuSegment(n, segKeys){
   return out.slice(0, total);
 }
 
+/* =====================================================================
+   QUAND UN COUP EST JOUABLE
+   Chaque mouvement de call a des préalables. Tant qu'ils ne sont pas là,
+   le coup tombe du ciel. C'est ce qui manquait au coach : il réclamait
+   le coût de l'inaction à des moments où la question n'avait aucun sens.
+   ===================================================================== */
+const COUPS = [
+  {n:"Faire préciser le problème",        avant:"il a évoqué un sujet, même vaguement",                                   jamais:"il a déjà nommé son problème clairement"},
+  {n:"Aller chercher un fait chiffré",    avant:"un problème est nommé",                                                  jamais:"aucun problème n'est encore posé"},
+  {n:"Faire dire depuis quand",           avant:"un fait concret est sur la table",                                       jamais:"rien de concret n'a encore été donné"},
+  {n:"Faire raconter ce qu'il a tenté",   avant:"le problème et au moins un fait",                                        jamais:"le problème n'est pas admis"},
+  {n:"Renvoyer une contradiction",        avant:"il a dit deux choses qui ne tiennent pas ensemble",                       jamais:"tu n'as pas ses deux phrases exactes"},
+  {n:"Chiffrer le coût de l'inaction",    avant:"des faits chiffrés, une durée, et il a admis que ça ne va pas",           jamais:"il n'a encore rien reconnu, ou tu n'as aucun chiffre"},
+  {n:"Aller chercher le ressenti",        avant:"les faits sont posés ET il vient de s'ouvrir un peu — il ralentit, il hésite, il lâche quelque chose", jamais:"il parle encore à la troisième personne, ou il reste factuel et fermé"},
+  {n:"Faire dire l'objectif chiffré",     avant:"la douleur est reconnue",                                                jamais:"il minimise encore"},
+  {n:"Vérifier qui décide, le budget",    avant:"il y a un projet réel sur la table",                                     jamais:"ni offre ni prix n'ont été évoqués et la douleur n'est pas posée"},
+  {n:"Passer au pitch",                   avant:"problème brûlant, engagement, aveu qu'il n'y arrivera pas seul, confiance en toi — les quatre", jamais:"une seule des quatre manque"},
+  {n:"Diagnostiquer une objection",       avant:"l'objection vient d'être posée",                                         jamais:"elle n'a pas été posée"},
+  {n:"Isoler",                            avant:"la cause probable est identifiée",                                       jamais:"tu ne sais pas encore ce qu'il y a derrière"},
+  {n:"Traiter, reframer",                 avant:"l'isolation est faite et la vraie cause est connue",                     jamais:"tu traites une objection dont tu ignores la cause"},
+  {n:"Demander l'engagement",             avant:"l'objection est traitée et il a confirmé",                               jamais:"un doute est encore ouvert"},
+  {n:"Sécuriser le paiement",             avant:"il a dit oui",                                                           jamais:"il n'a pas encore dit oui"}
+];
+const TABLE_COUPS = COUPS.map(c => `- ${c.n} — possible seulement si : ${c.avant}. Jamais si : ${c.jamais}.`).join("\n");
+
 /* Une fiche, identifiée de façon stable, pour se souvenir qu'elle a servi */
 function ficheCle(f){
   if(!f) return "";
@@ -5731,6 +5808,41 @@ function ficheDeLaListe(c){
   return fiches.find(x => String(x.phrase||"").trim().toLowerCase() === dit)
       || fiches.find(x => dit && court(x.phrase) === court(dit))
       || null;
+}
+
+/* =====================================================================
+   LE DOSSIER DE CALL
+   Sans lui, le coach redécouvrait la conversation à chaque tour. Il ne
+   savait pas ce qui avait déjà été obtenu, ni ce qu'il avait déjà
+   reproché. D'où les mêmes remarques en boucle.
+   ===================================================================== */
+function dossier(){
+  if(!SPAR.dossier) SPAR.dossier = {acquis:[], fautes:{}, notes:[], coups:[]};
+  return SPAR.dossier;
+}
+function majDossier(c){
+  const d = dossier();
+  if(c.acquis && !d.acquis.includes(c.acquis)){ d.acquis.push(c.acquis); if(d.acquis.length > 14) d.acquis = d.acquis.slice(-14); }
+  if(c.coup){ d.coups.push(c.coup); if(d.coups.length > 6) d.coups = d.coups.slice(-6); }
+  if(c.faute_code){
+    const f = d.fautes[c.faute_code] || {n:0, tour:0};
+    f.n++; f.tour = (SPAR.tours||[]).length; f.texte = c.quoi || f.texte;
+    d.fautes[c.faute_code] = f;
+  }
+  if(c.gravite === "noter" && c.quoi) d.notes.push({tour:(SPAR.tours||[]).length, quoi:c.quoi, pourquoi:c.pourquoi||""});
+}
+function texteDossier(){
+  const d = dossier();
+  const f = Object.entries(d.fautes).map(([k,v]) => `- ${v.texte || k} : ${v.n} fois`).join("\n");
+  return `CE QUE LE PROSPECT A DÉJÀ DONNÉ — ne le refais jamais redemander :
+${d.acquis.length ? d.acquis.map(x=>"- "+x).join("\n") : "rien encore"}
+
+TES DERNIERS COUPS DEMANDÉS — ne redemande pas le même deux fois de suite :
+${d.coups.length ? d.coups.slice(-4).map(x=>"- "+x).join("\n") : "aucun"}
+
+CE QUE TU LUI AS DÉJÀ REPROCHÉ :
+${f || "rien encore"}
+${Object.values(d.fautes).some(v=>v.n>=2) ? "Une faute déjà signalée deux fois : ne la redis pas à l'identique. Soit tu changes d'angle et tu expliques autrement, soit tu laisses passer et tu la notes pour le débrief." : ""}`;
 }
 
 function enregistreFicheCoach(c){
@@ -5926,6 +6038,7 @@ $("btnSparCle").onclick = async () => {
   if(!k) return toast("Colle la clé d'abord");
   if(!/^sk-ant-/.test(k)) $("sparCleEtat").innerHTML = '<span style="color:var(--amber)">Cette clé ne commence pas par sk-ant-. Je teste quand même.</span>';
   API_KEY = k;
+  gardeCleCommune(k);
   const gardee = await Store.set("apikey", k);
   await Store.set("cle", k);
   $("sparCleEtat").textContent = "Test en cours…";
@@ -6044,7 +6157,7 @@ $("btnSparGo").onclick = async () => {
       }
       SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
               segment:sparSegment, profil:"reel", temp:"reel", reel:true, marche:sparMarche,
-              fichesUtilisees:[], fichesCoach:[],
+              fichesUtilisees:[], fichesCoach:[], dossier:{acquis:[], fautes:{}, notes:[], coups:[]},
               etat:{couche: seg.couches === false ? 3 : 1, confiance:4, patience:9, but_obtenu:false, lead:"closer"}};
       $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
       rappelReglages(null, null);
@@ -6195,7 +6308,7 @@ Réponds uniquement avec ce JSON, sans markdown :
     SPAR = {p, offre, prix, tours:[], debut:Date.now(), indices:0, lache:false,
             segment:sparSegment, profil:cle, temp:sparTemp,
             couleur:cCle, marche:sparMarche,
-            fichesUtilisees:[], fichesCoach:[],
+            fichesUtilisees:[], fichesCoach:[], dossier:{acquis:[], fautes:{}, notes:[], coups:[]},
             etat:{couche: seg.couches === false ? 3 : 1, confiance:confDepart, patience:9, but_obtenu:false, lead:"closer"}};
     $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
     rappelReglages(prof.nom, coul.nom);
@@ -6354,6 +6467,7 @@ $("btnSparEnvoi").onclick = async () => {
     $("sparInfo").innerHTML = '<span style="color:var(--muted)">Le coach regarde…</span>';
     try{
       const c = verifieProvenance(await coachRegarde(m));
+      if(c){ majDossier(c); if(c.gravite && c.gravite !== "arreter") c.stop = false; }
       if(c && c.stop){
         enregistreFicheCoach(c);
         SPAR.arrets = (SPAR.arrets||0) + 1;
@@ -6361,6 +6475,15 @@ $("btnSparEnvoi").onclick = async () => {
         SPAR.essais = SPAR.essais || [];
         SPAR.essais.push({dit:m, reproche:(c.quoi||"") + " " + (c.fiche ? "Il fallait dire : "+c.fiche : "")});
         $("coachQuoi").textContent = c.quoi || "Tu sors de ta méthode.";
+        const raison = $("coachRaison");
+  if(raison){
+    const bouts = [];
+    if(c.offert) bouts.push("Il vient d'offrir : " + c.offert);
+    if(c.coup) bouts.push("Le coup à jouer : " + c.coup);
+    if(c.jouable === false && c.manque) bouts.push("Mais il manque d'abord : " + c.manque);
+    raison.innerHTML = bouts.length ? bouts.map(x=>escapeHTML(x)).join("<br>") : "";
+    raison.style.display = bouts.length ? "block" : "none";
+  }
         $("coachPourquoi").textContent = c.pourquoi || "";
         /* On montre toujours la fiche d'origine sous la phrase adaptée.
            Sans ça, impossible de savoir si le coach a adapté ou dérivé. */
