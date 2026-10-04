@@ -824,8 +824,17 @@ aside{
     <p id="memState" style="font-size:12.5px;color:var(--muted);margin-bottom:18px;line-height:1.6"></p>
 
     <div class="block" id="keyBox">
-      <h3>Clé API</h3>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Nécessaire uniquement si tu ouvres ce fichier depuis ton ordinateur. Dans Claude, laisse vide. Ta clé reste sur ta machine, elle n'est envoyée qu'à Anthropic.</p>
+      <h3>Ton code d'accès</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Le code que Woidih t'a donné, du genre ABCD-EFGH. Tout passe par son serveur : tu n'as aucune clé à fournir.</p>
+      <input id="codeAcces" placeholder="ABCD-EFGH" autocomplete="off" style="background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:11px 14px;border-radius:9px;font-size:16px;width:100%;font-family:inherit;letter-spacing:.08em;text-transform:uppercase">
+      <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:10px">
+        <button class="pill" id="btnCode">Enregistrer et tester</button>
+        <button class="pill" id="btnCodeOublie">Oublier ce code</button>
+      </div>
+      <p id="codeEtat" style="font-size:12.5px;color:var(--muted);margin-top:9px"></p>
+
+      <h3 style="margin-top:26px">Clé API — pour Woidih seulement</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Si tu as un code d'accès ci-dessus, laisse ce champ vide. La clé n'est utile qu'au propriétaire de l'outil, et elle reste sur sa machine.</p>
       <input id="apiKey" placeholder="sk-ant-..." style="background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:11px 14px;border-radius:9px;font-size:14px;width:100%;font-family:inherit">
       <button class="pill" id="btnKey" style="margin-top:10px">Enregistrer la clé</button>
       <select id="selModele" class="pill" style="background:var(--bg);margin-top:10px;width:100%">
@@ -940,6 +949,52 @@ aside{
    0. APPEL CLAUDE — un seul point d'entrée
    ========================================================= */
 let API_KEY = "";
+
+/* =====================================================================
+   LE CODE D'ACCÈS
+   Ta clé reste sur ton VPS. Chaque testeur colle un code ici, et toutes
+   ses demandes passent par ton serveur : c'est lui qui compte.
+   ===================================================================== */
+const SERVEUR_PAR_DEFAUT = "https://vps52897419.tail6d0ac3.ts.net/copilot";
+const CLE_CODE = "woidih_code_acces";
+const CLE_SRV_COPILOTE = "woidih_serveur";
+function srvCopilote(){
+  try{
+    const x = JSON.parse(localStorage.getItem(CLE_SRV_COPILOTE) || "null");
+    if(x && x.url) return x.url.replace(/\/+$/, "");
+  }catch(e){}
+  return SERVEUR_PAR_DEFAUT;
+}
+function codeAcces(){ try{ return (localStorage.getItem(CLE_CODE) || "").trim().toUpperCase(); }catch(e){ return ""; } }
+function parLeServeur(){ return !API_KEY && !!codeAcces(); }
+
+/* Une seule porte pour tout ce qui part vers le cerveau. */
+async function viaServeur(prompt, maxJetons, modele){
+  let r;
+  try{
+    r = await fetch(srvCopilote() + "/api/claude", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "x-code": codeAcces()},
+      body: JSON.stringify({prompt, max: maxJetons || 1000, modele: modele || undefined})
+    });
+  }catch(e){ throw new Error("Le serveur ne répond pas. Vérifie ta connexion."); }
+  const d = await r.json().catch(() => ({}));
+  if(r.status === 402){ const e = new Error(d.erreur || "Ton essai gratuit est terminé."); e.quota = true; throw e; }
+  if(r.status === 401) throw new Error("Code d'accès refusé. Vérifie-le, ou demande-en un nouveau.");
+  if(!r.ok) throw new Error(d.erreur || ("Serveur : erreur " + r.status));
+  return d.texte || "";
+}
+
+/* Un entraînement de plus. Le serveur refuse quand le quota est atteint. */
+async function annonceExercice(){
+  if(!parLeServeur()) return {ok: true};
+  try{
+    const r = await fetch(srvCopilote() + "/api/exercice", {method: "POST", headers: {"x-code": codeAcces()}});
+    const d = await r.json().catch(() => ({}));
+    if(r.status === 402) return {ok: false, raison: d.erreur || "Ton essai gratuit est terminé."};
+    return {ok: true, reste: d.reste};
+  }catch(e){ return {ok: true}; }       // réseau capricieux : on ne bloque pas l'entraînement
+}
 /* =====================================================================
    UNE SEULE CLÉ POUR TOUTES TES APPS
    Chaque app rangeait la clé dans son propre tiroir : le copilote, Suivi R1
@@ -994,6 +1049,12 @@ let CACHE = {ecrit:0, relu:0};
 async function callClaudeStream(prompt, onTexte, fixe, signal){
   await pretOuTantPis();
   COMPTEUR.direct++;
+  // Pendant le call, pas de flux continu par le serveur : on reçoit la réponse d'un bloc.
+  if(parLeServeur()){
+    const t = await viaServeur(prompt + (fixe ? "\n\n" + fixe : ""), 400, choisirModele());
+    if(typeof onTexte === "function" && t) onTexte(t);
+    return t;
+  }
   const h = {"Content-Type":"application/json"};
   if(API_KEY){ h["x-api-key"]=API_KEY; h["anthropic-version"]="2023-06-01"; h["anthropic-dangerous-direct-browser-access"]="true"; }
   let r;
@@ -1045,6 +1106,7 @@ async function callClaudeStream(prompt, onTexte, fixe, signal){
 async function callClaude(prompt, maxJetons){
   await pretOuTantPis();
   COMPTEUR.fond++;
+  if(parLeServeur()) return await viaServeur(prompt, maxJetons, MODELE_FOND);
   const h = {"Content-Type":"application/json"};
   if(API_KEY){
     h["x-api-key"] = API_KEY;
@@ -1065,7 +1127,7 @@ async function callClaude(prompt, maxJetons){
         : "Rien ne répond. Si tu es dans Chrome, mets ta clé API dans Ma méthode. Si tu es dans Claude, réessaie."));
   }
   if(!r.ok){
-    const codes = {401:"Clé API invalide.",403:"Clé sans accès.",429:"Trop de demandes, ça se calme tout seul.",400:"Requête refusée."};
+    const codes = {401:"Clé API invalide.",403:"Clé sans accès.",429:"Trop de demandes, ça se calme tout seul.",400:"Requête refusée.",402:"Ton essai gratuit est terminé."};
     const err = new Error(codes[r.status] || ("HTTP "+r.status));
     err.status = r.status;
     throw err;
@@ -2792,6 +2854,7 @@ function saveKb(){ Store.set("fiches", FICHES); renderKb(); try{ majLecture(); m
 
 function renderKb(){
   $("kbCount").textContent = FICHES.length ? "· "+FICHES.length : "";
+  oublieIndex();                      // la base a changé : on réindexe au prochain besoin
   const c = $("cards"); if(!c) return;
 
   // inventaire des documents lus
@@ -3238,6 +3301,29 @@ async function loadKey(){
     $("keyState").style.color = "var(--sage)";
   }
 }
+(function(){
+  const c = codeAcces();
+  if(c){ $("codeAcces").value = c; $("codeEtat").innerHTML = '<span style="color:var(--sage)">Code en place.</span>'; }
+})();
+$("btnCode").onclick = async () => {
+  const c = $("codeAcces").value.trim().toUpperCase();
+  if(!c) return toast("Colle ton code d'abord");
+  try{ localStorage.setItem(CLE_CODE, c); }catch(e){}
+  API_KEY = "";                                  // le code prend la main
+  $("codeEtat").textContent = "Test en cours…";
+  try{
+    const r = await fetch(srvCopilote() + "/api/ping", {headers: {"x-code": c}});
+    if(r.status === 401){ $("codeEtat").innerHTML = '<span style="color:var(--clay)">Code refusé. Vérifie-le, ou demande-en un nouveau.</span>'; return; }
+    if(r.status === 402){ const d = await r.json().catch(()=>({})); $("codeEtat").innerHTML = '<span style="color:var(--clay)">'+escapeHTML(d.erreur||"Essai terminé.")+'</span>'; return; }
+    if(!r.ok) throw new Error("erreur " + r.status);
+    $("codeEtat").innerHTML = '<span style="color:var(--sage)">Code valide. Tu peux t\'entraîner.</span>';
+  }catch(e){ $("codeEtat").innerHTML = '<span style="color:var(--clay)">Le serveur ne répond pas. Réessaie dans un instant.</span>'; }
+};
+$("btnCodeOublie").onclick = () => {
+  try{ localStorage.removeItem(CLE_CODE); }catch(e){}
+  $("codeAcces").value = ""; $("codeEtat").textContent = "Code oublié.";
+};
+
 $("btnKey").onclick = async () => {
   API_KEY = $("apiKey").value.trim();
   gardeCleCommune(API_KEY);
@@ -3857,16 +3943,9 @@ $("btnLire").onclick = async () => {
   // Les écoles de référence d'abord, comme avant. Seules différences :
   // on ne garde que les phrases qui se disent, et on trie par pertinence
   // au lieu de couper les 40 premières dans l'ordre du fichier.
-  const notees = fichesUtilisables().filter(estDicible).map(f => {
-    const e = ECOLES[f.ecole];
-    let sc = ["moi","sami"].includes(f.ecole) ? 0 : 3;
-    if(e && e.marches && !e.marches.includes(marche)) sc -= 3;
-    sc += Math.min(2, (f.valide||0) * 0.8);
-    return {f, sc};
-  }).sort((a,b)=>b.sc-a.sc).slice(0, 45).map(x=>x.f);
-  const fiches = notees.map(f => `[${f.ecole||"toi"}] ${f.situation||f.label} → « ${f.phrase} »`).join("\n");
-  const principesLus = FICHES.filter(f => !estDicible(f)).slice(0, 12)
-    .map(f => `- [${f.ecole||"toi"}] ${f.phrase}`).join("\n");
+  // Le call est fini : on lui donne tout, il n'a rien à aller chercher.
+  const fiches = methodeEntiere();
+  const principesLus = "";
 
   remetLectureAuDebut();
   $("lecture").innerHTML = '<p style="color:var(--amber)">Le coach lit ton call… une à deux minutes.</p>';
@@ -5389,9 +5468,84 @@ document.querySelectorAll("#sparMode [data-mode]").forEach(b=>{
 
 /* LE COACH — il regarde ce que tu viens de dire AVANT que le prospect réponde.
    Si tu sors de la méthode, il coupe et il t'explique. Comme en vrai coaching. */
-async function coachRegarde(cequejedis){
+/* Premier temps : il regarde la scène. AUCUNE fiche sous les yeux.
+   C'est ce qui l'empêche de raisonner à partir d'une présélection. */
+async function coachAnalyse(cequejedis){
   const seg = segmentCourant();
-  const l = fichesPourCoach(8);
+  const p = SPAR.p;
+  const txt = await callClaude(
+`Tu es ${manniereDuCoach().nom}, coach de closing. Tu observes un entraînement en direct.
+
+${manniereDuCoach().ton}
+
+Tu n'as AUCUNE fiche sous les yeux, et c'est voulu. Tu regardes la scène et tu réfléchis par toi-même. Tu iras chercher dans la méthode après, si tu en as besoin.
+
+LE MOMENT TRAVAILLÉ : ${seg.nom} — ${seg.objectif}
+CE QUI EST ATTENDU SUR CE MOMENT — c'est le but, PAS une liste de courses à réclamer tour après tour :
+${seg.criteres.map((c,i)=>(i+1)+". "+c).join("\n")}
+
+CE QUI REND UN COUP PRÉMATURÉ — c'est une aide au diagnostic, pas un règlement :
+${TABLE_COUPS}
+
+Attention : cette table ne dit pas ce que le closer DOIT faire. Elle dit ce qui tombe à plat quand le terrain n'est pas prêt. Un closer qui prend une autre route que la tienne n'a pas tort. Il a tort seulement si sa route lui coûte quelque chose.
+
+Une question posée trop tôt sonne comme un script, et le prospect le sent. Le coût de l'inaction demandé alors qu'il n'a rien admis, ou le ressenti demandé alors qu'il est encore factuel et fermé, sont les deux fautes les plus fréquentes. Ne les commets pas toi-même en les réclamant au closer.
+
+${texteDossier()}
+
+LE PROSPECT : ${p.qui}. Ce qu'il cache : ${p.vrai}
+OÙ EN EST-IL : confiance ${SPAR.etat.confiance}/10, couche ${SPAR.etat.couche}/3, ${SPAR.etat.lead === "prospect" ? "c'est LUI qui mène" : "le closer mène"}.
+
+L'ÉCHANGE :
+${(SPAR.tours||[]).slice(-14).map(t=>(t.qui==="MOI"?"CLOSER":"PROSPECT")+" : "+t.txt).join("\n")}
+CLOSER (à l'instant) : ${cequejedis}
+
+TU REGARDES UN CALL QUI AVANCE, PAS UNE PHRASE ISOLÉE.
+Avant de juger quoi que ce soit, demande-toi où ce closer est en train d'aller. Il a une intention, même maladroite. Un vrai coach la repère, la suit, et ne l'interrompt que si elle va dans le mur.
+
+LA RÈGLE DE PATIENCE, c'est la plus importante :
+Une piste met deux ou trois tours à rapporter quelque chose. Tant qu'elle est jeune, tu observes : tu regardes ce qu'elle récolte, tu ne coupes pas. Une question qui n'a pas encore reçu sa réponse n'est pas une faute. Un chemin différent du tien n'est pas une faute. Une formulation imparfaite n'est pas une faute.
+
+Au bout de trois tours, tu regardes ce que cette direction a rapporté. Si elle a donné de la matière — un chiffre, un aveu, une ouverture — tu la laisses vivre. Si elle n'a rien donné, c'est là, et seulement là, que tu interviens : cette direction ne mène nulle part, tu le dis et tu montres où aller.
+
+Une erreur n'est pas forcément une faute. Beaucoup se rattrapent deux tours plus tard. Tu ne coupes que pour celles qui ne se rattrapent pas.
+
+Tu n'arrêtes que si tu peux nommer, en une phrase, ce que ça va coûter dans les deux minutes qui suivent. Si tu n'arrives pas à le nommer, c'est que ce n'était pas grave : tu notes et tu laisses continuer.
+
+RAISONNE DANS CET ORDRE :
+1. Où va ce call ? Quel est le plan du closer depuis deux ou trois tours, même s'il ne le dit pas ?
+2. Ce que le prospect vient d'offrir : un chiffre, un aveu, une contradiction, une émotion, une esquive, ou rien.
+3. Est-ce que le closer avance vers son but, ou est-ce qu'il tourne en rond ?
+4. S'il avance : tu le laisses, même si tu aurais fait autrement. S'il tourne en rond ou s'il vient de laisser filer ce que le prospect lui offrait, alors seulement : quel est le meilleur coup maintenant ?
+5. Ce coup serait-il prématuré ? Si un préalable manque, le vrai coup devient d'aller le chercher.
+6. Qu'est-ce que ça coûte si tu ne dis rien ? Nomme-le concrètement, ou renonce à l'arrêter.
+7. Si tu l'arrêtes : qu'est-ce que tu cherches dans sa méthode ? Écris-le comme une question posée à voix haute, avec les mots du métier. Pas un mot-clé : une phrase.
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"plan":"ou va ce closer depuis deux ou trois tours, avec tes mots",
+ "piste":"la direction qu il creuse en ce moment, en quelques mots — la meme formulation tant qu il reste dessus",
+ "recolte":"ce que ce tour-ci a rapporte pour cette direction : un chiffre, un aveu, une ouverture — ou null si ce tour n a rien donne",
+ "rattrapable":true si l erreur peut encore se rattraper dans les tours suivants, false si elle est irrattrapable,
+ "avance":true si il avance vers son but, false s il tourne en rond ou s il vient de laisser filer quelque chose,
+ "offert":"ce que le prospect vient d offrir",
+ "coup":"le meilleur coup maintenant, avec tes mots",
+ "jouable":true ou false,
+ "manque":"le prealable qui manque et donc le vrai coup a jouer, ou null",
+ "cout_si_rien":"ce que ca va couter dans les deux minutes si tu ne dis rien, concretement, ou null si tu ne peux pas le nommer",
+ "gravite":"laisser ou noter ou arreter — arreter est interdit si cout_si_rien est null",
+ "faute_code":"deux ou trois mots stables pour nommer cette faute, toujours les memes pour la meme faute, ou null",
+ "quoi":"ce qu il vient de faire de travers, en une phrase, ou null",
+ "pourquoi":"pourquoi ca coute, en une phrase, ou null",
+ "acquis":"ce que le prospect vient de donner et qui est acquis pour la suite, ou null",
+ "besoin":"ce que tu cherches dans sa methode, en une phrase, ou null si tu n arretes pas"}`, 700);
+  return parseModelJson(txt);
+}
+
+/* Second temps : il a cherché dans la méthode, il formule. */
+async function coachRegarde(cequejedis, a){
+  const seg = segmentCourant();
+  const l = chercheFiches([a.besoin, a.coup, a.quoi].filter(Boolean).join(". "),
+                          {n:8, dicible:true, terrain: seg.terrain});
   SPAR.fichesCoach = l;                 // la liste exacte envoyée au coach
   const pr = principesDuSegment(4);
   const dejaServies = (SPAR.fichesUtilisees||[]).slice(-4).length;
@@ -5413,8 +5567,10 @@ TU RAISONNES AVANT DE REGARDER LES FICHES. C'EST L'ORDRE, ET IL NE CHANGE PAS.
 4. Ce coup est-il autorisé à cet instant ? Regarde la table ci-dessous. S'il manque un préalable, le coup n'est pas jouable : le vrai coup devient d'aller chercher ce qui manque.
 5. Seulement là : une fiche sert-elle ce coup ? Si oui, tu pars de son mécanisme. Si aucune ne le sert, tu expliques sans proposer de phrase.
 
-QUAND UN COUP EST JOUABLE :
+CE QUI REND UN COUP PRÉMATURÉ — c'est une aide au diagnostic, pas un règlement :
 ${TABLE_COUPS}
+
+Attention : cette table ne dit pas ce que le closer DOIT faire. Elle dit ce qui tombe à plat quand le terrain n'est pas prêt. Un closer qui prend une autre route que la tienne n'a pas tort. Il a tort seulement si sa route lui coûte quelque chose.
 
 Une question posée trop tôt sonne comme un script, et le prospect le sent. Le coût de l'inaction demandé alors qu'il n'a rien admis, ou le ressenti demandé alors qu'il est encore factuel et fermé, sont les deux fautes les plus fréquentes. Ne les commets pas toi-même en les réclamant au closer.
 
@@ -5451,6 +5607,13 @@ Indique toujours de quelle fiche vient le mécanisme.
 
 OÙ EN EST LE PROSPECT : confiance ${SPAR.etat.confiance}/10, couche de douleur ${SPAR.etat.couche}/3, ${SPAR.etat.lead === "prospect" ? "c'est LUI qui mène le call" : "le closer mène"}.
 ${Array.isArray(p.deja_dit) && p.deja_dit.length ? "CE QUE LE PROSPECT A DÉJÀ DIT et que le closer peut lui renvoyer :\n" + p.deja_dit.map(x=>"- « "+x+" »").join("\n") : ""}
+
+CE QUE TU AS DÉJÀ VU EN REGARDANT LA SCÈNE — c'est ton raisonnement, tiens-t'y :
+- le prospect vient d'offrir : ${a.offert || "rien"}
+- le coup à jouer : ${a.coup || ""}
+${a.jouable === false && a.manque ? "- mais il manque d'abord : " + a.manque : ""}
+- ce qui ne va pas : ${a.quoi || ""}
+Les fiches ci-dessous sont celles que tu es allé chercher pour répondre à : « ${a.besoin || a.coup || ""} ». Prends-en le mécanisme. Si aucune ne sert vraiment ce coup, mets "fiche" à null.
 
 L'ÉCHANGE JUSQU'ICI
 ${SPAR.tours.slice(-8).map(t=>(t.qui==="MOI"?"CLOSER":"PROSPECT")+" : "+t.txt).join("\n")}
@@ -5703,6 +5866,101 @@ function fichesDuSegment(n, segKeys){
   return out.slice(0, total);
 }
 
+/* Toute la méthode, mise à plat, pour les analyses où le temps ne compte pas.
+   Le coach n'a plus rien à aller chercher : il a tout devant lui et il raisonne. */
+function methodeEntiere(){
+  const groupes = {};
+  fichesUtilisables().forEach(f => { (groupes[f.ecole || "autre"] = groupes[f.ecole || "autre"] || []).push(f); });
+  const court = t => { const x = String(t || "").trim(); return x.length > 260 ? x.slice(0, 257) + "…" : x; };
+  return Object.entries(groupes).map(([ecole, l]) => {
+    return `### ${ecole.toUpperCase()} (${l.length} fiches)\n` + l.map(f => {
+      const dit = estDicible(f);
+      return `- ${f.label || f.situation || ""}${f.situation && f.label ? " — " + court(f.situation) : ""}\n`
+           + `  ${dit ? "À DIRE : « " + f.phrase + " »" : "PRINCIPE : " + f.phrase}\n`
+           + (f.pourquoi ? `  POURQUOI : ${court(f.pourquoi)}\n` : "");
+    }).join("");
+  }).join("\n");
+}
+
+/* =====================================================================
+   LA BIBLIOTHÈQUE — toute ta méthode, consultable par le coach
+   On indexe chaque fiche une fois. Ensuite, le coach pose sa question
+   avec ses mots, et on lui rend ce qui y répond vraiment : les mots rares
+   pèsent plus que les mots courants, et on lit la fiche entière, pas
+   seulement son étiquette.
+   ===================================================================== */
+const VIDES = new Set(("le la les un une des du de da au aux et ou mais donc or ni car que qui quoi dont ou a as ai est sont etre avoir fait fais faire son sa ses leur leurs ce cet cette ces celui celle il elle ils elles on nous vous je tu me te se my pas plus moins tres bien tout toute tous toutes dans sur sous avec sans pour par en y lui eux meme comme quand si alors apres avant deja encore aussi trop peu beaucoup chez vers entre ton ta tes mon ma mes notre votre").split(" "));
+function motsDe(t){
+  return String(t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g," ").split(" ")
+    .filter(m => m.length > 2 && !VIDES.has(m));
+}
+let INDEX = null;
+function construisIndex(){
+  const docs = fichesUtilisables().map(f => {
+    const texte = [f.label, f.situation, f.phrase, f.pourquoi, f.origine].filter(Boolean).join(" ");
+    const mots = motsDe(texte), tf = {};
+    mots.forEach(m => tf[m] = (tf[m] || 0) + 1);
+    return {f, tf, taille: mots.length || 1};
+  });
+  const df = {};
+  docs.forEach(d => Object.keys(d.tf).forEach(m => df[m] = (df[m] || 0) + 1));
+  const N = docs.length || 1;
+  const idf = {};
+  Object.keys(df).forEach(m => idf[m] = Math.log(1 + (N - df[m] + 0.5) / (df[m] + 0.5)));
+  INDEX = {docs, idf, moyenne: docs.reduce((a, d) => a + d.taille, 0) / N};
+  return INDEX;
+}
+function oublieIndex(){ INDEX = null; }
+
+/* On cherche dans toute la méthode, pas dans une présélection. */
+function chercheFiches(besoin, opt){
+  const o = opt || {};
+  const ix = INDEX && INDEX.docs.length === fichesUtilisables().length ? INDEX : construisIndex();
+  const q = motsDe(besoin);
+  if(!q.length) return [];
+  const k1 = 1.4, b = 0.7;
+  const util = (SPAR && SPAR.fichesUtilisees) || [];
+  const recents = new Set(util.slice(-4));
+  const mecas = ((SPAR && SPAR.dossier && SPAR.dossier.coups) || []).slice(-3).map(x => new Set(motsDe(x)));
+  const notes = ix.docs.map(d => {
+    if(o.dicible && !estDicible(d.f)) return null;
+    if(o.principe && estDicible(d.f)) return null;
+    let sc = 0;
+    q.forEach(m => {
+      const tf = d.tf[m]; if(!tf) return;
+      sc += (ix.idf[m] || 0) * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * d.taille / ix.moyenne));
+    });
+    if(!sc) return null;
+    // le spécialiste du terrain compte, mais après la pertinence
+    if(o.terrain && d.f.ecole){
+      const e = ECOLES[d.f.ecole];
+      if(e && (e.terrains || []).includes(o.terrain)) sc *= 1.18;
+    }
+    sc *= 1 + Math.min(2, d.f.valide || 0) * 0.06;
+    if(recents.has(ficheCle(d.f))) sc *= 0.45;          // elle vient de servir
+    const sig = new Set(motsDe(d.f.phrase));
+    if(mecas.some(m => { let n = 0; sig.forEach(w => { if(m.has(w)) n++; }); return n >= 3; })) sc *= 0.6;
+    return {f: d.f, sc};
+  }).filter(Boolean).sort((a, b2) => b2.sc - a.sc);
+
+  // jamais deux fois le même mécanisme dans la réponse
+  const gardees = [];
+  for(const x of notes){
+    if(gardees.length >= (o.n || 8)) break;
+    const sx = signatureFiche(x.f);
+    if(gardees.some(y => procheDe(signatureFiche(y), sx))) continue;
+    gardees.push(x.f);
+  }
+  return gardees;
+}
+function signatureFiche(f){ return new Set(motsDe(f.phrase)); }
+function procheDe(a, b2){
+  const petit = Math.min(a.size, b2.size); if(petit < 3) return false;
+  let n = 0; a.forEach(w => { if(b2.has(w)) n++; });
+  return n / petit >= 0.5;
+}
+
 /* =====================================================================
    QUAND UN COUP EST JOUABLE
    Chaque mouvement de call a des préalables. Tant qu'ils ne sont pas là,
@@ -5824,6 +6082,15 @@ function majDossier(c){
   const d = dossier();
   if(c.acquis && !d.acquis.includes(c.acquis)){ d.acquis.push(c.acquis); if(d.acquis.length > 14) d.acquis = d.acquis.slice(-14); }
   if(c.coup){ d.coups.push(c.coup); if(d.coups.length > 6) d.coups = d.coups.slice(-6); }
+  if(c.plan){ d.plan = c.plan; }                       // le fil du call, d'un tour à l'autre
+  // la piste en cours : on la suit, on compte ce qu'elle rapporte
+  const tour = (SPAR.tours||[]).length;
+  if(c.piste){
+    const memePiste = d.piste && procheDe(new Set(motsDe(d.piste.direction)), new Set(motsDe(c.piste)));
+    if(!memePiste) d.piste = {direction: c.piste, debut: tour, recolte: []};
+    else d.piste.direction = c.piste;
+  }
+  if(d.piste && c.recolte) d.piste.recolte.push(c.recolte);
   if(c.faute_code){
     const f = d.fautes[c.faute_code] || {n:0, tour:0};
     f.n++; f.tour = (SPAR.tours||[]).length; f.texte = c.quoi || f.texte;
@@ -5833,8 +6100,22 @@ function majDossier(c){
 }
 function texteDossier(){
   const d = dossier();
+  const fil = d.plan ? `OÙ TU PENSAIS QU'IL ALLAIT, AU TOUR PRÉCÉDENT : ${d.plan}
+S'il tient le même cap, c'est qu'il mène son call. Ne le coupe pas parce qu'il ne prend pas ta route.
+
+` : "";
+  const p = d.piste, age = p ? (SPAR.tours||[]).length - p.debut : 0;
+  const piste = !p ? "" : `LA PISTE EN COURS : ${p.direction}
+Elle dure depuis ${age} tour(s). Ce qu'elle a rapporté jusqu'ici : ${p.recolte.length ? p.recolte.join(" ; ") : "rien pour l'instant"}.
+${age < 3
+  ? "FENÊTRE D'OBSERVATION OUVERTE. Tu regardes, tu ne coupes pas. Même si tu aurais fait autrement. La seule exception : une faute irrattrapable."
+  : (p.recolte.length
+      ? "Cette piste a donné quelque chose. Laisse-la vivre tant qu'elle rapporte."
+      : "Trois tours sur cette piste, et elle n'a rien donné. C'est maintenant que tu interviens : cette direction ne mène nulle part, dis-le et montre où aller.")}
+
+`;
   const f = Object.entries(d.fautes).map(([k,v]) => `- ${v.texte || k} : ${v.n} fois`).join("\n");
-  return `CE QUE LE PROSPECT A DÉJÀ DONNÉ — ne le refais jamais redemander :
+  return fil + piste + `CE QUE LE PROSPECT A DÉJÀ DONNÉ — ne le refais jamais redemander :
 ${d.acquis.length ? d.acquis.map(x=>"- "+x).join("\n") : "rien encore"}
 
 TES DERNIERS COUPS DEMANDÉS — ne redemande pas le même deux fois de suite :
@@ -6099,6 +6380,12 @@ function rappelReglages(prof, coul){
 }
 
 $("btnSparGo").onclick = async () => {
+  const q = await annonceExercice();
+  if(!q.ok){
+    $("sparEtat").innerHTML = '<span style="color:var(--clay)">' + escapeHTML(q.raison) + '</span>';
+    return;
+  }
+  if(q.reste != null && q.reste <= 3) toast(q.reste === 0 ? "C'était ton dernier entraînement" : "Il te reste " + q.reste + " entraînement(s)");
   /* On réveille le micro tout de suite : la demande d'accès du navigateur
      arrive pendant la préparation du prospect, pas au moment où tu ouvres
      la bouche. C'est ce décalage qui donnait l'impression qu'il ne
@@ -6466,8 +6753,19 @@ $("btnSparEnvoi").onclick = async () => {
     phase("le coach regarde", "var(--clay)", true);
     $("sparInfo").innerHTML = '<span style="color:var(--muted)">Le coach regarde…</span>';
     try{
-      const c = verifieProvenance(await coachRegarde(m));
-      if(c){ majDossier(c); if(c.gravite && c.gravite !== "arreter") c.stop = false; }
+      const a = await coachAnalyse(m);
+      // un arrêt sans coût nommable n'est pas un arrêt : c'est une remarque
+      if(a.gravite === "arreter" && !a.cout_si_rien) a.gravite = "noter";
+      if(a.avance === true && a.gravite === "arreter" && !a.cout_si_rien) a.gravite = "laisser";
+      // fenêtre d'observation : une piste jeune a le droit de ne pas encore avoir donné
+      const dp = dossier().piste;
+      const ageP = dp ? (SPAR.tours||[]).length - dp.debut : 99;
+      if(a.gravite === "arreter" && a.rattrapable !== false && ageP < 3) a.gravite = "noter";
+      majDossier(a);
+      // il ne déroule la méthode que s'il interrompt : le reste du temps, un seul appel suffit
+      const c = (a.gravite === "arreter")
+        ? Object.assign({}, a, verifieProvenance(await coachRegarde(m, a)))
+        : Object.assign({}, a, {stop:false});
       if(c && c.stop){
         enregistreFicheCoach(c);
         SPAR.arrets = (SPAR.arrets||0) + 1;
@@ -6478,7 +6776,10 @@ $("btnSparEnvoi").onclick = async () => {
         const raison = $("coachRaison");
   if(raison){
     const bouts = [];
+    if(c.plan) bouts.push("Là où tu allais : " + c.plan);
     if(c.offert) bouts.push("Il vient d'offrir : " + c.offert);
+    if(c.piste) bouts.push("La piste creusée : " + c.piste + (c.recolte ? " — elle a donné : " + c.recolte : " — elle n'a rien donné"));
+    if(c.cout_si_rien) bouts.push("Ce que ça allait coûter : " + c.cout_si_rien);
     if(c.coup) bouts.push("Le coup à jouer : " + c.coup);
     if(c.jouable === false && c.manque) bouts.push("Mais il manque d'abord : " + c.manque);
     raison.innerHTML = bouts.length ? bouts.map(x=>escapeHTML(x)).join("<br>") : "";
@@ -6915,23 +7216,10 @@ Compare ce qu'il vient de faire en simulation avec ce qu'il avait fait en vrai. 
 LE SPARRING :
 ${SPAR.tours.map(t=>(t.qui==="MOI"?"CLOSER":"PROSPECT")+" : "+t.txt).join("\n")}
 
-${(function(){
-  const t = segmentCourant().terrain;
-  const bonnes = Object.entries(ECOLES).filter(([k,v])=>(v.terrains||[]).includes(t)).map(([k])=>k);
-  const utiles = FICHES
-    .map(f=>{
-      const gen = (f.ecole === "moi" || !f.ecole || f.ecole === "sami");
-      let sc = (f.valide||0) * 1.5 + (gen ? ((f.ecole === "sami") ? 0.5 : 1) : 0);
-      if(!gen) sc += bonnes.includes(f.ecole) ? 3 : -1.5;   // le spécialiste du terrain d'abord
-      return {f, s: sc};
-    })
-    .sort((a,b)=>b.s-a.s).slice(0, 12).filter(x=>x.s>0);
-  if(!utiles.length) return "";
-  return `LA MÉTHODE DE RÉFÉRENCE DE CE CLOSER, sur ce moment du call :
-${utiles.map(x=>`- [${x.f.ecole||"lui"}] ${x.f.situation||x.f.label} → « ${x.f.phrase} »`).join("\n")}
+SA MÉTHODE, EN ENTIER. Tu l'as toute sous les yeux : ne cherche pas à la citer, imprègne-t'en.
+${methodeEntiere()}
 
-JUGE-LE PAR RAPPORT À CETTE MÉTHODE-LÀ, pas par rapport à une bonne pratique générale. Quand il s'en écarte, dis-lui laquelle il aurait dû utiliser et à quel moment. Quand il l'applique bien, dis-le aussi.`;
-})()}
+Tu as lu sa méthode en entier. Maintenant, oublie-la le temps de relire le call : d'abord tu comprends ce qui s'est passé, ensuite seulement tu regardes ce qui, là-dedans, aurait servi. Nomme la fiche et le moment. Si rien dans sa méthode ne couvre ce qu'il aurait fallu faire, dis-le franchement : c'est un trou dans sa base, et c'est une information utile.
 
 ${((SPAR && SPAR.marche) || sparMarche) === "b2b" ? `CE CALL EST EN B2B. Ne lui reproche jamais de ne pas avoir cherché l'émotion, et ne lui suggère jamais une question du type « et toi, qu'est-ce que ça te fait » ou « dans un an, il se passe quoi pour toi ». Ces questions font perdre un professionnel.
 Ce que tu attends à la place : des chiffres, la propagation du problème aux autres équipes, le circuit de décision, le déclencheur, et l'enjeu personnel abordé par le côté — crédibilité, objectifs, charge de travail.
@@ -6948,6 +7236,7 @@ ${(SEGMENTS_CHOISIS.length > 1
     })
   : segmentCourant().criteres.map((c,i)=>(i+1)+". "+c)).join("\n")}
 
+${notesDuCoach()}
 ${SPAR.finRaison ? "L'EXERCICE S'EST TERMINÉ : " + SPAR.finRaison + ". " + (SPAR.finRaison.startsWith("limite") ? "Il a tourné en rond sans atteindre l'objectif du moment travaillé — dis-lui pourquoi." : "") : ""}
 ${sparMode === "coach" ? `MODE COACHING : le coach a dû l'arrêter ${SPAR.arrets||0} fois pendant l'exercice.${(SPAR.arrets||0) === 0 ? " Il n'a jamais dérapé — dis-le-lui." : " Dis-lui si c'est toujours la même faute qui revient."}` : ""}
 ${(SPAR.silencesTotal||0) > 0 ? `IL A TENU LE SILENCE ${SPAR.silencesTotal} fois après ses questions, au lieu de combler le vide. C'est une vraie compétence — dis-le-lui, et dis-lui ce que ça a produit.` : "IL N'A JAMAIS TENU LE SILENCE APRÈS UNE QUESTION FORTE. Il a comblé chaque blanc. C'est une des façons les plus simples de faire parler un prospect, et il s'en prive."}
@@ -6958,11 +7247,33 @@ Ce qu'il venait chercher sans le dire : ${p.son_but || "non renseigné"} — ${S
 ${(SPAR.coucheMax||1) > SPAR.etat.couche ? "ATTENTION : il s'était ouvert jusqu'à la couche "+SPAR.coucheMax+" puis s'est REFERMÉ. Dis au closer précisément à quel moment et pourquoi." : ""}
 ${SPAR.etat.confiance <= 3 ? "Sa confiance est au plancher. Explique ce qui l'a fait chuter, en citant les mots du closer." : ""}
 
+TU RELIS LE CALL AVANT DE LE JUGER. C'EST L'ORDRE, ET IL NE CHANGE PAS.
+
+1. Relis l'échange du début à la fin, comme quelqu'un qui écoute un enregistrement. Raconte ce que tu as vu : quelle direction ce call a prise, et où ça s'est joué. Deux ou trois phrases, avec tes mots. Pas de case, pas de fiche, pas de critère.
+
+2. Choisis TOI-MÊME les moments qui ont compté, et combien il y en a. Deux si le call était propre, cinq ou six s'il y avait cinq ou six choses. Pour chacun : ce que le prospect venait d'offrir, ce que le closer en a fait, et ce que ça a coûté pour la suite. Cite ses mots à lui, pas une paraphrase.
+
+3. Remonte à la cause. Une faute en fin de call vient presque toujours d'un trou creusé plus tôt. Dis à quel moment le call a vraiment basculé, et pourquoi ce qui s'est passé après en découle.
+
+4. Nomme le mécanisme, avec une image. Une image reste, une règle s'oublie.
+
+5. Dis ce qu'il n'a pas entendu. Les chiffres laissés sans suite, les mots d'émotion non repris, les contradictions non relevées, les silences comblés trop vite. Compte aussi, sur l'ensemble : combien de ses questions rebondissaient sur la dernière phrase du prospect, et combien ouvraient un sujet neuf.
+
+6. SEULEMENT MAINTENANT, regarde sa méthode. Dis ce qui aurait servi, et à quel moment. Dans cet ordre, les fiches éclairent ta lecture. Dans l'autre, elles la remplacent.
+
+7. Termine sur UNE SEULE chose à corriger la prochaine fois. Une, pas trois.
+
 Débriefe sans flatterie. Il veut progresser, pas être rassuré. Ne lui reproche pas ce qui ne relève pas de ce moment du call.
 Il ne parle pas anglais : tout doit être en français, dans son vocabulaire de closer francophone. Ne traduis jamais mot à mot une formule anglaise — fais passer le mécanisme.
 
 Réponds uniquement avec ce JSON, sans markdown :
-{"trouve":true ou false selon qu il a trouve le vrai blocage,
+{"lecture":"ce que tu as vu en relisant le call, deux ou trois phrases, avec tes mots",
+ "moments":[{"quand":"le moment, cite les mots du closer ou du prospect","offert":"ce que le prospect venait d offrir","fait":"ce que le closer en a fait","coute":"ce que ca a coute pour la suite"}],
+ "bascule":"le moment ou le call a vraiment bascule, et pourquoi ce qui suit en decoule, ou null si le call n a pas bascule",
+ "mecanique":"le mecanisme en jeu, nomme avec une image concrete, une ou deux phrases",
+ "ecoute":{"rebonds":nombre de ses questions qui rebondissaient sur la derniere phrase du prospect,"neufs":nombre de questions qui ouvraient un sujet neuf,"rates":["ce qu il n a pas entendu : un chiffre, un mot, une contradiction, cite-le"]},
+ "une_chose":"LA seule chose a corriger la prochaine fois, une phrase",
+ "trouve":true ou false selon qu il a trouve le vrai blocage,
  "quand":"a quel moment il aurait pu le trouver, cite ses mots, ou null",
  "note":un entier sur 10,
  "fort":"la meilleure chose qu il a faite, cite-la",
@@ -6987,6 +7298,36 @@ Réponds uniquement avec ce JSON, sans markdown :
         ${p.rationalisation ? `<p style="font-size:13px;color:var(--muted);margin-top:12px"><b style="color:var(--ink)">Son explication à lui :</b> ${escapeHTML(p.rationalisation)}</p>` : ""}
         ${p.contradiction ? `<p style="font-size:13px;color:var(--muted);margin-top:6px"><b style="color:var(--ink)">La contradiction que tu pouvais lui renvoyer :</b> ${escapeHTML(p.contradiction)}</p>` : ""}
       </div>`}
+      ${j.lecture ? `
+      <div class="block" style="border-left:2px solid var(--amber)">
+        <h3>Ce que ${escapeHTML(manniereDuCoach().nom)} a vu</h3>
+        <p style="font-size:16px;line-height:1.55">${escapeHTML(j.lecture)}</p>
+        ${j.bascule ? `<p style="font-size:14px;color:var(--muted);margin-top:12px"><b style="color:var(--ink)">Là où ça a basculé :</b> ${escapeHTML(j.bascule)}</p>` : ""}
+        ${j.mecanique ? `<p style="font-size:14px;margin-top:12px;padding:11px 13px;border-radius:9px;background:rgba(232,163,61,.07)">${escapeHTML(j.mecanique)}</p>` : ""}
+      </div>` : ""}
+      ${(j.moments||[]).length ? `
+      <div class="block">
+        <h3>Les moments qui ont compté</h3>
+        ${j.moments.map((m,i)=>`
+          <div style="border-left:2px solid var(--line);padding-left:13px;margin-bottom:16px">
+            <div class="eyebrow" style="color:var(--amber)">${i+1}. ${escapeHTML(m.quand||"")}</div>
+            ${m.offert ? `<p style="font-size:13.5px;margin-top:6px"><span style="color:var(--muted)">Il t'offrait —</span> ${escapeHTML(m.offert)}</p>` : ""}
+            ${m.fait ? `<p style="font-size:13.5px;margin-top:3px"><span style="color:var(--muted)">Tu en as fait —</span> ${escapeHTML(m.fait)}</p>` : ""}
+            ${m.coute ? `<p style="font-size:13.5px;margin-top:3px;color:#E9B9AE"><span style="color:var(--muted)">Ça t'a coûté —</span> ${escapeHTML(m.coute)}</p>` : ""}
+          </div>`).join("")}
+      </div>` : ""}
+      ${j.ecoute ? `
+      <div class="block">
+        <h3>Ton écoute</h3>
+        <p style="font-size:15px">${+j.ecoute.rebonds||0} question(s) qui rebondissaient sur sa dernière phrase, ${+j.ecoute.neufs||0} qui ouvraient un sujet neuf.</p>
+        ${(() => { const r=+j.ecoute.rebonds||0, n=+j.ecoute.neufs||0, t=r+n;
+          if(!t) return "";
+          const pct = Math.round(r/t*100);
+          const m = pct >= 66 ? ["Tu écoutes vraiment.","var(--sage)"] : pct >= 50 ? ["Tu rebondis une fois sur deux. C'est le minimum.","var(--amber)"] : ["Tu mènes un interrogatoire, tu ne creuses pas.","var(--clay)"];
+          return `<p style="font-size:13.5px;color:${m[1]};margin-top:4px">${pct} % de rebond. ${m[0]}</p>`; })()}
+        ${(j.ecoute.rates||[]).length ? `<p style="font-size:13px;color:var(--muted);margin-top:12px">Ce que tu n'as pas entendu :</p>
+          ${j.ecoute.rates.map(x=>`<p style="font-size:13.5px;margin-top:5px;padding-left:11px;border-left:2px solid var(--clay)">${escapeHTML(x)}</p>`).join("")}` : ""}
+      </div>` : ""}
       <div class="block" style="border-left:2px solid ${c}">
         <h3>Son vrai blocage</h3>
         <p style="font-size:17px;line-height:1.45">${escapeHTML(p.vrai||"")}</p>
@@ -7006,7 +7347,8 @@ Réponds uniquement avec ce JSON, sans markdown :
         <p style="margin-top:12px"><strong>Ta faute principale</strong><br>${escapeHTML(j.faute||"")}</p>
         <p style="margin-top:12px"><strong>Il fallait dire</strong><br><em>« ${escapeHTML(j.aurait_du||"")} »</em></p>
         ${j.methode ? `<p style="margin-top:12px"><strong>Dans ta méthode</strong><br>${escapeHTML(j.methode)}</p>` : ""}
-        <p style="margin-top:12px"><strong>Pour la prochaine fois</strong><br>${escapeHTML(j.exercice||"")}</p>
+        <p style="margin-top:12px"><strong>Pour la prochaine fois</strong><br>${escapeHTML(j.une_chose || j.exercice || "")}</p>
+        ${j.une_chose && j.exercice ? `<p style="font-size:13px;color:var(--muted);margin-top:4px">${escapeHTML(j.exercice)}</p>` : ""}
         ${j.corrige ? `<p style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><strong>Par rapport au vrai call</strong><br>${escapeHTML(j.corrige)}</p>` : ""}
         ${SPAR.indices ? `<p style="font-size:12.5px;color:var(--muted);margin-top:14px">${SPAR.indices} indice(s) utilisé(s). En vrai call, personne ne t'en donne.</p>` : ""}
       </div>
