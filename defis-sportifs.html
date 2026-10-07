@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0E1216">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Défis Héros</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Bangers&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0E1216;
+  --surface:#161C22;
+  --surface2:#1D252D;
+  --line:#2A343D;
+  --ink:#ECEAE4;
+  --muted:#8693A0;
+  --amber:#F2B33D;
+  --clay:#E0553F;
+  --sage:#79BF95;
+  --steel:#5E9BC4;
+  --radius:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:'Archivo',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+  padding-bottom:calc(76px + env(safe-area-inset-bottom));
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+button:focus-visible,input:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
+input{font-family:inherit}
+.manga{font-family:'Bangers',system-ui,sans-serif;letter-spacing:.04em;font-weight:400}
+.muted{color:var(--muted)}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+
+/* ---------- Header ---------- */
+header{
+  position:sticky;top:0;z-index:20;
+  background:rgba(14,18,22,.92);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+  padding-top:env(safe-area-inset-top);
+}
+.hd{display:flex;align-items:center;gap:12px;padding:10px 0}
+.hd-info{flex:1;min-width:0}
+.hd-name{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hd-title{font-size:12px;color:var(--amber)}
+.xpbar{height:8px;background:var(--surface2);border-radius:99px;overflow:hidden;margin-top:6px}
+.xpbar>i{display:block;height:100%;background:linear-gradient(90deg,var(--amber),var(--clay));border-radius:99px;transition:width .6s}
+.hd-xp{font-size:11px;color:var(--muted);margin-top:3px}
+.hd-lvl{text-align:center;min-width:52px}
+.hd-lvl b{display:block;font-family:'Bangers';font-size:30px;line-height:1;color:var(--amber)}
+.hd-lvl span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.streak{font-size:12px;color:var(--ink);background:var(--surface2);border-radius:99px;padding:4px 9px;white-space:nowrap}
+
+/* ---------- Avatars ---------- */
+.av{
+  --c:#888;
+  position:relative;flex:none;
+  width:46px;height:46px;border-radius:50%;
+  background:radial-gradient(circle at 30% 25%,color-mix(in srgb,var(--c) 70%,#fff) 0,var(--c) 55%,color-mix(in srgb,var(--c) 60%,#000) 100%);
+  display:grid;place-items:center;
+  font-family:'Bangers';font-size:20px;color:#fff;
+  text-shadow:0 2px 0 rgba(0,0,0,.35);
+  box-shadow:0 0 0 2px rgba(255,255,255,.12),0 4px 12px rgba(0,0,0,.35);
+}
+.av em{position:absolute;right:-4px;bottom:-4px;font-style:normal;font-size:.55em;background:var(--bg);border-radius:50%;width:1.7em;height:1.7em;display:grid;place-items:center;text-shadow:none;box-shadow:0 0 0 2px var(--line)}
+.av.lg{width:88px;height:88px;font-size:38px}
+.av.xl{width:120px;height:120px;font-size:52px}
+
+/* ---------- Bottom nav ---------- */
+nav.tabs{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;
+  background:rgba(22,28,34,.96);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+nav.tabs .wrap{display:flex}
+nav.tabs button{flex:1;padding:9px 0 10px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted)}
+nav.tabs button b{font-size:21px;line-height:1.1;filter:grayscale(.8);opacity:.75}
+nav.tabs button[aria-current="page"]{color:var(--ink)}
+nav.tabs button[aria-current="page"] b{filter:none;opacity:1}
+
+section.view{display:none;padding:16px 0 24px}
+section.view.on{display:block}
+h2.sec{font-family:'Bangers';font-weight:400;letter-spacing:.05em;font-size:28px;margin:6px 0 12px}
+h3.sub{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:22px 0 10px}
+
+/* ---------- Cards / buttons ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:12px 18px;border-radius:12px;font-weight:700;font-size:15px;
+  background:var(--amber);color:#1a1307;
+}
+.btn.ghost{background:var(--surface2);color:var(--ink)}
+.btn.red{background:var(--clay);color:#fff}
+.btn.sm{padding:8px 12px;font-size:13px;border-radius:10px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.seg{display:flex;background:var(--surface2);border-radius:12px;padding:4px;gap:4px}
+.seg button{flex:1;padding:8px 6px;border-radius:9px;font-size:13px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 0 rgba(255,255,255,.06)}
+.seg button[data-d="legende"][aria-pressed="true"]{color:var(--amber)}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 8px;border-radius:99px;background:var(--surface2);color:var(--muted)}
+
+/* ---------- Daily ---------- */
+.daily{
+  display:flex;gap:14px;align-items:center;
+  background:linear-gradient(120deg,rgba(242,179,61,.18),rgba(224,85,63,.12));
+  border:1px solid rgba(242,179,61,.35);border-radius:var(--radius);padding:14px;margin-bottom:8px;
+}
+.daily .k{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--amber);font-weight:700}
+.daily .t{font-weight:700;font-size:17px;margin:2px 0}
+.daily .d{font-size:13px;color:var(--muted)}
+
+/* ---------- Map ---------- */
+.map{
+  position:relative;margin-top:12px;border-radius:22px;overflow:hidden;
+  background:
+    radial-gradient(circle at 20% 10%,rgba(94,155,196,.16),transparent 40%),
+    radial-gradient(circle at 85% 40%,rgba(121,191,149,.13),transparent 40%),
+    radial-gradient(circle at 15% 75%,rgba(224,85,63,.12),transparent 40%),
+    radial-gradient(circle at 80% 95%,rgba(242,179,61,.14),transparent 40%),
+    #111820;
+  border:1px solid var(--line);
+}
+.map::before{
+  content:"";position:absolute;inset:0;opacity:.35;pointer-events:none;
+  background-image:radial-gradient(rgba(255,255,255,.08) 1px,transparent 1px);
+  background-size:18px 18px;
+}
+.map svg.path{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.node{
+  position:absolute;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;gap:6px;width:150px;text-align:center;
+}
+.node .blob{
+  position:absolute;width:170px;height:120px;left:50%;top:38px;transform:translate(-50%,-50%);
+  border-radius:50%;filter:blur(26px);opacity:.33;background:var(--zc);pointer-events:none;
+}
+.node .orb{
+  position:relative;width:76px;height:76px;border-radius:50%;
+  display:grid;place-items:center;font-size:36px;
+  background:radial-gradient(circle at 30% 25%,color-mix(in srgb,var(--zc) 60%,#fff) 0,var(--zc) 50%,color-mix(in srgb,var(--zc) 55%,#000) 100%);
+  box-shadow:0 0 0 4px var(--bg),0 0 0 6px var(--zc),0 10px 24px rgba(0,0,0,.45);
+  transition:transform .15s;
+}
+.node:hover .orb,.node:focus-visible .orb{transform:scale(1.07)}
+.node .nm{font-family:'Bangers';font-size:19px;letter-spacing:.04em;line-height:1.05;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.node .meta{font-size:11px;color:var(--muted)}
+.node .stars{font-size:12px;letter-spacing:1px}
+.node.locked .orb{filter:grayscale(1) brightness(.5)}
+.node.locked .nm{color:var(--muted)}
+.node .lock{position:absolute;right:-6px;top:-6px;font-size:18px;background:var(--bg);border-radius:50%;width:30px;height:30px;display:grid;place-items:center;box-shadow:0 0 0 2px var(--line)}
+.node .here{position:absolute;left:-18px;top:-10px}
+.node .here .av{width:36px;height:36px;font-size:15px;animation:bob 1.6s ease-in-out infinite}
+.node.done .orb::after{content:"✓";position:absolute;right:-6px;bottom:-6px;width:28px;height:28px;border-radius:50%;background:var(--sage);color:#0b1a10;font-weight:800;font-size:16px;display:grid;place-items:center;box-shadow:0 0 0 3px var(--bg)}
+@keyframes bob{50%{transform:translateY(-5px)}}
+
+/* ---------- Sheet (modal) ---------- */
+.scrim{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center}
+.scrim.on{display:flex}
+.sheet{
+  width:100%;max-width:760px;max-height:90vh;overflow:auto;
+  background:var(--surface);border:1px solid var(--line);border-bottom:none;
+  border-radius:22px 22px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom));
+  animation:up .22s ease-out;
+}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+.sheet-hd{display:flex;gap:14px;align-items:center;margin-bottom:14px}
+.sheet-hd .zt{font-family:'Bangers';font-size:30px;letter-spacing:.04em;line-height:1}
+.sheet-hd p{font-size:13px;color:var(--muted);margin-top:4px}
+.x{margin-left:auto;align-self:flex-start;width:36px;height:36px;border-radius:50%;background:var(--surface2);font-size:18px;flex:none}
+
+.ch{display:flex;gap:12px;align-items:center;padding:12px;border-radius:14px;background:var(--surface2);margin-top:10px}
+.ch .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:var(--bg);flex:none}
+.ch .bd{flex:1;min-width:0}
+.ch .nm{font-weight:700;font-size:15px}
+.ch .ds{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+.ch .tg{font-size:12px;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ch .tg b{color:var(--amber)}
+.ch .medals{font-size:13px;letter-spacing:2px}
+.ch.lock{opacity:.5}
+
+/* ---------- List / filters ---------- */
+.filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:6px;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.filters button{flex:none;padding:7px 12px;border-radius:99px;background:var(--surface2);font-size:13px;font-weight:600;color:var(--muted)}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.search{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:15px;margin-bottom:10px}
+.zhd{display:flex;align-items:center;gap:8px;margin:22px 0 2px;font-family:'Bangers';font-size:22px;letter-spacing:.04em}
+.zhd small{font-family:'Archivo';font-size:12px;color:var(--muted);letter-spacing:0}
+
+/* ---------- Characters ---------- */
+.chars{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.cc{
+  display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
+  padding:16px 10px 14px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line);
+}
+.cc[aria-pressed="true"]{border-color:var(--amber);box-shadow:0 0 0 2px var(--amber) inset;background:linear-gradient(180deg,rgba(242,179,61,.12),var(--surface))}
+.cc .n{font-weight:700;font-size:14px}
+.cc .s{font-size:11.5px;color:var(--muted)}
+.cc .b{font-size:11px;color:var(--sage)}
+
+/* ---------- Profile ---------- */
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
+.stat b{display:block;font-family:'Bangers';font-size:30px;letter-spacing:.03em;line-height:1.1}
+.stat span{font-size:12px;color:var(--muted)}
+.badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:10px}
+.bdg{text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 8px}
+.bdg i{font-style:normal;font-size:30px;display:block}
+.bdg b{display:block;font-size:12.5px;margin-top:6px}
+.bdg span{display:block;font-size:11px;color:var(--muted);margin-top:3px;line-height:1.3}
+.bdg.off{opacity:.38}
+.bdg.off i{filter:grayscale(1)}
+.hist{display:flex;flex-direction:column;gap:6px}
+.hist div{display:flex;gap:10px;align-items:center;font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:9px 12px}
+.hist div span:nth-child(2){flex:1;min-width:0}
+.hist .xp{color:var(--amber);font-weight:700}
+.field{display:flex;gap:8px}
+.field input{flex:1;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:15px;min-width:0}
+
+/* ---------- Runner (fullscreen session) ---------- */
+#run{
+  position:fixed;inset:0;z-index:60;display:none;flex-direction:column;
+  background:radial-gradient(circle at 50% 0%,color-mix(in srgb,var(--zc,#333) 35%,transparent),transparent 60%),var(--bg);
+  padding:calc(12px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+}
+#run.on{display:flex}
+.run-top{display:flex;align-items:center;gap:12px;max-width:760px;width:100%;margin:0 auto}
+.run-top .t{flex:1;min-width:0}
+.run-top .t b{display:block;font-family:'Bangers';font-size:26px;letter-spacing:.04em;line-height:1}
+.run-top .t span{font-size:12px;color:var(--muted)}
+.run-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;max-width:760px;width:100%;margin:0 auto;text-align:center}
+.coach{display:flex;gap:10px;align-items:center;max-width:520px;text-align:left}
+.bubble{background:var(--surface);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:10px 12px;font-size:14px}
+.big{font-family:'Bangers';font-size:min(30vw,160px);line-height:.9;letter-spacing:.02em}
+.big small{font-size:.32em;color:var(--muted)}
+.lbl{font-size:13px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+.tap{
+  width:min(78vw,340px);height:min(78vw,340px);border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--zc) 55%,#fff),var(--zc) 55%,color-mix(in srgb,var(--zc) 55%,#000));
+  box-shadow:0 0 0 8px rgba(255,255,255,.05),0 20px 50px rgba(0,0,0,.5);
+  display:grid;place-items:center;color:#fff;user-select:none;-webkit-user-select:none;touch-action:manipulation;
+  transition:transform .06s;
+}
+.tap:active{transform:scale(.96)}
+.tap .big{text-shadow:0 4px 0 rgba(0,0,0,.3)}
+.row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.ring{position:relative;width:min(72vw,300px);height:min(72vw,300px)}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .in{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .in .big{font-size:min(20vw,96px)}
+.phase{font-family:'Bangers';font-size:34px;letter-spacing:.05em}
+.phase.rest{color:var(--sage)}
+.phase.work{color:var(--clay)}
+.phase.prep{color:var(--amber)}
+.next{font-size:13px;color:var(--muted)}
+.prog{width:min(90%,420px);height:10px;border-radius:99px;background:var(--surface2);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--zc,var(--amber));transition:width .2s}
+
+/* Sonic game */
+.track{position:relative;width:min(92vw,560px);height:70px;border-radius:14px;background:repeating-linear-gradient(90deg,#2b6b35 0 40px,#337d3f 40px 80px);overflow:hidden;border:2px solid #1d4a24}
+.track .runner{position:absolute;top:50%;transform:translate(-50%,-50%);font-size:40px;transition:left .1s linear}
+.track .goal{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:30px}
+.lr{display:flex;gap:12px;width:min(92vw,560px)}
+.lr button{flex:1;height:150px;border-radius:20px;font-family:'Bangers';font-size:42px;color:#fff;background:#1E5BD8;box-shadow:0 8px 0 #0f347f;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.lr button.want{outline:4px solid var(--amber)}
+.lr button:active{transform:translateY(4px);box-shadow:0 4px 0 #0f347f}
+
+/* Reaction game */
+.react{width:min(92vw,560px);height:min(60vh,380px);border-radius:24px;display:grid;place-items:center;font-family:'Bangers';font-size:40px;letter-spacing:.04em;padding:20px;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.react.wait{background:#7a1f1f;color:#fff}
+.react.go{background:#F7D02C;color:#2a2200}
+.react.idle{background:var(--surface2);color:var(--ink)}
+
+/* Win modal */
+.win{text-align:center}
+.win .burst{font-family:'Bangers';font-size:54px;letter-spacing:.04em;color:var(--amber);line-height:1;margin:8px 0}
+.win .xpgain{font-family:'Bangers';font-size:40px;color:var(--sage)}
+.win .lvlup{margin-top:10px;padding:10px;border-radius:12px;background:rgba(242,179,61,.15);border:1px solid rgba(242,179,61,.4);font-weight:700}
+.win .nb{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.win .nb div{padding:8px;border-radius:10px;background:var(--surface2);font-size:14px}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:70;overflow:hidden}
+.confetti i{position:absolute;top:-20px;width:9px;height:14px;border-radius:2px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.on{opacity:1}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+@media (max-width:420px){
+  .node{width:120px}
+  .node .orb{width:64px;height:64px;font-size:30px}
+  .node .nm{font-size:17px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap hd">
+    <div id="hdAv"></div>
+    <div class="hd-info">
+      <div class="hd-name" id="hdName"></div>
+      <div class="hd-title" id="hdTitle"></div>
+      <div class="xpbar"><i id="hdBar"></i></div>
+      <div class="hd-xp" id="hdXp"></div>
+    </div>
+    <div class="streak" id="hdStreak" title="Jours d'affilée"></div>
+    <div class="hd-lvl"><b id="hdLvl">1</b><span>Niveau</span></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="view on" id="v-map">
+    <div id="daily"></div>
+    <div class="map" id="map"></div>
+  </section>
+
+  <section class="view" id="v-list">
+    <h2 class="sec">Tous les défis</h2>
+    <input class="search" id="q" type="search" placeholder="Chercher : pompes, course, Goku…" aria-label="Chercher un défi">
+    <div class="filters" id="filters"></div>
+    <div id="list"></div>
+  </section>
+
+  <section class="view" id="v-chars">
+    <h2 class="sec">Choisis ton coach</h2>
+    <p class="muted" style="font-size:14px;margin-bottom:14px">Ton coach t'encourage pendant les défis et te donne <b style="color:var(--sage)">+25 % d'XP</b> dans sa zone.</p>
+    <div class="chars" id="chars"></div>
+  </section>
+
+  <section class="view" id="v-me">
+    <h2 class="sec">Mon profil</h2>
+    <div class="field">
+      <input id="pname" maxlength="24" placeholder="Ton pseudo de héros" aria-label="Pseudo">
+      <button class="btn sm" id="pnameSave">OK</button>
+    </div>
+    <h3 class="sub">Statistiques</h3>
+    <div class="stats" id="stats"></div>
+    <h3 class="sub">Trophées</h3>
+    <div class="badges" id="badges"></div>
+    <h3 class="sub">Historique</h3>
+    <div class="hist" id="hist"></div>
+    <h3 class="sub">Zone de danger</h3>
+    <button class="btn ghost sm" id="reset">Remettre à zéro ma progression</button>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Navigation">
+  <div class="wrap">
+    <button data-v="map" aria-current="page"><b>🗺️</b>Carte</button>
+    <button data-v="list"><b>📋</b>Défis</button>
+    <button data-v="chars"><b>🦸</b>Coachs</button>
+    <button data-v="me"><b>🏆</b>Profil</button>
+  </div>
+</nav>
+
+<div class="scrim" id="scrim"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div id="run" role="dialog" aria-modal="true"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* =========================================================
+   DONNÉES — personnages, zones, défis
+   ========================================================= */
+
+const CHARS = [
+  {id:'goku',    name:'Son Goku',        from:'Dragon Ball',           c:'#F28C28', e:'🐉', ini:'GK', zone:'kame',       q:['Je deviens plus fort à chaque entraînement !','Kaaa… méééé… haaa… méééé… HAAA !','Allez, on se donne à fond !']},
+  {id:'vegeta',  name:'Vegeta',          from:'Dragon Ball',           c:'#2B4C9F', e:'👑', ini:'VG', zone:'kame',       q:['Un prince des Saiyans n\'abandonne jamais.','Tu appelles ça un effort ?','Dépasse tes limites, Kakarot l\'a fait !']},
+  {id:'naruto',  name:'Naruto Uzumaki',  from:'Naruto',                c:'#FF8A00', e:'🍥', ini:'NA', zone:'konoha',     q:['Je ne reviens jamais sur ma parole, c\'est mon nindo !','Crois en toi, dattebayo !','Encore une série et on va manger des ramens !']},
+  {id:'rocklee', name:'Rock Lee',        from:'Naruto',                c:'#2E9E4F', e:'🥋', ini:'RL', zone:'konoha',     q:['Le travail acharné bat le génie !','Si je n\'y arrive pas, je ferai 500 tours de plus !','La fougue de la jeunesse !']},
+  {id:'luffy',   name:'Monkey D. Luffy', from:'One Piece',             c:'#D7263D', e:'👒', ini:'LF', zone:'sunny',      q:['Je serai le Roi des Pirates !','Gomu Gomu nooo… effort !','Après ça, on mange de la viande !']},
+  {id:'zoro',    name:'Roronoa Zoro',    from:'One Piece',             c:'#3BA55C', e:'⚔️', ini:'ZR', zone:'sunny',      q:['Rien ne s\'est passé.','Si tu veux devenir le meilleur, entraîne-toi plus que les autres.','Je ne me perds pas, c\'est le chemin qui bouge.']},
+  {id:'saitama', name:'Saitama',         from:'One Punch Man',         c:'#E8C80A', e:'👊', ini:'SA', zone:'saitama',    q:['100 pompes, 100 abdos, 100 squats, 10 km. Tous les jours.','Ok.','Continue, même quand ça fait mal.']},
+  {id:'deku',    name:'Izuku Midoriya',  from:'My Hero Academia',      c:'#2A9D8F', e:'💥', ini:'DK', zone:'ua',         q:['Plus Ultra !','One For All, 100 % !','Un héros n\'abandonne pas.']},
+  {id:'tanjiro', name:'Tanjiro Kamado',  from:'Demon Slayer',          c:'#1F7A8C', e:'🌊', ini:'TJ', zone:'demon',      q:['Respiration de l\'eau, première forme !','Concentre-toi sur ta respiration.','Je suis l\'aîné, je peux tenir !']},
+  {id:'hinata',  name:'Shoyo Hinata',    from:'Haikyu!!',              c:'#FF7F11', e:'🏐', ini:'SH', zone:'karasuno',   q:['Tant que je suis sur le terrain, je peux voler !','Encore un saut !','Le petit géant, c\'est moi !']},
+  {id:'ippo',    name:'Ippo Makunouchi', from:'Hajime no Ippo',        c:'#3A86FF', e:'🥊', ini:'IP', zone:'kamogawa',   q:['Qu\'est-ce que ça fait, d\'être fort ?','Dempsey Roll !','Garde les poings levés !']},
+  {id:'mario',   name:'Mario',           from:'Super Mario',           c:'#E52521', e:'🍄', ini:'MA', zone:'champignon', q:['Let\'s-a go !','Wahoo !','Encore un saut pour la princesse !']},
+  {id:'sonic',   name:'Sonic',           from:'Sonic the Hedgehog',    c:'#1E5BD8', e:'💨', ini:'SO', zone:'greenhill',  q:['Gotta go fast !','Trop lent !','Allez, on accélère !']},
+  {id:'link',    name:'Link',            from:'The Legend of Zelda',   c:'#4CAF50', e:'🗡️', ini:'LK', zone:'hyrule',     q:['Hyaaah !','C\'est dangereux d\'y aller seul, prends ce défi !','Ta jauge d\'endurance va grandir.']},
+  {id:'pikachu', name:'Pikachu',         from:'Pokémon',               c:'#E8B90C', e:'⚡', ini:'PK', zone:'pokemon',    q:['Pika pika !','Pikaaa… CHUUU !','Pika ! (Tu peux le faire !)']},
+  {id:'ryu',     name:'Ryu',             from:'Street Fighter',        c:'#8D8D8D', e:'🔥', ini:'RY', zone:'sf',         q:['Le vrai combat est contre soi-même.','Hadoken !','Round 1… Fight !']},
+  {id:'chunli',  name:'Chun-Li',         from:'Street Fighter',        c:'#2F6FDE', e:'🦵', ini:'CL', zone:'sf',         q:['Spinning Bird Kick !','Je suis la plus forte du monde !','Yatta !']},
+  {id:'kratos',  name:'Kratos',          from:'God of War',            c:'#A61E1E', e:'🪓', ini:'KR', zone:'olympus',    q:['Boy… ne relâche pas.','Ne sois pas désolé. Sois meilleur.','Nous continuons.']},
+];
+
+const ZONES = [
+  {id:'kame',       name:'Kame House',            from:'Dragon Ball',        e:'🐢', c:'#F28C28', lvl:1,  d:'L\'île de Tortue Géniale. Livraisons de lait et entraînement à la dure.'},
+  {id:'konoha',     name:'Village de Konoha',     from:'Naruto',             e:'🍃', c:'#2E9E4F', lvl:1,  d:'Le terrain d\'entraînement des ninjas. Clones, vitesse et volonté.'},
+  {id:'greenhill',  name:'Green Hill',            from:'Sonic',              e:'💍', c:'#1E5BD8', lvl:1,  d:'Loopings, sprints et anneaux d\'or. Ici, on va vite.'},
+  {id:'champignon', name:'Royaume Champignon',    from:'Super Mario',        e:'🍄', c:'#E52521', lvl:2,  d:'Tout se joue sur les sauts. Tape les blocs ?'},
+  {id:'sunny',      name:'Thousand Sunny',        from:'One Piece',          e:'🏴‍☠️', c:'#D7263D', lvl:2, d:'Le navire de l\'équipage au chapeau de paille. Souplesse et force brute.'},
+  {id:'hyrule',     name:'Plaine d\'Hyrule',      from:'Zelda',              e:'🛡️', c:'#4CAF50', lvl:3,  d:'Grimpe, roule, explore. Remplis ta jauge d\'endurance.'},
+  {id:'karasuno',   name:'Gymnase Karasuno',      from:'Haikyu!!',           e:'🏐', c:'#FF7F11', lvl:3,  d:'Les corbeaux apprennent à voler. Détente verticale au programme.'},
+  {id:'kamogawa',   name:'Salle Kamogawa',        from:'Hajime no Ippo',     e:'🥊', c:'#3A86FF', lvl:4,  d:'La salle de boxe du vieux Kamogawa. Rounds, footing et abdos.'},
+  {id:'pokemon',    name:'Arène Pokémon',         from:'Pokémon',            e:'⚡', c:'#E8B90C', lvl:4,  d:'Gagne tes badges d\'arène. Agilité et réflexes.'},
+  {id:'sf',         name:'Dojo Street Fighter',   from:'Street Fighter',     e:'🔥', c:'#8D8D8D', lvl:5,  d:'Combos de jambes, explosivité et gainage du champion.'},
+  {id:'ua',         name:'Lycée Yuei',            from:'My Hero Academia',   e:'🦸', c:'#2A9D8F', lvl:6,  d:'Le cursus des héros. Circuits One For All et Plus Ultra.'},
+  {id:'demon',      name:'Mont Sagiri',           from:'Demon Slayer',       e:'🌊', c:'#1F7A8C', lvl:7,  d:'Entraînement de pourfendeur : respiration, côtes et endurance.'},
+  {id:'olympus',    name:'Mont Olympe',           from:'God of War',         e:'🪓', c:'#A61E1E', lvl:8,  d:'La colère de Sparte. Que des défis lourds.'},
+  {id:'saitama',    name:'Le Programme Saitama',  from:'One Punch Man',      e:'👊', c:'#E8C80A', lvl:10, d:'Le défi ultime. Fais-le en un seul jour et deviens un héros chauve.'},
+];
+
+/* types : reps (compteur), timer (chrono), hiit (intervalles), distance (course/GPS), game (mini-jeu)
+   base = objectif en mode Normal (Facile ×0.5, Légende ×2) */
+const CH = [
+  // Kame House
+  {id:'kame-pompes',   z:'kame', n:'Pompes de la Tortue Géniale', t:'reps', base:20, u:'pompes', stat:'pompes', xp:40, cat:'force', d:'Pompes classiques, corps bien gainé, poitrine près du sol.'},
+  {id:'kame-lait',     z:'kame', n:'Livraison du lait',           t:'distance', base:2, stat:'km', xp:70, cat:'course', d:'Course à pied comme Goku et Krilin qui livrent le lait. GPS ou saisie manuelle.'},
+  {id:'kame-gravite',  z:'kame', n:'Gravité ×10',                 t:'reps', base:30, u:'squats', stat:'squats', xp:40, cat:'force', d:'Squats lents : 3 secondes pour descendre, comme dans la salle de gravité.'},
+  {id:'kame-kamehameha',z:'kame',n:'Kaméhaméha tenu',            t:'timer', base:45, stat:'gainage', xp:40, cat:'gainage', d:'Planche sur les mains, bras tendus devant toi. Tiens la charge !'},
+  {id:'kame-carapace', z:'kame', n:'Carapace de tortue',          t:'hiit', hiit:{work:30,rest:15,rounds:6,labels:['Jumping jacks','Squats sautés','Montées de genoux']}, stat:'cardio', xp:60, cat:'cardio', d:'Entraînement avec la carapace de 20 kg (sac à dos lesté facultatif !).'},
+
+  // Konoha
+  {id:'konoha-clones', z:'konoha', n:'Multiclonage',               t:'reps', base:15, u:'burpees', stat:'burpees', xp:50, cat:'force', d:'Chaque burpee crée un clone. Combien de clones tu peux invoquer ?'},
+  {id:'konoha-course', z:'konoha', n:'Course ninja',               t:'hiit', hiit:{work:20,rest:10,rounds:8,labels:['Sprint sur place, bras en arrière !']}, stat:'cardio', xp:60, cat:'cardio', d:'Tabata façon Naruto : 20 s de sprint à fond, 10 s de repos.'},
+  {id:'konoha-arbre',  z:'konoha', n:'Marche sur l\'arbre',        t:'timer', base:60, stat:'gainage', xp:45, cat:'gainage', d:'Chaise contre un mur, cuisses parallèles au sol. Concentre ton chakra dans les jambes.'},
+  {id:'konoha-lee',    z:'konoha', n:'Les poids de Rock Lee',      t:'reps', base:25, u:'squats sautés', stat:'squats', xp:50, cat:'force', d:'Squats sautés explosifs. Imagine que tu viens d\'enlever tes poids de chevilles.'},
+  {id:'konoha-tours',  z:'konoha', n:'Tours du village',           t:'distance', base:3, stat:'km', xp:80, cat:'course', d:'« Si je n\'y arrive pas, je ferai 500 tours du village ! » On commence par 3 km.'},
+
+  // Green Hill
+  {id:'gh-sprint',     z:'greenhill', n:'Sprint du hérisson',      t:'game', game:'sonic', targets:[45,70,95], stat:'jeu', xp:40, cat:'jeu', d:'Mini-jeu : tape gauche/droite le plus vite possible pendant 10 s (ou touches F et J).'},
+  {id:'gh-spindash',   z:'greenhill', n:'Spin Dash',               t:'hiit', hiit:{work:15,rest:45,rounds:6,labels:['Sprint MAX (dehors ou sur place)']}, stat:'cardio', xp:60, cat:'cardio', d:'Des sprints courts à fond, récupération complète entre chaque.'},
+  {id:'gh-anneaux',    z:'greenhill', n:'Anneaux d\'or',           t:'reps', base:100, u:'montées de genoux', stat:'autres', xp:45, cat:'cardio', d:'Montées de genoux rapides : chaque genou = 1 anneau.'},
+  {id:'gh-run',        z:'greenhill', n:'Course de Green Hill',    t:'distance', base:3, stat:'km', xp:80, cat:'course', d:'3 km le plus vite possible. Gotta go fast !'},
+
+  // Royaume Champignon
+  {id:'mario-saut',    z:'champignon', n:'Super Saut',             t:'reps', base:30, u:'sauts verticaux', stat:'sauts', xp:40, cat:'cardio', d:'Saute le plus haut possible, bras vers le ciel, comme pour taper un bloc ?'},
+  {id:'mario-bloc',    z:'champignon', n:'Bloc ? genoux-poitrine', t:'reps', base:15, u:'tuck jumps', stat:'sauts', xp:50, cat:'cardio', d:'Sauts genoux à la poitrine. Atterris en douceur.'},
+  {id:'mario-corde',   z:'champignon', n:'Corde à sauter du plombier', t:'timer', base:120, stat:'cardio', xp:45, cat:'cardio', d:'Corde à sauter (réelle ou imaginaire) sans t\'arrêter.'},
+  {id:'mario-11',      z:'champignon', n:'Monde 1-1',              t:'hiit', hiit:{work:30,rest:15,rounds:5,labels:['Jumping jacks','Sauts latéraux','Fentes sautées']}, stat:'cardio', xp:60, cat:'cardio', d:'Le premier niveau, version sportive. Cinq rounds jusqu\'au drapeau.'},
+  {id:'mario-tuyau',   z:'champignon', n:'Descente dans le tuyau', t:'reps', base:20, u:'squats sumo', stat:'squats', xp:40, cat:'force', d:'Squats pieds écartés, descente profonde comme dans un tuyau vert.'},
+
+  // Thousand Sunny
+  {id:'sunny-gomu',    z:'sunny', n:'Gomu Gomu Stretching',        t:'hiit', hiit:{work:30,rest:5,rounds:6,labels:['Ischios','Quadriceps gauche','Quadriceps droit','Épaules','Dos (chat-vache)','Hanches (fente basse)']}, stat:'mobilite', xp:35, cat:'mobilite', d:'Deviens élastique comme Luffy. Étirements guidés.'},
+  {id:'sunny-gear2',   z:'sunny', n:'Gear Second',                 t:'reps', base:60, u:'mountain climbers', stat:'autres', xp:45, cat:'cardio', d:'Mountain climbers à pleine vitesse. Fais monter la pression !'},
+  {id:'sunny-zoro',    z:'sunny', n:'L\'entraînement de Zoro',     t:'reps', base:20, u:'pompes sur les poings', stat:'pompes', xp:50, cat:'force', d:'Pompes sur les poings (ou classiques). Zoro en fait des milliers.'},
+  {id:'sunny-voile',   z:'sunny', n:'Hissez la voile !',           t:'reps', base:6, u:'tractions', stat:'tractions', xp:60, cat:'force', d:'Tractions à la barre (ou rowing avec une table si tu n\'as pas de barre).'},
+  {id:'sunny-mat',     z:'sunny', n:'Vigie du mât',                t:'timer', base:40, stat:'gainage', xp:40, cat:'gainage', d:'Planche sur les avant-bras. Ne quitte pas ton poste de vigie !'},
+
+  // Hyrule
+  {id:'hyrule-fentes', z:'hyrule', n:'Jauge d\'endurance',         t:'reps', base:30, u:'fentes', stat:'squats', xp:45, cat:'force', d:'Fentes alternées. Chaque jambe compte.'},
+  {id:'hyrule-tour',   z:'hyrule', n:'Escalade de la tour Sheikah', t:'reps', base:10, u:'étages montés', stat:'etages', xp:60, cat:'cardio', d:'Monte des escaliers. Un étage = un appui.'},
+  {id:'hyrule-roulade',z:'hyrule', n:'Roulade d\'esquive',         t:'hiit', hiit:{work:30,rest:10,rounds:2,labels:['Gainage latéral gauche','Gainage latéral droit']}, stat:'gainage', xp:45, cat:'gainage', d:'Gainage latéral des deux côtés. Esquive parfaite !'},
+  {id:'hyrule-expe',   z:'hyrule', n:'Expédition à Hyrule',        t:'distance', base:5, stat:'km', xp:100, cat:'course', d:'Marche rapide, rando ou course : explore 5 km.'},
+  {id:'hyrule-korogu', z:'hyrule', n:'Chasse aux Korogus',         t:'reps', base:20, u:'squats + touche le sol', stat:'squats', xp:40, cat:'force', d:'Squat, touche le sol avec la main (« Yahaha ! Tu m\'as trouvé ! »).'},
+
+  // Karasuno
+  {id:'kara-attaque',  z:'karasuno', n:'Attaque rapide',           t:'reps', base:40, u:'sauts verticaux', stat:'sauts', xp:45, cat:'cardio', d:'Saut vertical max, réception amortie, et on remonte direct.'},
+  {id:'kara-skater',   z:'karasuno', n:'Réception plongeante',     t:'reps', base:30, u:'skater jumps', stat:'sauts', xp:45, cat:'cardio', d:'Sauts latéraux d\'une jambe à l\'autre, comme pour aller chercher un ballon.'},
+  {id:'kara-geant',    z:'karasuno', n:'Le Petit Géant',           t:'hiit', hiit:{work:20,rest:20,rounds:10,labels:['Sauts groupés','Squats sautés']}, stat:'cardio', xp:65, cat:'cardio', d:'Dix rounds d\'explosivité. Hinata saute plus haut que les grands.'},
+  {id:'kara-dive',     z:'karasuno', n:'Plongeon du libéro',       t:'reps', base:12, u:'burpees avec saut', stat:'burpees', xp:50, cat:'force', d:'Burpee complet avec un saut bras tendus à chaque répétition.'},
+
+  // Kamogawa
+  {id:'kamo-dempsey',  z:'kamogawa', n:'Dempsey Roll',             t:'hiit', hiit:{work:180,rest:60,rounds:3,labels:['Shadow boxing : jab, direct, crochets, esquives en 8']}, stat:'cardio', xp:80, cat:'cardio', d:'Trois rounds de boxe dans le vide, comme un vrai combat.'},
+  {id:'kamo-road',     z:'kamogawa', n:'Roadwork matinal',         t:'distance', base:5, stat:'km', xp:100, cat:'course', d:'Le footing quotidien de tout boxeur. 5 km.'},
+  {id:'kamo-abdos',    z:'kamogawa', n:'Abdos de boxeur',          t:'reps', base:50, u:'crunchs', stat:'abdos', xp:40, cat:'force', d:'Crunchs. Il faut encaisser les coups au foie !'},
+  {id:'kamo-corde',    z:'kamogawa', n:'Corde à sauter de Kamogawa', t:'timer', base:300, stat:'cardio', xp:60, cat:'cardio', d:'5 minutes de corde sans arrêt. Le vieux surveille.'},
+  {id:'kamo-feuilles', z:'kamogawa', n:'Attrape les feuilles',     t:'game', game:'reaction', targets:[450,350,270], stat:'jeu', xp:40, cat:'jeu', d:'Mini-jeu de réflexes : tape dès que l\'écran devient jaune, comme Ippo qui attrape les feuilles.'},
+
+  // Pokémon
+  {id:'poke-vive',     z:'pokemon', n:'Vive-Attaque',              t:'game', game:'reaction', targets:[420,330,260], stat:'jeu', xp:40, cat:'jeu', d:'Mini-jeu de réflexes. Tape dès que l\'éclair apparaît (5 essais).'},
+  {id:'poke-foudre',   z:'pokemon', n:'Fatal-Foudre',              t:'reps', base:20, u:'burpees', stat:'burpees', xp:55, cat:'force', d:'Burpees électriques. Pika !'},
+  {id:'poke-agilite',  z:'pokemon', n:'Capacité Agilité',          t:'hiit', hiit:{work:30,rest:15,rounds:8,labels:['Pas chassés','Jumping jacks','Fentes alternées','Talons-fesses']}, stat:'cardio', xp:65, cat:'cardio', d:'Augmente ta Vitesse de deux crans.'},
+  {id:'poke-badges',   z:'pokemon', n:'Les 8 badges d\'arène',     t:'hiit', hiit:{work:40,rest:20,rounds:1,circuit:true,labels:['Badge Roche : pompes','Badge Cascade : mountain climbers','Badge Foudre : burpees','Badge Prisme : squats','Badge Âme : gainage','Badge Marais : fentes','Badge Volcan : jumping jacks','Badge Terre : chaise murale']}, stat:'cardio', xp:80, cat:'cardio', d:'Un circuit de 8 exercices pour décrocher tous les badges.'},
+
+  // Street Fighter
+  {id:'sf-hadoken',    z:'sf', n:'Hadoken',                        t:'reps', base:15, u:'pompes explosives', stat:'pompes', xp:55, cat:'force', d:'Pompes explosives : pousse fort pour décoller les mains (ou pompes rapides).'},
+  {id:'sf-kicks',      z:'sf', n:'Hyakuretsu Kyaku',               t:'reps', base:100, u:'coups de pied', stat:'autres', xp:45, cat:'cardio', d:'Les cent coups de pied de Chun-Li. Coups de pied avant alternés.'},
+  {id:'sf-shoryu',     z:'sf', n:'Shoryuken',                      t:'reps', base:30, u:'squats sautés', stat:'squats', xp:50, cat:'force', d:'Squat puis saut poing vers le ciel. Sho-ryu-ken !'},
+  {id:'sf-perfect',    z:'sf', n:'Perfect !',                      t:'timer', base:90, stat:'gainage', xp:55, cat:'gainage', d:'Planche 90 secondes sans toucher le sol avec les genoux.'},
+  {id:'sf-tournoi',    z:'sf', n:'World Warrior',                  t:'hiit', hiit:{work:45,rest:15,rounds:4,labels:['Ryu : shadow boxing','Chun-Li : coups de pied','Guile : pompes','Zangief : squats']}, stat:'cardio', xp:70, cat:'cardio', d:'Affronte quatre combattants, un exercice par adversaire.'},
+
+  // UA
+  {id:'ua-ofa',        z:'ua', n:'One For All 5 %',               t:'hiit', hiit:{work:40,rest:20,rounds:3,circuit:true,labels:['Pompes','Squats','Burpees','Mountain climbers','Planche']}, stat:'cardio', xp:85, cat:'cardio', d:'Le circuit pour maîtriser ton Alter. Trois tours complets.'},
+  {id:'ua-plusultra',  z:'ua', n:'Plus Ultra',                     t:'reps', base:30, u:'burpees', stat:'burpees', xp:70, cat:'force', d:'Va au-delà de tes limites. Trente burpees.'},
+  {id:'ua-cowl',       z:'ua', n:'Full Cowl',                      t:'reps', base:100, u:'mountain climbers', stat:'autres', xp:55, cat:'cardio', d:'Cent mountain climbers. L\'énergie circule dans tout le corps.'},
+  {id:'ua-plage',      z:'ua', n:'Nettoyage de la plage',          t:'timer', base:120, stat:'gainage', xp:60, cat:'force', d:'Marche du fermier : porte deux charges lourdes (sacs, bidons) et marche 2 minutes.'},
+
+  // Demon Slayer
+  {id:'ds-respi',      z:'demon', n:'Respiration de l\'eau',      t:'hiit', breath:true, hiit:{rounds:6, seq:[['Inspire',4,'prep'],['Retiens',7,'rest'],['Expire',8,'work']]}, stat:'mobilite', xp:30, cat:'mobilite', d:'Respiration 4-7-8 pour la récupération et la concentration totale.'},
+  {id:'ds-cotes',      z:'demon', n:'Ascension du Mont Sagiri',    t:'hiit', hiit:{work:30,rest:60,rounds:8,labels:['Sprint en côte (ou montées de genoux)']}, stat:'cardio', xp:80, cat:'cardio', d:'Sprints en montée, retour en marchant. L\'air est rare là-haut.'},
+  {id:'ds-rocher',     z:'demon', n:'Trancher le rocher',          t:'reps', base:100, u:'squats', stat:'squats', xp:70, cat:'force', d:'Cent squats pour avoir la force de fendre le rocher.'},
+  {id:'ds-hinokami',   z:'demon', n:'Danse du Dieu du Feu',        t:'reps', base:150, u:'jumping jacks', stat:'autres', xp:50, cat:'cardio', d:'Danse jusqu\'à l\'aube : jumping jacks sans t\'arrêter.'},
+
+  // Olympe
+  {id:'gow-sparte',    z:'olympus', n:'Rage de Sparte',            t:'reps', base:40, u:'pompes', stat:'pompes', xp:75, cat:'force', d:'Quarante pompes. Ne sois pas désolé, sois meilleur.'},
+  {id:'gow-leviathan', z:'olympus', n:'Poids du Léviathan',        t:'timer', base:120, stat:'gainage', xp:70, cat:'gainage', d:'Chaise murale 2 minutes, bras tendus devant toi.'},
+  {id:'gow-cerbere',   z:'olympus', n:'Les trois têtes de Cerbère', t:'hiit', hiit:{work:60,rest:20,rounds:3,circuit:true,labels:['Burpees','Squats sautés','Pompes']}, stat:'cardio', xp:85, cat:'cardio', d:'Trois têtes, trois exercices, trois tours.'},
+  {id:'gow-hydre',     z:'olympus', n:'L\'Hydre de Lerne',         t:'reps', base:40, u:'burpees', stat:'burpees', xp:85, cat:'force', d:'Chaque fois que tu en finis un, il en repousse un autre.'},
+
+  // Saitama
+  {id:'opm-pompes',    z:'saitama', n:'100 pompes',                t:'reps', base:100, u:'pompes', stat:'pompes', xp:120, cat:'force', d:'Partie 1 du programme. Fractionne en séries si besoin.'},
+  {id:'opm-abdos',     z:'saitama', n:'100 abdos',                 t:'reps', base:100, u:'abdos', stat:'abdos', xp:110, cat:'force', d:'Partie 2 du programme.'},
+  {id:'opm-squats',    z:'saitama', n:'100 squats',                t:'reps', base:100, u:'squats', stat:'squats', xp:110, cat:'force', d:'Partie 3 du programme.'},
+  {id:'opm-10k',       z:'saitama', n:'10 km de course',           t:'distance', base:10, stat:'km', xp:200, cat:'course', d:'Partie 4. Fais les 4 parties le même jour pour le trophée One Punch.'},
+];
+
+const DIFFS = {
+  facile:  {label:'Facile',  m:.5, xp:.6, medal:'🥉'},
+  normal:  {label:'Normal',  m:1,  xp:1,  medal:'🥈'},
+  legende: {label:'Légende', m:2,  xp:1.8, medal:'🥇'},
+};
+const DKEYS = ['facile','normal','legende'];
+
+const CATS = {
+  tout:{l:'Tout'}, force:{l:'💪 Force', i:'💪'}, cardio:{l:'🔥 Cardio', i:'🔥'}, course:{l:'🏃 Course', i:'🏃'},
+  gainage:{l:'🧱 Gainage', i:'🧱'}, mobilite:{l:'🧘 Mobilité', i:'🧘'}, jeu:{l:'🎮 Mini-jeux', i:'🎮'},
+};
+
+const TITLES = [[1,'Apprenti'],[3,'Genin'],[5,'Chûnin'],[7,'Super Saiyan'],[10,'Héros classe B'],[13,'Hokage'],[16,'Empereur des mers'],[20,'Héros classe S'],[25,'One Punch']];
+
+const STAT_LABELS = {pompes:'Pompes', squats:'Squats & fentes', abdos:'Abdos', burpees:'Burpees', sauts:'Sauts', tractions:'Tractions', etages:'Étages montés', autres:'Autres répétitions', km:'Km parcourus', gainage:'Gainage (min)', cardio:'Cardio (min)', mobilite:'Mobilité (min)'};
+
+/* =========================================================
+   ÉTAT & SAUVEGARDE
+   ========================================================= */
+const KEY = 'defis-heros-v1';
+const fresh = () => ({name:'', char:'goku', xp:0, done:{}, stats:{}, hist:[], badges:[], days:[], best:{}, daily:{}, diff:'normal'});
+let S = load();
+function load(){
+  try{ const raw = localStorage.getItem(KEY); if(raw) return Object.assign(fresh(), JSON.parse(raw)); }catch(e){}
+  return fresh();
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+
+const today = () => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = s => document.querySelector(s);
+const charById = id => CHARS.find(c => c.id === id) || CHARS[0];
+const zoneById = id => ZONES.find(z => z.id === id);
+const chById = id => CH.find(c => c.id === id);
+const pick = a => a[Math.floor(Math.random()*a.length)];
+
+/* Niveaux : il faut 50·L·(L−1) XP au total pour atteindre le niveau L */
+const xpFor = L => 50*L*(L-1);
+function levelOf(xp){ let L = 1; while(xp >= xpFor(L+1)) L++; return L; }
+function titleOf(L){ let t = TITLES[0][1]; for(const [l,n] of TITLES) if(L >= l) t = n; return t; }
+const unlocked = z => levelOf(S.xp) >= z.lvl;
+
+function streak(){
+  const set = new Set(S.days); let n = 0; const d = new Date();
+  if(!set.has(today())) d.setDate(d.getDate()-1);
+  for(;;){
+    const k = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    if(!set.has(k)) break; n++; d.setDate(d.getDate()-1);
+  }
+  return n;
+}
+
+function target(ch, d){
+  if(ch.targets) return ch.targets[DKEYS.indexOf(d)];
+  if(ch.t === 'hiit') return Math.max(1, Math.round(ch.hiit.rounds*(ch.breath ? 1 : DIFFS[d].m)));
+  const v = ch.base*DIFFS[d].m;
+  return ch.t === 'distance' ? Math.round(v*10)/10 : Math.max(1, Math.round(v));
+}
+function fmtSecs(s){ s = Math.max(0, Math.round(s)); const m = Math.floor(s/60); return m ? m+' min'+(s%60 ? ' '+String(s%60).padStart(2,'0') : '') : s+' s'; }
+function clock(s){ s = Math.max(0, Math.ceil(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+function hiitTotal(ch, d){ return buildPhases(ch, d).reduce((a,p) => a+p.s, 0); }
+function targetText(ch, d){
+  const v = target(ch, d);
+  switch(ch.t){
+    case 'reps': return v+' '+ch.u;
+    case 'timer': return fmtSecs(v);
+    case 'distance': return String(v).replace('.',',')+' km';
+    case 'hiit': return v+' tour'+(v>1?'s':'')+' · '+fmtSecs(hiitTotal(ch,d));
+    case 'game': return ch.game === 'sonic' ? v+' foulées en 10 s' : 'moyenne < '+v+' ms';
+  }
+}
+const typeIcon = ch => ({reps:'🔢', timer:'⏱️', hiit:'🔁', distance:'📍', game:'🎮'})[ch.t];
+function xpOf(ch, d){
+  let x = ch.xp*DIFFS[d].xp;
+  if(charById(S.char).zone === ch.z) x *= 1.25;
+  if(isDaily(ch) && !S.daily[today()]) x *= 2;
+  return Math.round(x);
+}
+
+/* Défi du jour : déterministe d'après la date, parmi les zones débloquées */
+function dailyCh(){
+  if(S.dailyPick && S.dailyPick.day === today() && chById(S.dailyPick.id)) return chById(S.dailyPick.id);
+  const pool = CH.filter(c => unlocked(zoneById(c.z)));
+  let h = 0; for(const ch of today()) h = (h*31 + ch.charCodeAt(0)) >>> 0;
+  S.dailyPick = {day:today(), id:pool[h % pool.length].id}; save();
+  return chById(S.dailyPick.id);
+}
+const isDaily = ch => dailyCh().id === ch.id;
+
+/* =========================================================
+   TROPHÉES
+   ========================================================= */
+const st = k => S.stats[k] || 0;
+const BADGES = [
+  {id:'first',  e:'🌱', n:'Premier pas',      d:'Réussir un premier défi',           ok:() => S.hist.length >= 1},
+  {id:'ten',    e:'🔟', n:'Habitué',          d:'Réussir 10 défis',                  ok:() => S.hist.length >= 10},
+  {id:'fifty',  e:'🏅', n:'Acharné',          d:'Réussir 50 défis',                  ok:() => S.hist.length >= 50},
+  {id:'p100',   e:'💯', n:'Centurion',        d:'100 pompes au total',               ok:() => st('pompes') >= 100},
+  {id:'p1000',  e:'🦾', n:'Bras de Zoro',     d:'1 000 pompes au total',             ok:() => st('pompes') >= 1000},
+  {id:'sq500',  e:'🍑', n:'Cuisses d\'acier', d:'500 squats au total',               ok:() => st('squats') >= 500},
+  {id:'jump',   e:'🦘', n:'Petit Géant',      d:'300 sauts au total',                ok:() => st('sauts') >= 300},
+  {id:'km10',   e:'👟', n:'Livreur de lait',  d:'10 km au total',                    ok:() => st('km') >= 10},
+  {id:'km42',   e:'🏃', n:'Marathonien',      d:'42,2 km au total',                  ok:() => st('km') >= 42.2},
+  {id:'core',   e:'🧱', n:'Mur de pierre',    d:'10 min de gainage au total',        ok:() => st('gainage') >= 600},
+  {id:'cardio', e:'❤️‍🔥', n:'Cœur de Saiyan', d:'60 min de cardio au total',        ok:() => st('cardio') >= 3600},
+  {id:'legend', e:'🥇', n:'Légendaire',       d:'Réussir un défi en mode Légende',   ok:() => S.hist.some(h => h.d === 'legende')},
+  {id:'zones',  e:'🧭', n:'Globe-trotter',    d:'Un défi réussi dans chaque zone',   ok:() => ZONES.every(z => CH.some(c => c.z === z.id && S.done[c.id]))},
+  {id:'s3',     e:'🔥', n:'En feu',           d:'3 jours d\'affilée',                ok:() => streak() >= 3},
+  {id:'s7',     e:'☄️', n:'Volonté du feu',   d:'7 jours d\'affilée',                ok:() => streak() >= 7},
+  {id:'sonic',  e:'💨', n:'Supersonique',     d:'Battre l\'objectif Légende du sprint de Sonic', ok:() => (S.best['gh-sprint']||0) >= 95},
+  {id:'pika',   e:'⚡', n:'Réflexes éclair',  d:'Moyenne de réaction sous 250 ms',   ok:() => Math.min(S.best['poke-vive']||9999, S.best['kamo-feuilles']||9999) <= 250},
+  {id:'lvl10',  e:'🌟', n:'Héros confirmé',   d:'Atteindre le niveau 10',            ok:() => levelOf(S.xp) >= 10},
+  {id:'opm',    e:'👊', n:'One Punch',        d:'Les 4 défis Saitama (Normal+) le même jour', ok:() => {
+    const byDay = {};
+    for(const h of S.hist) if(h.c.startsWith('opm-') && h.d !== 'facile'){ (byDay[h.day] = byDay[h.day] || new Set()).add(h.c); }
+    return Object.values(byDay).some(s => s.size === 4);
+  }},
+];
+function checkBadges(){
+  const got = [];
+  for(const b of BADGES) if(!S.badges.includes(b.id) && b.ok()){ S.badges.push(b.id); got.push(b); }
+  return got;
+}
+
+/* =========================================================
+   SON, VIBRATION, ÉCRAN ALLUMÉ
+   ========================================================= */
+let AC = null;
+function beep(f = 880, dur = .12, vol = .25){
+  try{
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if(AC.state === 'suspended') AC.resume();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = 'square'; o.frequency.value = f;
+    g.gain.setValueAtTime(vol, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, AC.currentTime + dur);
+    o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime + dur);
+  }catch(e){}
+}
+const buzz = p => { try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} };
+function fanfare(){ [523,659,784,1047].forEach((f,i) => setTimeout(() => beep(f,.16,.2), i*120)); }
+let wake = null;
+async function keepAwake(on){
+  try{
+    if(on && 'wakeLock' in navigator) wake = await navigator.wakeLock.request('screen');
+    else if(!on && wake){ await wake.release(); wake = null; }
+  }catch(e){}
+}
+
+/* =========================================================
+   RENDU — en-tête
+   ========================================================= */
+function avatar(c, cls = ''){
+  return `<div class="av ${cls}" style="--c:${c.c}" aria-hidden="true">${c.ini}<em>${c.e}</em></div>`;
+}
+function renderHeader(){
+  const L = levelOf(S.xp), c = charById(S.char);
+  const lo = xpFor(L), hi = xpFor(L+1);
+  $('#hdAv').innerHTML = avatar(c);
+  $('#hdName').textContent = (S.name || 'Héros sans nom') + ' · coach ' + c.name;
+  $('#hdTitle').textContent = titleOf(L);
+  $('#hdBar').style.width = Math.min(100, (S.xp-lo)/(hi-lo)*100) + '%';
+  $('#hdXp').textContent = `${S.xp-lo} / ${hi-lo} XP vers le niveau ${L+1}`;
+  $('#hdLvl').textContent = L;
+  const s = streak();
+  $('#hdStreak').textContent = '🔥 ' + s;
+  $('#hdStreak').title = s + ' jour(s) d\'affilée';
+}
+
+/* =========================================================
+   RENDU — carte
+   ========================================================= */
+function zoneProgress(z){
+  const list = CH.filter(c => c.z === z.id);
+  const done = list.filter(c => S.done[c.id]).length;
+  return {list, done};
+}
+function renderDaily(){
+  const ch = dailyCh(), z = zoneById(ch.z), doneToday = !!S.daily[today()];
+  $('#daily').innerHTML = `
+    <div class="daily">
+      <div style="font-size:40px">${z.e}</div>
+      <div style="flex:1;min-width:0">
+        <div class="k">Défi du jour ${doneToday ? '· réussi ✓' : '· XP ×2'}</div>
+        <div class="t">${esc(ch.n)}</div>
+        <div class="d">${esc(z.name)} · ${targetText(ch, S.diff)}</div>
+      </div>
+      <button class="btn sm" id="dailyGo">${doneToday ? 'Refaire' : 'Go !'}</button>
+    </div>`;
+  $('#dailyGo').onclick = () => startRun(ch, S.diff);
+}
+function renderMap(){
+  renderDaily();
+  const map = $('#map');
+  const xs = [50, 24, 50, 76];
+  const gap = 150, top = 90, H = top*2 + gap*(ZONES.length-1);
+  map.style.height = H + 'px';
+  const me = charById(S.char);
+  // position actuelle = dernière zone débloquée
+  let hereIdx = 0; ZONES.forEach((z,i) => { if(unlocked(z)) hereIdx = i; });
+  const pts = ZONES.map((z,i) => [xs[i%4], top + i*gap]);
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for(let i = 1; i < pts.length; i++){
+    const [x0,y0] = pts[i-1], [x1,y1] = pts[i], my = (y0+y1)/2;
+    d += ` C ${x0} ${my}, ${x1} ${my}, ${x1} ${y1}`;
+  }
+  let html = `<svg class="path" viewBox="0 0 100 ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <path d="${d}" fill="none" stroke="rgba(0,0,0,.45)" stroke-width="10" vector-effect="non-scaling-stroke" stroke-linecap="round"/>
+    <path d="${d}" fill="none" stroke="rgba(236,234,228,.35)" stroke-width="3" stroke-dasharray="2 10" vector-effect="non-scaling-stroke" stroke-linecap="round"/>
+  </svg>`;
+  ZONES.forEach((z,i) => {
+    const {list, done} = zoneProgress(z), lock = !unlocked(z);
+    const stars = list.map(c => S.done[c.id] ? '★' : '☆').join('');
+    html += `<button class="node ${lock?'locked':''} ${done===list.length?'done':''}" style="left:${pts[i][0]}%;top:${pts[i][1]}px;--zc:${z.c}" data-z="${z.id}" aria-label="${esc(z.name)}${lock ? ', verrouillé niveau '+z.lvl : ''}">
+      <span class="blob"></span>
+      <span class="orb">${z.e}${lock ? '<span class="lock">🔒</span>' : ''}${i===hereIdx ? `<span class="here">${avatar(me)}</span>` : ''}</span>
+      <span class="nm">${esc(z.name)}</span>
+      <span class="meta">${lock ? 'Niveau '+z.lvl+' requis' : esc(z.from)}</span>
+      <span class="stars" style="color:${z.c}">${stars}</span>
+    </button>`;
+  });
+  map.innerHTML = html;
+  map.querySelectorAll('.node').forEach(n => n.onclick = () => openZone(n.dataset.z));
+}
+
+/* =========================================================
+   FEUILLE DE ZONE
+   ========================================================= */
+function diffSeg(cur){
+  return `<div class="seg" role="group" aria-label="Difficulté">${DKEYS.map(k => `<button data-d="${k}" aria-pressed="${k===cur}">${DIFFS[k].medal} ${DIFFS[k].label}</button>`).join('')}</div>`;
+}
+function chRow(ch, d){
+  const z = zoneById(ch.z), lock = !unlocked(z), done = S.done[ch.id] || {};
+  const medals = DKEYS.map(k => done[k] ? DIFFS[k].medal : '').join('');
+  return `<div class="ch ${lock?'lock':''}">
+    <div class="ic" style="box-shadow:inset 0 0 0 2px ${z.c}">${CATS[ch.cat].i}</div>
+    <div class="bd">
+      <div class="nm">${esc(ch.n)} ${isDaily(ch) ? '<span class="pill" style="color:var(--amber)">du jour</span>' : ''}</div>
+      <div class="ds">${esc(ch.d)}</div>
+      <div class="tg"><span>${typeIcon(ch)} <b>${targetText(ch, d)}</b></span><span class="pill">+${xpOf(ch, d)} XP</span>${medals ? `<span class="medals">${medals}</span>` : ''}</div>
+    </div>
+    ${lock ? `<span class="pill">🔒 Niv. ${z.lvl}</span>` : `<button class="btn sm" data-go="${ch.id}">Go</button>`}
+  </div>`;
+}
+function openZone(id){
+  const z = zoneById(id), lock = !unlocked(z);
+  const owners = CHARS.filter(c => c.zone === id);
+  const draw = () => {
+    const {list} = zoneProgress(z);
+    $('#sheet').innerHTML = `
+      <div class="sheet-hd">
+        <div style="font-size:46px">${z.e}</div>
+        <div>
+          <div class="zt" style="color:${z.c}">${esc(z.name)}</div>
+          <p>${esc(z.from)} · ${esc(z.d)}</p>
+          <p>Coach bonus : ${owners.map(c => esc(c.name)).join(', ')}</p>
+        </div>
+        <button class="x" data-close aria-label="Fermer">✕</button>
+      </div>
+      ${lock ? `<div class="card" style="margin-bottom:12px">🔒 Zone débloquée au <b>niveau ${z.lvl}</b>. Réussis des défis dans les zones ouvertes pour gagner de l'XP.</div>` : ''}
+      ${diffSeg(S.diff)}
+      ${list.map(c => chRow(c, S.diff)).join('')}`;
+    bindSheet(draw);
+  };
+  draw();
+  openSheet();
+}
+function bindSheet(redraw){
+  const sh = $('#sheet');
+  sh.querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheet);
+  sh.querySelectorAll('.seg button').forEach(b => b.onclick = () => { S.diff = b.dataset.d; save(); redraw(); });
+  sh.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { closeSheet(); startRun(chById(b.dataset.go), S.diff); });
+}
+function openSheet(){ $('#scrim').classList.add('on'); }
+function closeSheet(){ $('#scrim').classList.remove('on'); }
+$('#scrim').addEventListener('click', e => { if(e.target.id === 'scrim') closeSheet(); });
+
+/* =========================================================
+   LISTE DE TOUS LES DÉFIS
+   ========================================================= */
+let filt = 'tout';
+function renderList(){
+  $('#filters').innerHTML = Object.entries(CATS).map(([k,v]) => `<button data-f="${k}" aria-pressed="${k===filt}">${v.l}</button>`).join('');
+  $('#filters').querySelectorAll('button').forEach(b => b.onclick = () => { filt = b.dataset.f; renderList(); });
+  const q = $('#q').value.trim().toLowerCase();
+  let html = `<div style="margin:6px 0 4px">${diffSeg(S.diff)}</div><p class="muted" style="font-size:13px;margin-top:10px">${CH.length} défis · ${CHARS.length} coachs · ${ZONES.length} zones</p>`;
+  for(const z of ZONES){
+    const owners = CHARS.filter(c => c.zone === z.id).map(c => c.name).join(' ');
+    const list = CH.filter(c => c.z === z.id && (filt === 'tout' || c.cat === filt) &&
+      (!q || (c.n+' '+c.d+' '+(c.u||'')+' '+z.name+' '+z.from+' '+owners).toLowerCase().includes(q)));
+    if(!list.length) continue;
+    html += `<div class="zhd" style="color:${z.c}">${z.e} ${esc(z.name)} <small>${esc(z.from)}${unlocked(z) ? '' : ' · 🔒 niveau '+z.lvl}</small></div>`;
+    html += list.map(c => chRow(c, S.diff)).join('');
+  }
+  $('#list').innerHTML = html;
+  $('#list').querySelectorAll('.seg button').forEach(b => b.onclick = () => { S.diff = b.dataset.d; save(); renderList(); });
+  $('#list').querySelectorAll('[data-go]').forEach(b => b.onclick = () => startRun(chById(b.dataset.go), S.diff));
+}
+$('#q').addEventListener('input', renderList);
+
+/* =========================================================
+   COACHS
+   ========================================================= */
+function renderChars(){
+  $('#chars').innerHTML = CHARS.map(c => `
+    <button class="cc" data-c="${c.id}" aria-pressed="${c.id===S.char}">
+      ${avatar(c,'lg')}
+      <span class="n">${esc(c.name)}</span>
+      <span class="s">${esc(c.from)}</span>
+      <span class="b">+25 % XP · ${esc(zoneById(c.zone).name)}</span>
+    </button>`).join('');
+  $('#chars').querySelectorAll('.cc').forEach(b => b.onclick = () => {
+    S.char = b.dataset.c; save(); renderAll();
+    const c = charById(S.char); toast(`${c.name} : « ${pick(c.q)} »`);
+  });
+}
+
+/* =========================================================
+   PROFIL
+   ========================================================= */
+function renderMe(){
+  $('#pname').value = S.name;
+  const keys = Object.keys(STAT_LABELS);
+  const fmt = k => {
+    const v = st(k);
+    if(k === 'km') return v.toFixed(1).replace('.',',');
+    if(['gainage','cardio','mobilite'].includes(k)) return Math.round(v/60);
+    return Math.round(v);
+  };
+  $('#stats').innerHTML =
+    `<div class="stat"><b>${S.hist.length}</b><span>Défis réussis</span></div>` +
+    `<div class="stat"><b>${S.xp}</b><span>XP total</span></div>` +
+    keys.map(k => `<div class="stat"><b>${fmt(k)}</b><span>${STAT_LABELS[k]}</span></div>`).join('');
+  $('#badges').innerHTML = BADGES.map(b => `<div class="bdg ${S.badges.includes(b.id)?'':'off'}"><i>${b.e}</i><b>${esc(b.n)}</b><span>${esc(b.d)}</span></div>`).join('');
+  const h = S.hist.slice(-40).reverse();
+  $('#hist').innerHTML = h.length ? h.map(x => {
+    const ch = chById(x.c); if(!ch) return '';
+    return `<div><span>${zoneById(ch.z).e}</span><span><b>${esc(ch.n)}</b> <span class="muted">· ${DIFFS[x.d].label} · ${x.day.split('-').reverse().join('/')}</span></span><span class="xp">+${x.xp}</span></div>`;
+  }).join('') : '<p class="muted" style="font-size:14px">Aucun défi réussi pour l\'instant. Va sur la carte !</p>';
+}
+$('#pnameSave').onclick = () => { S.name = $('#pname').value.trim().slice(0,24); save(); renderHeader(); toast('Pseudo enregistré'); };
+$('#pname').addEventListener('keydown', e => { if(e.key === 'Enter') $('#pnameSave').click(); });
+$('#reset').onclick = () => {
+  if(confirm('Effacer toute ta progression (XP, trophées, historique) ?')){ S = fresh(); save(); renderAll(); toast('Progression remise à zéro'); }
+};
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
+let view = 'map';
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => {
+  view = b.dataset.v;
+  document.querySelectorAll('nav.tabs button').forEach(x => x === b ? x.setAttribute('aria-current','page') : x.removeAttribute('aria-current'));
+  document.querySelectorAll('section.view').forEach(s => s.classList.toggle('on', s.id === 'v-'+view));
+  renderView(); window.scrollTo(0,0);
+});
+function renderView(){ ({map:renderMap, list:renderList, chars:renderChars, me:renderMe})[view](); }
+function renderAll(){ renderHeader(); renderView(); }
+
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600); }
+
+/* =========================================================
+   SESSION DE DÉFI (plein écran)
+   ========================================================= */
+let cleanup = [], runId = 0;
+function onCleanup(fn){ cleanup.push(fn); }
+function stopRun(){
+  cleanup.forEach(fn => { try{ fn(); }catch(e){} }); cleanup = [];
+  keepAwake(false);
+  $('#run').classList.remove('on');
+  document.body.style.overflow = '';
+}
+function startRun(ch, d){
+  const z = zoneById(ch.z);
+  if(!unlocked(z)){ toast(`🔒 ${z.name} se débloque au niveau ${z.lvl}`); return; }
+  stopRun();
+  const run = $('#run'), c = charById(S.char);
+  run.style.setProperty('--zc', z.c);
+  run.innerHTML = `
+    <div class="run-top">
+      <div style="font-size:34px">${z.e}</div>
+      <div class="t"><b>${esc(ch.n)}</b><span>${esc(z.name)} · ${DIFFS[d].medal} ${DIFFS[d].label} · ${targetText(ch, d)}</span></div>
+      <button class="x" id="runClose" aria-label="Quitter le défi">✕</button>
+    </div>
+    <div class="run-body" id="rb"></div>
+    <div class="coach" style="margin:0 auto">${avatar(c)}<div class="bubble" id="say">« ${esc(pick(c.q))} »</div></div>`;
+  run.classList.add('on');
+  document.body.style.overflow = 'hidden';
+  $('#runClose').onclick = () => { stopRun(); renderAll(); };
+  keepAwake(true);
+  const coachTalk = setInterval(() => { const el = $('#say'); if(el) el.textContent = '« '+pick(c.q)+' »'; }, 9000);
+  onCleanup(() => clearInterval(coachTalk));
+  const my = ++runId;
+  const done = (val, ok = true) => { if(my !== runId || !run.classList.contains('on')) return; runId++; finish(ch, d, val, ok); };
+  ({reps:runReps, timer:runTimer, hiit:runHiit, distance:runDistance, game: ch.game === 'sonic' ? runSonic : runReaction})[ch.t](ch, d, $('#rb'), done);
+}
+
+/* ---- Répétitions : gros bouton à taper (avec la main, ou le nez pour les pompes !) ---- */
+function runReps(ch, d, el, done){
+  const goal = target(ch, d); let n = 0;
+  el.innerHTML = `
+    <div class="lbl">${esc(ch.u)}</div>
+    <button class="tap" id="tap" aria-label="Ajouter une répétition"><span class="big" id="cnt">0<small>/${goal}</small></span></button>
+    <div class="prog" style="width:min(90%,340px)"><i id="pg" style="width:0"></i></div>
+    <p class="muted" style="font-size:13px;max-width:420px">Tape le cercle à chaque répétition (espace au clavier). Pour les pompes, pose le téléphone sous toi et touche-le avec le nez !</p>
+    <div class="row">
+      <button class="btn ghost sm" id="m1">−1</button>
+      <button class="btn ghost sm" id="p5">+5</button>
+      <button class="btn ghost sm" id="all">J'ai tout fait ✓</button>
+    </div>`;
+  const upd = () => {
+    $('#cnt').innerHTML = `${n}<small>/${goal}</small>`;
+    $('#pg').style.width = Math.min(100, n/goal*100) + '%';
+    if(n >= goal){ fanfare(); buzz([60,40,120]); setTimeout(() => done(n), 350); }
+  };
+  const add = k => { if(n >= goal) return; n = Math.max(0, n+k); beep(k > 0 ? 660 + Math.min(n,40)*8 : 300, .06, .15); buzz(25); upd(); };
+  $('#tap').onclick = () => add(1);
+  $('#m1').onclick = () => add(-1);
+  $('#p5').onclick = () => add(5);
+  $('#all').onclick = () => { n = goal - 1; add(1); };
+  const key = e => { if(e.code === 'Space' && !e.target.closest('button')){ e.preventDefault(); add(1); } };
+  addEventListener('keydown', key); onCleanup(() => removeEventListener('keydown', key));
+}
+
+/* ---- Anneau de progression réutilisable ---- */
+function ringHTML(id){
+  return `<div class="ring"><svg viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="50" cy="50" r="44" fill="none" stroke="var(--surface2)" stroke-width="8"/>
+      <circle id="${id}" cx="50" cy="50" r="44" fill="none" stroke="var(--zc)" stroke-width="8" stroke-linecap="round" stroke-dasharray="276.46" stroke-dashoffset="0"/>
+    </svg><div class="in" id="${id}-in"></div></div>`;
+}
+const setRing = (id, frac) => { const r = document.getElementById(id); if(r) r.style.strokeDashoffset = 276.46*(1-Math.max(0,Math.min(1,frac))); };
+
+/* ---- Moteur de minuterie à phases (sert au chrono simple et aux intervalles) ---- */
+function phaseEngine(phases, onTick, onEnd){
+  let i = 0, left = phases[0].s, last = performance.now(), running = false, lastBeep = null;
+  const t = setInterval(() => {
+    const now = performance.now(), dt = (now - last)/1000; last = now;
+    if(!running) return;
+    left -= dt;
+    const sec = Math.ceil(left);
+    if(sec <= 3 && sec >= 1 && lastBeep !== i+':'+sec){ lastBeep = i+':'+sec; beep(660,.08,.18); }
+    if(left <= 0){
+      i++;
+      if(i >= phases.length){ clearInterval(t); running = false; onTick(phases.length-1, 0); onEnd(); return; }
+      left += phases[i].s; beep(phases[i].k === 'work' ? 1046 : 520, .25, .25); buzz(200);
+    }
+    onTick(i, left);
+  }, 100);
+  onCleanup(() => clearInterval(t));
+  return {
+    toggle(){ running = !running; last = performance.now(); if(running) beep(880,.1,.2); return running; },
+    skip(){ left = .001; running = true; },
+    get running(){ return running; },
+  };
+}
+
+function runTimer(ch, d, el, done){
+  const goal = target(ch, d);
+  el.innerHTML = `${ringHTML('rg')}<div class="row"><button class="btn" id="go">▶ Démarrer</button><button class="btn ghost" id="fin" style="display:none">J'ai tenu ✓</button></div>`;
+  const draw = left => { $('#rg-in').innerHTML = `<span class="big">${clock(left)}</span><span class="lbl">${esc(ch.cat === 'gainage' ? 'Tiens bon' : 'Continue')}</span>`; setRing('rg', left/goal); };
+  draw(goal);
+  const eng = phaseEngine([{l:ch.n, s:goal, k:'work'}], (i,left) => draw(left), () => { fanfare(); buzz([100,60,200]); done(goal); });
+  $('#go').onclick = () => { const r = eng.toggle(); $('#go').textContent = r ? '⏸ Pause' : '▶ Reprendre'; $('#fin').style.display = ''; };
+  $('#fin').onclick = () => { if(confirm('Valider le défi comme terminé ?')){ fanfare(); done(goal); } };
+}
+
+function buildPhases(ch, d){
+  const h = ch.hiit, rounds = target(ch, d), P = [{l:'Prépare-toi', s:10, k:'prep'}];
+  for(let r = 0; r < rounds; r++){
+    if(h.seq){ h.seq.forEach(([l,s,k]) => P.push({l, s, k, r})); continue; }
+    const labels = h.labels || ['Effort'];
+    // Circuit : tous les exercices à chaque tour ; sinon un exercice par tour, en alternance
+    const list = h.circuit ? labels : [labels[r % labels.length]];
+    list.forEach((l, j) => {
+      P.push({l, s:h.work, k:'work', r});
+      const last = r === rounds-1 && j === list.length-1;
+      if(!last && h.rest) P.push({l:'Repos', s:h.rest, k:'rest', r});
+    });
+  }
+  return P;
+}
+function runHiit(ch, d, el, done){
+  const P = buildPhases(ch, d), rounds = target(ch, d);
+  const workSecs = P.filter(p => p.k === 'work').reduce((a,p) => a+p.s, 0);
+  el.innerHTML = `
+    <div class="phase prep" id="ph">Prépare-toi</div>
+    ${ringHTML('rg')}
+    <div class="next" id="nx"></div>
+    <div class="row"><button class="btn" id="go">▶ Démarrer</button><button class="btn ghost" id="sk">Passer ⏭</button></div>`;
+  const draw = (i, left) => {
+    const p = P[i], nx = P.slice(i+1).find(q => q.k !== 'rest') || null;
+    const ph = $('#ph'); ph.textContent = p.l; ph.className = 'phase '+p.k;
+    $('#rg-in').innerHTML = `<span class="big">${clock(left)}</span><span class="lbl">${p.r !== undefined ? 'Tour '+(p.r+1)+' / '+rounds : 'Départ'}</span>`;
+    setRing('rg', left/p.s);
+    $('#nx').textContent = nx ? 'Ensuite : '+nx.l : 'Dernière ligne droite !';
+  };
+  draw(0, P[0].s);
+  const eng = phaseEngine(P, draw, () => { fanfare(); buzz([100,60,200]); done(workSecs); });
+  $('#go').onclick = () => { const r = eng.toggle(); $('#go').textContent = r ? '⏸ Pause' : '▶ Reprendre'; };
+  $('#sk').onclick = () => eng.skip();
+}
+
+/* ---- Course : suivi GPS ou saisie manuelle ---- */
+function runDistance(ch, d, el, done){
+  const goal = target(ch, d);
+  let km = 0, t0 = null, elapsed = 0, prev = null, watch = null, tick = null;
+  el.innerHTML = `
+    ${ringHTML('rg')}
+    <div class="row" style="gap:22px">
+      <div><div class="lbl">Temps</div><div class="manga" style="font-size:30px" id="tm">0:00</div></div>
+      <div><div class="lbl">Allure</div><div class="manga" style="font-size:30px" id="pc">–</div></div>
+    </div>
+    <div class="row"><button class="btn" id="gps">📍 Démarrer le GPS</button></div>
+    <p class="muted" id="gpsMsg" style="font-size:13px;max-width:420px">Le GPS mesure ta course (garde l'écran allumé). Sur tapis ou sans GPS, entre ta distance ci-dessous.</p>
+    <div class="field" style="width:min(90%,340px)">
+      <input id="man" type="number" inputmode="decimal" min="0" step="0.1" placeholder="Distance faite (km)" aria-label="Distance en km">
+      <button class="btn sm" id="manOk">Valider</button>
+    </div>`;
+  const draw = () => {
+    $('#rg-in').innerHTML = `<span class="big">${km.toFixed(2).replace('.',',')}</span><span class="lbl">/ ${String(goal).replace('.',',')} km</span>`;
+    setRing('rg', km/goal);
+    $('#tm').textContent = clock(elapsed);
+    $('#pc').textContent = km > .05 ? clock(elapsed/km)+'/km' : '–';
+  };
+  draw();
+  const hav = (a, b) => {
+    const R = 6371, r = x => x*Math.PI/180;
+    const dLa = r(b.latitude-a.latitude), dLo = r(b.longitude-a.longitude);
+    const h = Math.sin(dLa/2)**2 + Math.cos(r(a.latitude))*Math.cos(r(b.latitude))*Math.sin(dLo/2)**2;
+    return 2*R*Math.asin(Math.sqrt(h));
+  };
+  const stopGps = () => { if(watch !== null) navigator.geolocation.clearWatch(watch); watch = null; clearInterval(tick); };
+  onCleanup(stopGps);
+  const complete = () => { stopGps(); fanfare(); buzz([100,60,200]); done(km); };
+  $('#gps').onclick = () => {
+    if(watch !== null){ stopGps(); $('#gps').textContent = '📍 Reprendre le GPS'; return; }
+    if(!navigator.geolocation){ $('#gpsMsg').textContent = 'GPS indisponible sur cet appareil : utilise la saisie manuelle.'; return; }
+    $('#gpsMsg').textContent = 'Recherche du signal GPS…';
+    t0 = performance.now() - elapsed*1000;
+    tick = setInterval(() => { elapsed = (performance.now()-t0)/1000; draw(); }, 1000);
+    prev = null;
+    watch = navigator.geolocation.watchPosition(pos => {
+      const c = pos.coords;
+      if(c.accuracy > 35) { $('#gpsMsg').textContent = `Signal faible (±${Math.round(c.accuracy)} m)…`; return; }
+      $('#gpsMsg').textContent = `GPS actif (±${Math.round(c.accuracy)} m). Bonne course !`;
+      if(prev){ const seg = hav(prev, c); if(seg > .004 && seg < .2) km += seg; }
+      prev = c; draw();
+      if(km >= goal) complete();
+    }, err => { $('#gpsMsg').textContent = 'GPS refusé ou indisponible ('+err.message+'). Utilise la saisie manuelle.'; stopGps(); },
+    {enableHighAccuracy:true, maximumAge:0, timeout:20000});
+    $('#gps').textContent = '⏸ Pause GPS';
+  };
+  $('#manOk').onclick = () => {
+    const v = parseFloat(String($('#man').value).replace(',','.'));
+    if(!(v > 0)){ toast('Entre une distance en km'); return; }
+    km = Math.max(km, v); draw();
+    if(km >= goal) complete();
+    else toast(`Encore ${(goal-km).toFixed(1).replace('.',',')} km pour valider !`);
+  };
+}
+
+/* ---- Mini-jeu : sprint de Sonic (alterner gauche/droite) ---- */
+function runSonic(ch, d, el, done){
+  const goal = target(ch, d), DUR = 10;
+  let n = 0, want = 'L', t0 = 0, left = DUR, playing = false, tm = null;
+  el.innerHTML = `
+    <div class="big" id="sc" style="font-size:90px">0</div>
+    <div class="track"><span class="goal">🏁</span><span class="runner" id="rn" style="left:8%">🦔</span></div>
+    <div class="lbl" id="sl">Objectif : ${goal} foulées · ${DUR} s</div>
+    <div class="lr"><button id="L" class="want">◀ G</button><button id="R">D ▶</button></div>
+    <button class="btn" id="go">Prêt ? Partez !</button>`;
+  const step = side => {
+    if(!playing || side !== want) return;
+    n++; want = want === 'L' ? 'R' : 'L';
+    $('#L').classList.toggle('want', want === 'L'); $('#R').classList.toggle('want', want === 'R');
+    $('#sc').textContent = n;
+    $('#rn').style.left = Math.min(92, 8 + n/goal*84) + '%';
+    if(n % 10 === 0) beep(880 + n*4, .05, .12);
+  };
+  const end = () => {
+    playing = false; clearInterval(tm);
+    S.best[ch.id] = Math.max(S.best[ch.id] || 0, n); save();
+    const ok = n >= goal;
+    if(ok) fanfare(); else beep(200,.4,.2);
+    done(n, ok);
+  };
+  const press = side => e => { e.preventDefault(); step(side); };
+  $('#L').addEventListener('pointerdown', press('L'));
+  $('#R').addEventListener('pointerdown', press('R'));
+  const key = e => {
+    if(['KeyF','ArrowLeft'].includes(e.code)){ e.preventDefault(); step('L'); }
+    if(['KeyJ','ArrowRight'].includes(e.code)){ e.preventDefault(); step('R'); }
+  };
+  addEventListener('keydown', key);
+  onCleanup(() => { removeEventListener('keydown', key); clearInterval(tm); });
+  $('#go').onclick = () => {
+    $('#go').disabled = true;
+    let c = 3; $('#sl').textContent = c; beep(520,.12);
+    const cd = setInterval(() => {
+      c--;
+      if(c > 0){ $('#sl').textContent = c; beep(520,.12); return; }
+      clearInterval(cd); beep(1046,.25);
+      playing = true; t0 = performance.now(); $('#go').style.display = 'none';
+      tm = setInterval(() => {
+        left = DUR - (performance.now()-t0)/1000;
+        $('#sl').textContent = `${Math.max(0,left).toFixed(1)} s · objectif ${goal}`;
+        if(left <= 0) end();
+      }, 50);
+    }, 700);
+    onCleanup(() => clearInterval(cd));
+  };
+}
+
+/* ---- Mini-jeu : réflexes (5 essais) ---- */
+function runReaction(ch, d, el, done){
+  const goal = target(ch, d), TRIES = 5, times = [];
+  let state = 'idle', t0 = 0, to = null;
+  el.innerHTML = `
+    <button class="react idle" id="pad">Touche pour commencer</button>
+    <div class="lbl" id="rl">Objectif : moyenne sous ${goal} ms · ${TRIES} essais</div>`;
+  const pad = $('#pad');
+  const setPad = (cls, txt) => { pad.className = 'react '+cls; pad.textContent = txt; };
+  const arm = () => {
+    state = 'wait'; setPad('wait', 'Attends l\'éclair…');
+    to = setTimeout(() => { state = 'go'; t0 = performance.now(); setPad('go', '⚡ MAINTENANT !'); beep(1200,.08,.2); }, 1200 + Math.random()*2800);
+  };
+  onCleanup(() => clearTimeout(to));
+  const hit = e => {
+    e.preventDefault();
+    if(state === 'idle' || state === 'pause'){ arm(); return; }
+    if(state === 'wait'){ clearTimeout(to); state = 'pause'; beep(180,.3,.2); setPad('idle', 'Trop tôt ! Touche pour réessayer'); return; }
+    if(state === 'go'){
+      const ms = Math.round(performance.now()-t0); times.push(ms); buzz(30);
+      const avg = Math.round(times.reduce((a,b) => a+b, 0)/times.length);
+      $('#rl').textContent = `Essais : ${times.join(' · ')} ms — moyenne ${avg} ms`;
+      if(times.length >= TRIES){
+        state = 'end';
+        S.best[ch.id] = Math.min(S.best[ch.id] || 9999, avg); save();
+        const ok = avg <= goal;
+        setPad('idle', `${avg} ms de moyenne`);
+        if(ok) fanfare(); else beep(200,.4,.2);
+        setTimeout(() => done(avg, ok), 700);
+        return;
+      }
+      state = 'pause'; setPad('idle', `${ms} ms ! Touche pour l'essai ${times.length+1}`);
+    }
+  };
+  pad.addEventListener('pointerdown', hit);
+  const key = e => { if(e.code === 'Space') hit(e); };
+  addEventListener('keydown', key); onCleanup(() => removeEventListener('keydown', key));
+}
+
+/* =========================================================
+   FIN DE DÉFI : XP, stats, trophées
+   ========================================================= */
+function finish(ch, d, val, ok){
+  const c = charById(S.char);
+  stopRun();
+  if(!ok){
+    const msg = ch.game === 'sonic' ? `${val} foulées (record : ${S.best[ch.id]})` : `${val} ms de moyenne (record : ${S.best[ch.id]} ms)`;
+    $('#sheet').innerHTML = `<div class="win">
+      ${avatar(c,'xl')}
+      <div class="burst" style="color:var(--clay)">Presque !</div>
+      <p>${msg}</p>
+      <p class="muted" style="margin-top:6px">Objectif : ${targetText(ch, d)}</p>
+      <div class="bubble" style="margin:14px auto;max-width:360px">« ${esc(pick(c.q))} »</div>
+      <div class="row"><button class="btn" id="again">Rejouer</button><button class="btn ghost" data-close>Fermer</button></div>
+    </div>`;
+    $('#again').onclick = () => { closeSheet(); startRun(ch, d); };
+    $('#sheet').querySelector('[data-close]').onclick = () => { closeSheet(); renderAll(); };
+    openSheet(); renderAll();
+    return;
+  }
+  const before = levelOf(S.xp);
+  const gain = xpOf(ch, d), wasDaily = isDaily(ch) && !S.daily[today()];
+  S.xp += gain;
+  if(wasDaily) S.daily[today()] = true;
+  S.done[ch.id] = Object.assign(S.done[ch.id] || {}, {[d]: true});
+  // Statistiques : nombre réel pour les répétitions et la course, secondes pour le reste
+  if(ch.stat !== 'jeu') S.stats[ch.stat] = (S.stats[ch.stat] || 0) + val;
+  if(!S.days.includes(today())) S.days.push(today());
+  S.hist.push({c:ch.id, d, xp:gain, day:today(), v:val});
+  if(S.hist.length > 500) S.hist = S.hist.slice(-500);
+  const after = levelOf(S.xp);
+  const newBadges = checkBadges();
+  const newZones = ZONES.filter(z => z.lvl > before && z.lvl <= after);
+  save();
+
+  const valTxt = ch.t === 'reps' ? `${val} ${ch.u}` : ch.t === 'distance' ? `${val.toFixed(2).replace('.',',')} km` :
+    ch.t === 'game' ? (ch.game === 'sonic' ? `${val} foulées` : `${val} ms de moyenne`) : fmtSecs(val)+' d\'effort';
+  $('#sheet').innerHTML = `<div class="win">
+    ${avatar(c,'xl')}
+    <div class="burst">${pick(['Défi réussi !','K.O. !','Victoire !','Plus Ultra !','Stage clear !'])}</div>
+    <p><b>${esc(ch.n)}</b> · ${DIFFS[d].medal} ${DIFFS[d].label}</p>
+    <p class="muted">${valTxt}</p>
+    <div class="xpgain">+${gain} XP${wasDaily ? ' <small style="font-size:.5em">(défi du jour ×2)</small>' : ''}</div>
+    <div class="bubble" style="margin:10px auto;max-width:360px">${esc(c.name)} : « ${esc(pick(c.q))} »</div>
+    ${after > before ? `<div class="lvlup">⬆️ Niveau ${after} ! Tu es maintenant « ${titleOf(after)} »${newZones.length ? '<br>🔓 Nouvelle zone : '+newZones.map(z => z.e+' '+esc(z.name)).join(', ') : ''}</div>` : ''}
+    ${newBadges.length ? `<div class="nb">${newBadges.map(b => `<div>🏆 Trophée débloqué : ${b.e} <b>${esc(b.n)}</b></div>`).join('')}</div>` : ''}
+    <div class="row" style="margin-top:16px"><button class="btn" data-close>Continuer</button></div>
+  </div>`;
+  $('#sheet').querySelector('[data-close]').onclick = () => { closeSheet(); renderAll(); };
+  openSheet(); confetti(); renderAll();
+}
+
+function confetti(){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const box = document.createElement('div'); box.className = 'confetti';
+  const cols = ['#F2B33D','#E0553F','#79BF95','#5E9BC4','#ECEAE4'];
+  for(let i = 0; i < 70; i++){
+    const p = document.createElement('i');
+    p.style.left = Math.random()*100 + 'vw';
+    p.style.background = pick(cols);
+    p.style.animationDuration = 1.6 + Math.random()*1.6 + 's';
+    p.style.animationDelay = Math.random()*.4 + 's';
+    box.appendChild(p);
+  }
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 3800);
+}
+
+addEventListener('keydown', e => { if(e.key === 'Escape'){ if($('#run').classList.contains('on')){ stopRun(); renderAll(); } else closeSheet(); } });
+
+renderAll();
+if(!S.name) setTimeout(() => toast('Bienvenue ! Choisis ton coach puis lance un défi sur la carte 🗺️'), 400);
+</script>
+</body>
+</html>
