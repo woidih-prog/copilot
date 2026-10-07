@@ -202,7 +202,7 @@ h3.sub{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--m
 .zhd small{font-family:'Archivo';font-size:12px;color:var(--muted);letter-spacing:0}
 
 /* ---------- Characters ---------- */
-.chars{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.chars{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
 .cc{
   display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
   padding:16px 10px 14px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line);
@@ -299,6 +299,119 @@ h3.sub{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--m
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
 .toast.on{opacity:1}
 
+
+/* ---------- Héros animés ---------- */
+.rig{display:block;width:100%;height:100%;overflow:visible}
+.rig .blink{animation:blink 3.6s infinite;transform-box:fill-box;transform-origin:center}
+.rig .aura{animation:aura .35s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center bottom}
+@keyframes blink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
+@keyframes aura{from{transform:scale(.94,.97);opacity:.75}to{transform:scale(1.05,1.06);opacity:1}}
+
+/* ---------- Vue duel ---------- */
+.dstage{
+  position:relative;height:300px;border-radius:22px;overflow:hidden;border:1px solid var(--line);
+  background:radial-gradient(circle at 50% 110%,color-mix(in srgb,var(--zc) 55%,transparent),transparent 65%),
+             linear-gradient(180deg,#141b23,#0f141a);
+}
+.dstage::after{content:"";position:absolute;left:0;right:0;bottom:0;height:46px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.08));border-top:1px solid rgba(255,255,255,.08)}
+.dprev{position:absolute;left:50%;bottom:4px;height:270px;width:280px;transform:translateX(-50%);z-index:1}
+.dtag{position:absolute;left:14px;top:12px;z-index:2;display:flex;flex-direction:column}
+.dtag b{font-size:30px;line-height:1;color:var(--zc);text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.dtag span{font-size:12px;color:var(--muted)}
+.dvs{position:absolute;right:14px;top:12px;z-index:2;text-align:right;font-size:40px;line-height:.9;color:var(--amber);text-shadow:0 3px 0 rgba(0,0,0,.4)}
+.dvs small{font-size:16px;color:var(--ink)}
+.hint{font-size:13px;margin-top:8px;line-height:1.4}
+.hpick{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:none;scroll-snap-type:x proximity}
+.hpick::-webkit-scrollbar{display:none}
+.hchip{flex:none;width:82px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px 8px;border-radius:14px;background:var(--surface);border:1px solid var(--line);font-size:11.5px;font-weight:600;scroll-snap-align:center}
+.hchip svg{width:66px;height:66px;border-radius:50%;background:radial-gradient(circle at 50% 30%,color-mix(in srgb,var(--c) 45%,transparent),var(--surface2))}
+.hchip[aria-pressed="true"]{border-color:var(--c);box-shadow:0 0 0 2px var(--c) inset}
+.wrapf{flex-wrap:wrap;overflow:visible}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;margin-top:10px}
+.fightbtn{width:100%;margin-top:22px;padding:16px;font-size:28px;letter-spacing:.06em;background:linear-gradient(90deg,var(--amber),var(--clay));color:#1a0d05;box-shadow:0 8px 24px rgba(224,85,63,.35)}
+.beaten{display:flex;flex-wrap:wrap;gap:6px}
+.seg button:disabled{opacity:.35}
+
+/* ---------- Combat ---------- */
+.fight{display:flex;flex-direction:column;gap:10px;height:100%;max-width:760px;width:100%;margin:0 auto;position:relative}
+.ftop{display:flex;align-items:center;gap:12px}
+.ft{flex:1;min-width:0;display:flex;flex-direction:column}
+.ft b{font-size:24px;line-height:1}
+.ft span{font-size:12px;color:var(--muted)}
+.ftime{font-size:30px;color:var(--amber);min-width:90px;text-align:right}
+.fstage{position:relative;flex:0 0 38%;min-height:200px;border-radius:20px;overflow:hidden;border:1px solid var(--line);
+  background:radial-gradient(circle at 50% 115%,color-mix(in srgb,var(--zc) 60%,transparent),transparent 65%),linear-gradient(180deg,#151c24,#0f141a)}
+.fstage .rig{position:absolute;left:50%;bottom:2px;height:96%;width:auto;transform:translateX(-50%)}
+.hn{position:absolute;left:12px;top:10px;z-index:2;display:flex;flex-direction:column}
+.hn b{font-family:'Bangers';font-size:24px;letter-spacing:.04em;line-height:1;color:var(--zc)}
+.hn small{font-size:11px;color:var(--muted)}
+.hcnt{position:absolute;right:14px;top:6px;z-index:2;font-size:64px;line-height:1;color:var(--zc);text-shadow:0 3px 0 rgba(0,0,0,.4)}
+.say{position:absolute;left:50%;top:44px;transform:translateX(-50%);z-index:3;max-width:80%;background:#fff;color:#111;font-weight:700;font-size:14px;padding:8px 12px;border-radius:14px;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.4);animation:pop .2s ease-out}
+.say::after{content:"";position:absolute;left:50%;bottom:-7px;border:7px solid transparent;border-top-color:#fff;border-bottom:0;transform:translateX(-50%)}
+@keyframes pop{from{transform:translateX(-50%) scale(.7);opacity:0}}
+.bars{display:flex;flex-direction:column;gap:6px}
+.bar{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700}
+.bar span{width:76px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt{flex:1;height:12px;border-radius:99px;background:var(--surface2);overflow:hidden}
+.bt i{display:block;height:100%;width:0;border-radius:99px;transition:width .15s}
+.pzone{flex:1;display:flex;flex-direction:column;gap:10px;min-height:0}
+.pz{flex:1;min-height:150px;border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none;
+  background:radial-gradient(circle at 50% 30%,#3c8a5c,#245a3b);box-shadow:inset 0 -6px 0 rgba(0,0,0,.25),0 10px 30px rgba(0,0,0,.4)}
+.pz:active{transform:scale(.985)}
+.pz .pc{font-size:min(28vw,120px);line-height:.9;text-shadow:0 4px 0 rgba(0,0,0,.3)}
+.pz .pl{font-size:13px;opacity:.85}
+.pz.drop{background:radial-gradient(circle at 50% 30%,#c0473a,#7d2219);font-family:'Bangers';font-size:40px;letter-spacing:.05em}
+.holdt{text-align:center;font-size:64px;line-height:1;color:var(--sage)}
+.meter{width:60%;height:8px;border-radius:99px;background:rgba(0,0,0,.3);overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:#fff}
+.cd{position:absolute;inset:-12px -16px;z-index:10;display:none;place-items:center;background:rgba(10,13,17,.82);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.cdt{font-size:min(32vw,170px);color:var(--amber);text-align:center;line-height:1;animation:zoom .7s ease-out both;text-shadow:0 6px 0 rgba(0,0,0,.4);display:flex;flex-direction:column;align-items:center}
+.cdt .vsn{font-size:min(11vw,52px);color:var(--ink)}
+.cdt .vsx{font-size:min(16vw,80px);color:var(--clay);margin:4px 0}
+@keyframes zoom{from{transform:scale(2.2);opacity:0}to{transform:scale(1);opacity:1}}
+.endp{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:16px}
+.et{font-size:54px;line-height:1}
+.et.win{color:var(--amber)}.et.lose{color:var(--clay)}.et.draw{color:var(--steel)}
+.er{display:flex;gap:10px;width:100%;max-width:420px}
+.er div{flex:1;background:var(--surface2);border-radius:12px;padding:8px}
+.er span{display:block;font-size:12px;color:var(--muted)}
+.er b{font-size:17px}
+.exp{font-size:34px;color:var(--sage)}
+.lvlup,.nbg{padding:8px 12px;border-radius:10px;background:rgba(242,179,61,.15);border:1px solid rgba(242,179,61,.4);font-weight:700;font-size:14px}
+.turn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px}
+.turn .tn{font-size:30px;color:var(--muted)}
+.turn .tp{font-size:min(18vw,90px);line-height:1;color:var(--amber)}
+.podium{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.pr{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.pr.ph{border-color:var(--zc)}
+.pr .pn{font-size:28px;width:40px}
+.pr .pname{flex:1;font-weight:700}
+.pr small{color:var(--muted);font-weight:400}
+
+/* ---------- Face à face ---------- */
+.fo{position:relative;display:flex;flex-direction:column;height:100%;max-width:760px;width:100%;margin:0 auto;gap:8px}
+.half{flex:1;display:flex;flex-direction:column;gap:8px;min-height:0;position:relative}
+.half.flip{transform:rotate(180deg)}
+.hhd{display:flex;justify-content:space-between;align-items:center;padding:0 6px}
+.hhd b{font-size:24px}
+.hcount{font-size:44px;line-height:1;color:var(--amber)}
+.hz{flex:1;border-radius:22px;font-family:'Bangers';font-size:34px;letter-spacing:.06em;color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none;background:radial-gradient(circle at 50% 30%,#3a6fb5,#1f3f73);box-shadow:inset 0 -6px 0 rgba(0,0,0,.25)}
+#h1 .hz{background:radial-gradient(circle at 50% 30%,#3c8a5c,#245a3b)}
+.hz.drop{background:radial-gradient(circle at 50% 30%,#c0473a,#7d2219)!important}
+.hz:disabled{opacity:.25}
+.hmsg{position:absolute;left:0;right:0;top:50%;transform:translateY(-30%);text-align:center;font-size:38px;color:var(--amber);pointer-events:none;text-shadow:0 3px 10px rgba(0,0,0,.8)}
+.hmsg small{display:block;font-family:'Archivo';font-size:13px;color:var(--ink);margin-top:6px;line-height:1.5}
+.mid{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
+.mt{flex:1;display:flex;flex-direction:column;min-width:0}
+.mt b{font-size:28px;line-height:1;color:var(--amber)}
+.mt span{font-size:11.5px;color:var(--muted)}
+.mh{display:flex;align-items:center;gap:4px}
+.mh #mrig{width:76px;height:72px}
+.mh span{font-size:30px;color:var(--zc);min-width:26px}
+
+/* ---------- Galerie héros ---------- */
+.ccfig{width:100%;height:150px;border-radius:12px;background:radial-gradient(circle at 50% 100%,color-mix(in srgb,var(--c) 55%,transparent),transparent 70%)}
+
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
@@ -326,7 +439,9 @@ h3.sub{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--m
 </header>
 
 <main class="wrap">
-  <section class="view on" id="v-map">
+  <section class="view on" id="v-duel"></section>
+
+  <section class="view" id="v-map">
     <div id="daily"></div>
     <div class="map" id="map"></div>
   </section>
@@ -339,8 +454,8 @@ h3.sub{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--m
   </section>
 
   <section class="view" id="v-chars">
-    <h2 class="sec">Choisis ton coach</h2>
-    <p class="muted" style="font-size:14px;margin-bottom:14px">Ton coach t'encourage pendant les défis et te donne <b style="color:var(--sage)">+25 % d'XP</b> dans sa zone.</p>
+    <h2 class="sec">Les héros</h2>
+    <p class="muted" style="font-size:14px;margin-bottom:14px">Défie n'importe quel héros sur n'importe quel exercice. Ton <b>coach</b> t'accompagne dans l'aventure et te donne <b style="color:var(--sage)">+25 % d'XP</b> dans sa zone. Touche 📷 pour mettre ta propre image sur un héros.</p>
     <div class="chars" id="chars"></div>
   </section>
 
@@ -363,9 +478,10 @@ h3.sub{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--m
 
 <nav class="tabs" aria-label="Navigation">
   <div class="wrap">
-    <button data-v="map" aria-current="page"><b>🗺️</b>Carte</button>
+    <button data-v="duel" aria-current="page"><b>⚔️</b>Duel</button>
+    <button data-v="map"><b>🗺️</b>Aventure</button>
     <button data-v="list"><b>📋</b>Défis</button>
-    <button data-v="chars"><b>🦸</b>Coachs</button>
+    <button data-v="chars"><b>🦸</b>Héros</button>
     <button data-v="me"><b>🏆</b>Profil</button>
   </div>
 </nav>
@@ -534,7 +650,7 @@ const STAT_LABELS = {pompes:'Pompes', squats:'Squats & fentes', abdos:'Abdos', b
    ÉTAT & SAUVEGARDE
    ========================================================= */
 const KEY = 'defis-heros-v1';
-const fresh = () => ({name:'', char:'goku', xp:0, done:{}, stats:{}, hist:[], badges:[], days:[], best:{}, daily:{}, diff:'normal'});
+const fresh = () => ({name:'', char:'goku', xp:0, done:{}, stats:{}, hist:[], badges:[], days:[], best:{}, daily:{}, diff:'normal', img:{}, duels:{}, dcfg:null, multi:0});
 let S = load();
 function load(){
   try{ const raw = localStorage.getItem(KEY); if(raw) return Object.assign(fresh(), JSON.parse(raw)); }catch(e){}
@@ -667,6 +783,8 @@ async function keepAwake(on){
    RENDU — en-tête
    ========================================================= */
 function avatar(c, cls = ''){
+  const img = S.img && S.img[c.id];
+  if(img) return `<div class="av ${cls}" style="--c:${c.c};background:center/cover url('${esc(img)}')" aria-hidden="true"><em>${c.e}</em></div>`;
   return `<div class="av ${cls}" style="--c:${c.c}" aria-hidden="true">${c.ini}<em>${c.e}</em></div>`;
 }
 function renderHeader(){
@@ -817,20 +935,6 @@ $('#q').addEventListener('input', renderList);
 /* =========================================================
    COACHS
    ========================================================= */
-function renderChars(){
-  $('#chars').innerHTML = CHARS.map(c => `
-    <button class="cc" data-c="${c.id}" aria-pressed="${c.id===S.char}">
-      ${avatar(c,'lg')}
-      <span class="n">${esc(c.name)}</span>
-      <span class="s">${esc(c.from)}</span>
-      <span class="b">+25 % XP · ${esc(zoneById(c.zone).name)}</span>
-    </button>`).join('');
-  $('#chars').querySelectorAll('.cc').forEach(b => b.onclick = () => {
-    S.char = b.dataset.c; save(); renderAll();
-    const c = charById(S.char); toast(`${c.name} : « ${pick(c.q)} »`);
-  });
-}
-
 /* =========================================================
    PROFIL
    ========================================================= */
@@ -863,14 +967,15 @@ $('#reset').onclick = () => {
 /* =========================================================
    NAVIGATION
    ========================================================= */
-let view = 'map';
-document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => {
-  view = b.dataset.v;
-  document.querySelectorAll('nav.tabs button').forEach(x => x === b ? x.setAttribute('aria-current','page') : x.removeAttribute('aria-current'));
+let view = 'duel';
+function go(v){
+  view = v;
+  document.querySelectorAll('nav.tabs button').forEach(x => x.dataset.v === v ? x.setAttribute('aria-current','page') : x.removeAttribute('aria-current'));
   document.querySelectorAll('section.view').forEach(s => s.classList.toggle('on', s.id === 'v-'+view));
   renderView(); window.scrollTo(0,0);
-});
-function renderView(){ ({map:renderMap, list:renderList, chars:renderChars, me:renderMe})[view](); }
+}
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => go(b.dataset.v));
+function renderView(){ ({duel:renderDuel, map:renderMap, list:renderList, chars:renderHeroes, me:renderMe})[view](); }
 function renderAll(){ renderHeader(); renderView(); }
 
 let toastT;
@@ -1237,10 +1342,805 @@ function confetti(){
   setTimeout(() => box.remove(), 3800);
 }
 
+/* =========================================================
+   HÉROS ANIMÉS — apparence de chaque personnage
+   (dessins originaux « inspirés de », pas d'images officielles)
+   ========================================================= */
+const W = '#F4F4F4', BK = '#1E1E1E';
+const LOOK = {
+  goku:    {skin:'#F6D3B3', hair:'goku',   hc:'#1C1C1C', top:'#F28C28', arm:'#F6D3B3', fore:'#F6D3B3', hand:'#F6D3B3', belt:'#1E4FA8', pants:'#F28C28', shin:'#F28C28', shoe:'#1E4FA8', spd:.9,
+            forms:[{n:'Goku de base'},{n:'Super Saiyan', a:'#FFD84D', o:{hc:'#FFD23F'}},{n:'Ultra Instinct', a:'#C9D6FF', o:{hc:'#C8CCD8'}}]},
+  vegeta:  {skin:'#F3CFAE', hair:'vegeta', hc:'#1C1C1C', top:'#2B4C9F', arm:'#2B4C9F', fore:W, hand:W, belt:W, pants:'#2B4C9F', shin:W, shoe:W, spd:.92,
+            forms:[{n:'Prince des Saiyans'},{n:'Super Saiyan', a:'#FFD84D', o:{hc:'#FFD23F'}},{n:'Ultra Ego', a:'#B07CFF', o:{hc:'#4B2A7A'}}]},
+  naruto:  {skin:'#F6D2AE', hair:'naruto', hc:'#FFC928', top:'#FF8A00', arm:'#FF8A00', fore:'#FF8A00', hand:'#F6D2AE', belt:BK, pants:'#FF8A00', shin:'#FF8A00', shoe:'#2B4C9F', spd:1,
+            forms:[{n:'Genin'},{n:'Mode Ermite', a:'#FF9A3C'},{n:'Mode Kurama', a:'#FFB300', o:{top:'#FFB300', pants:'#FFB300', shin:'#FFB300', arm:'#FFB300', fore:'#FFB300'}}]},
+  rocklee: {skin:'#F6D2AE', hair:'lee',    hc:'#141414', top:'#2E9E4F', arm:'#2E9E4F', fore:W, hand:W, belt:'#E8641B', pants:'#2E9E4F', shin:'#E8641B', shoe:'#2E9E4F', spd:.85, thickBrow:true,
+            forms:[{n:'Avec les poids'},{n:'Sans les poids', a:'#7CFF8A'},{n:'Huit Portes', a:'#33FF66', o:{skin:'#E89A86'}}]},
+  luffy:   {skin:'#F2C9A0', hair:'luffy',  hc:'#151515', top:'#D7263D', arm:'#F2C9A0', fore:'#F2C9A0', hand:'#F2C9A0', belt:'#E8C15A', pants:'#3A6FB5', shin:'#F2C9A0', shoe:'#B5813B', spd:1,
+            forms:[{n:'Chapeau de paille'},{n:'Gear Second', a:'#FF8FA3', o:{skin:'#F2A08E', arm:'#F2A08E', fore:'#F2A08E', hand:'#F2A08E', shin:'#F2A08E'}},{n:'Gear Fifth', a:'#FFFFFF', o:{hc:'#F2F2F2', top:'#F2F2F2', pants:'#F2F2F2'}}]},
+  zoro:    {skin:'#E9BE93', hair:'short',  hc:'#4CAF50', top:W, arm:W, fore:'#E9BE93', hand:'#E9BE93', belt:'#2E7D32', pants:BK, shin:BK, shoe:BK, spd:.95,
+            forms:[{n:'Escrimeur'},{n:'Style à trois sabres', a:'#8BC34A'},{n:'Roi des Enfers', a:'#9C27B0'}]},
+  saitama: {skin:'#F6D3B3', hair:'bald',   hc:'#5A4030', top:'#F5D90A', arm:'#F5D90A', fore:'#F5D90A', hand:'#D7263D', belt:BK, pants:'#F5D90A', shin:'#D7263D', shoe:'#D7263D', spd:.75, cape:W,
+            forms:[{n:'Héros pour le fun'},{n:'Série sérieuse', a:'#FF6B6B'},{n:'Coup de poing sérieux', a:'#FF2E2E'}]},
+  deku:    {skin:'#F6D2AE', hair:'deku',   hc:'#1F4D3A', top:'#2A9D8F', arm:'#2A9D8F', fore:W, hand:W, belt:'#C9A227', pants:'#2A9D8F', shin:'#2A9D8F', shoe:'#E0553F', spd:1, freckles:true,
+            forms:[{n:'Lycéen de Yuei'},{n:'Full Cowl 20 %', a:'#7CFFB2'},{n:'One For All 100 %', a:'#39FF8E'}]},
+  tanjiro: {skin:'#F2CDA8', hair:'short',  hc:'#6B1F1F', top:'#1F7A3A', arm:'#1F7A3A', fore:'#1F7A3A', hand:'#F2CDA8', belt:W, pants:BK, shin:W, shoe:'#5A3A22', spd:.97, scar:true,
+            forms:[{n:'Pourfendeur'},{n:'Souffle de l\'eau', a:'#4FC3F7'},{n:'Danse du Dieu du Feu', a:'#FF7043'}]},
+  hinata:  {skin:'#F6D2AE', hair:'spiky',  hc:'#FF7F11', top:BK, arm:BK, fore:'#F6D2AE', hand:'#F6D2AE', belt:'#FF7F11', pants:BK, shin:'#F6D2AE', shoe:W, spd:.9,
+            forms:[{n:'Débutant'},{n:'Attaque rapide', a:'#FFB347'},{n:'Ninja Shoyo', a:'#FF7F11'}]},
+  ippo:    {skin:'#F2C9A0', hair:'short',  hc:'#151515', top:'#F2C9A0', arm:'#F2C9A0', fore:'#F2C9A0', hand:'#D7263D', belt:W, pants:'#3A86FF', shin:'#F2C9A0', shoe:W, spd:.93, gloves:true,
+            forms:[{n:'Poids plume'},{n:'Dempsey Roll', a:'#64B5F6'},{n:'Champion du Japon', a:'#FFD54F'}]},
+  mario:   {skin:'#F6CDA8', hair:'mario',  hc:'#5A3418', top:'#2853C7', arm:'#E52521', fore:'#E52521', hand:'#FFFFFF', belt:'#FFD23F', pants:'#2853C7', shin:'#2853C7', shoe:'#6B3E1F', spd:1.05,
+            forms:[{n:'Petit plombier'},{n:'Fleur de feu', a:'#FF8A3D', o:{arm:W, fore:W, top:'#E52521', pants:'#E52521', shin:'#E52521'}},{n:'Super Étoile', a:'#FFF176'}]},
+  sonic:   {skin:'#1E5BD8', hair:'sonic',  hc:'#1E5BD8', top:'#1E5BD8', arm:'#F2C9A0', fore:'#F2C9A0', hand:'#FFFFFF', belt:'#1E5BD8', pants:'#1E5BD8', shin:'#1E5BD8', shoe:'#D7263D', spd:.8, eye:'big', noEar:true,
+            forms:[{n:'Hérisson bleu'},{n:'Super Sonic', a:'#FFE14D', o:{skin:'#FFD23F', hc:'#FFD23F', top:'#FFD23F', pants:'#FFD23F', shin:'#FFD23F', belt:'#FFD23F'}},{n:'Hyper Sonic', a:'#E1F5FE', o:{skin:'#FFF59D', hc:'#FFF59D', top:'#FFF59D', pants:'#FFF59D', shin:'#FFF59D', belt:'#FFF59D'}}]},
+  link:    {skin:'#F6D2AE', hair:'link',   hc:'#F2C94C', top:'#3E9B3E', arm:'#3E9B3E', fore:'#F6D2AE', hand:'#8B5A2B', belt:'#8B5A2B', pants:'#F1E6C8', shin:'#8B5A2B', shoe:'#5A3A22', spd:1, noEar:true, cap:'#3E9B3E',
+            forms:[{n:'Chevalier d\'Hyrule'},{n:'Tunique du prodige', a:'#64B5F6', o:{top:'#2F6FDE', arm:'#2F6FDE', cap:'#2F6FDE'}},{n:'Héros légendaire', a:'#FFE082'}]},
+  pikachu: {skin:'#F7D02C', hair:'pika',   hc:'#F7D02C', top:'#F7D02C', arm:'#F7D02C', fore:'#F7D02C', hand:'#F7D02C', belt:'#F7D02C', pants:'#F7D02C', shin:'#F7D02C', shoe:'#F7D02C', spd:.95, eye:'dot', noEar:true, tail:true,
+            forms:[{n:'Pikachu'},{n:'Vive-Attaque', a:'#FFF59D'},{n:'Gigamax', a:'#FFEB3B'}]},
+  ryu:     {skin:'#EBC097', hair:'ryu',    hc:'#5A3418', top:W, arm:'#EBC097', fore:'#EBC097', hand:'#C62828', belt:BK, pants:W, shin:W, shoe:'#EBC097', spd:.95,
+            forms:[{n:'Guerrier errant'},{n:'Hadoken', a:'#4FC3F7'},{n:'Satsui no Hado', a:'#B71C1C', o:{top:'#3B3B3B', pants:'#3B3B3B', shin:'#3B3B3B', hc:'#8B1A1A'}}]},
+  chunli:  {skin:'#F3CFAE', hair:'chunli', hc:'#3B2314', top:'#2F6FDE', arm:'#2F6FDE', fore:'#F3CFAE', hand:'#F3CFAE', belt:'#E0B03F', pants:'#8A5A3B', shin:'#8A5A3B', shoe:'#FFFFFF', spd:.9,
+            forms:[{n:'Agent d\'Interpol'},{n:'Kikoken', a:'#81D4FA'},{n:'Hoyokusen', a:'#FFD54F'}]},
+  kratos:  {skin:'#E8E2D8', hair:'kratos', hc:'#2B2B2B', top:'#E8E2D8', arm:'#E8E2D8', fore:'#8B5A2B', hand:'#E8E2D8', belt:'#8B5A2B', pants:'#7A1F1F', shin:'#E8E2D8', shoe:'#5A3A22', spd:1.05,
+            forms:[{n:'Fantôme de Sparte'},{n:'Rage de Sparte', a:'#FF3D00'},{n:'Dieu de la Guerre', a:'#FF1744'}]},
+};
+const SHORT = {goku:'Goku', naruto:'Naruto', rocklee:'Rock Lee', luffy:'Luffy', zoro:'Zoro', deku:'Deku', tanjiro:'Tanjiro', hinata:'Hinata', ippo:'Ippo'};
+const shortName = h => SHORT[h.id] || h.name;
+const lookOf = (id, f = 0) => { const L = LOOK[id] || LOOK.goku; const fm = L.forms[f] || L.forms[0]; return Object.assign({}, L, fm.o || {}, {aura: fm.a || null, formName: fm.n}); };
+
+function shade(hex, amt){
+  const n = parseInt(hex.slice(1), 16), f = v => Math.max(0, Math.min(255, Math.round(v + (amt < 0 ? v : 255 - v)*amt)));
+  return '#' + [f(n >> 16), f(n >> 8 & 255), f(n & 255)].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+/* Cheveux et accessoires, dans le repère de la tête (centre 0,0, rayon 21, visage vers +x) */
+function hairSVG(L){
+  const c = L.hc, s = L.skin;
+  const P = (d, fill = c, extra = '') => `<path d="${d}" fill="${fill}" ${extra}/>`;
+  switch(L.hair){
+    case 'goku':   return {front: P('M-21,6 L-33,-4 L-24,-10 L-38,-22 L-21,-23 L-27,-41 L-10,-30 L-5,-48 L5,-31 L16,-42 L15,-25 L28,-27 L20,-14 L26,-6 L13,-12 L10,-3 L3,-13 L-3,-5 L-9,-12 L-13,-2 Z')};
+    case 'vegeta': return {front: P('M-21,4 L-25,-18 L-19,-34 L-12,-58 L-5,-40 L2,-64 L8,-40 L16,-52 L16,-28 L22,-16 L13,-12 L8,-21 L3,-11 L-4,-19 L-11,-9 Z')};
+    case 'naruto': return {
+      back: P('M-20,-15 L-38,-6 L-36,-1 L-20,-8 Z','#1F2A44') + P('M-20,-12 L-34,4 L-30,6 L-19,-6 Z','#1F2A44'),
+      front: P('M-21,4 L-32,-8 L-22,-12 L-32,-26 L-16,-24 L-18,-40 L-4,-28 L4,-42 L10,-26 L22,-34 L18,-18 L28,-14 L18,-10 L14,-4 L8,-12 L2,-4 L-4,-12 L-12,-4 Z'),
+      extra: `<rect x="-21" y="-18" width="43" height="9" rx="3" fill="#1F2A44"/><rect x="5" y="-19.5" width="15" height="12" rx="2" fill="#B8C2CC" stroke="#6B7785"/><path d="M8,-14 Q12,-17 16,-13" stroke="#6B7785" fill="none" stroke-width="1.4"/>`};
+    case 'lee':    return {front: P('M-23,6 Q-25,-27 0,-26 Q23,-25 23,-8 L23,-6 L4,-6 L2,-9 L-2,-5 L-12,-5 L-14,4 Z') + P('M-12,-20 Q0,-24 10,-20','none','stroke="#fff" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"')};
+    case 'luffy':  return {
+      front: P('M-22,4 L-26,-6 L-21,-14 Q0,-27 21,-15 L25,-5 L17,-9 L13,-2 L7,-11 L1,-4 L-5,-11 L-11,-2 Z'),
+      extra: `<ellipse cx="-2" cy="-17" rx="33" ry="6" fill="#E8C15A" stroke="#B8913A"/><path d="M-17,-18 Q-16,-38 0,-38 Q16,-38 15,-18 Z" fill="#E8C15A" stroke="#B8913A"/><path d="M-16.6,-23 L15.6,-23 L15.2,-18.5 L-17,-18.5 Z" fill="#D7263D"/><path d="M6,5 L12,6" stroke="#8B3A2B" stroke-width="1.4" stroke-linecap="round"/>`};
+    case 'short':  return {front: P('M-22,2 L-24,-10 Q-14,-28 4,-26 Q20,-24 22,-12 L16,-14 L14,-7 L8,-14 L2,-7 L-4,-14 L-12,-6 Z')};
+    case 'spiky':  return {front: P('M-22,4 L-30,-6 L-22,-10 L-30,-22 L-14,-20 L-14,-34 L-2,-24 L6,-36 L10,-22 L22,-28 L20,-14 L27,-8 L16,-9 L12,-2 L6,-11 L0,-4 L-6,-11 L-13,-3 Z')};
+    case 'bald':   return {extra: `<ellipse cx="-4" cy="-13" rx="7" ry="3.5" fill="#fff" opacity=".45" transform="rotate(-20 -4 -13)"/>`};
+    case 'deku':   return {front: [[-17,-9,9],[-10,-19,10],[2,-23,10],[14,-17,9],[20,-8,6],[-22,0,7],[8,-14,6],[-4,-12,7]].map(([x,y,r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${c}"/>`).join('')};
+    case 'mario':  return {
+      front: P('M-22,-2 Q-24,8 -14,10 L-10,0 Z') + P('M-23,-3 Q-24,-30 2,-29 Q22,-27 22,-9 Z','#E52521') + P('M12,-9 Q30,-12 35,-4 Q24,-2 12,-4 Z','#C21A17') + `<circle cx="2" cy="-19" r="6" fill="#fff"/>`,
+      extra: `<circle cx="22" cy="2" r="5" fill="${s}"/>` + P('M9,6 Q15,1 24,5 Q22,10 16,9 Q12,11 9,8 Z','#3A2210')};
+    case 'sonic':  return {
+      back: P('M-8,-18 L-46,-24 L-22,-8 L-50,2 L-22,8 L-42,22 L-12,14 Z') + P('M-6,-16 L-2,-36 L9,-18 Z'),
+      front: P('M-6,-20 Q8,-30 20,-15 L6,-16 Z') + `<ellipse cx="12" cy="8" rx="11" ry="8" fill="#F2C9A0"/><circle cx="23" cy="4" r="2.6" fill="#111"/>`};
+    case 'link':   return {
+      back: P('M-14,-18 Q-30,-14 -48,12 Q-30,0 -18,-4 Z', L.cap),
+      front: P('M-22,-4 Q-22,-28 2,-27 Q20,-25 22,-13 Q4,-17 -22,-4 Z', L.cap) + P('M2,-16 L20,-12 L22,-4 L14,-8 L12,0 L6,-10 Z') + P('M-2,-2 L-22,-12 L-6,6 Z', s)};
+    case 'pika':   return {
+      back: P('M-14,-12 L-44,-40 L-8,-8 Z', shade(c,-.08)) + P('M-36,-33 L-44,-40 L-32,-37 Z','#222'),
+      front: P('M-6,-16 L-12,-56 L6,-20 Z') + P('M-10.5,-46 L-12,-56 L-5,-45 Z','#222') + `<circle cx="9" cy="9" r="5" fill="#E2453C"/><circle cx="20" cy="2" r="1.3" fill="#222"/>`};
+    case 'ryu':    return {
+      back: P('M-20,-12 Q-34,-6 -44,4 L-40,6 Q-30,-2 -20,-7 Z','#C62828') + P('M-20,-10 Q-30,2 -34,14 L-30,14 Q-26,4 -18,-6 Z','#C62828'),
+      front: P('M-22,2 L-24,-10 Q-14,-28 4,-26 Q20,-24 22,-12 L16,-14 L14,-7 L8,-14 L2,-7 L-4,-14 L-12,-6 Z'),
+      extra: `<rect x="-22" y="-15" width="44" height="7" rx="3" fill="#C62828"/>`};
+    case 'chunli': return {
+      back: `<circle cx="-12" cy="-24" r="9" fill="${c}"/><circle cx="-12" cy="-24" r="10" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="6 5"/>`,
+      front: P('M-22,4 Q-24,-26 2,-26 Q20,-24 22,-10 L12,-10 L6,-16 L-2,-8 L-14,-8 Z')};
+    case 'kratos': return {extra: `<path d="M-19,-12 Q-2,-30 20,-10" stroke="#C62828" stroke-width="6" fill="none" stroke-linecap="round"/>` + P('M4,6 Q8,24 20,16 Q24,10 21,6 Q14,12 4,6 Z','#2B2B2B')};
+  }
+  return {};
+}
+function faceSVG(L){
+  const ink = '#1A1A1A';
+  let eye;
+  if(L.eye === 'big') eye = `<g class="blink"><ellipse cx="10" cy="-3" rx="6" ry="7.5" fill="#fff"/><ellipse cx="13" cy="-2" rx="2.8" ry="4" fill="#2E7D32"/><circle cx="13.5" cy="-2" r="1.6" fill="#111"/></g>`;
+  else if(L.eye === 'dot') eye = `<g class="blink"><circle cx="10" cy="-3" r="3.8" fill="${ink}"/><circle cx="11" cy="-4.5" r="1.4" fill="#fff"/></g>`;
+  else eye = `<g class="blink"><ellipse cx="9" cy="-1" rx="3.2" ry="4.8" fill="${ink}"/><circle cx="10" cy="-3" r="1.4" fill="#fff"/></g>`;
+  const eyeE = `<path d="M5,-5 L12,-1.5 L5,2" fill="none" stroke="${ink}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const brow = L.eye === 'dot' ? '' : `<path d="M3,-9.5 L14,-8" stroke="${L.hair === 'bald' || L.hair === 'kratos' || L.hair === 'sonic' ? '#4A3426' : L.hc}" stroke-width="${L.thickBrow ? 4.5 : 2.4}" stroke-linecap="round"/>`;
+  const mouth = `<path d="M11,10.5 Q15,13 18.5,9.5" fill="none" stroke="${ink}" stroke-width="1.8" stroke-linecap="round"/>`;
+  const mouthE = `<ellipse cx="15" cy="11" rx="3.6" ry="3" fill="#7A1F1F"/>`;
+  const marks = (L.freckles ? `<circle cx="5" cy="6" r=".9" fill="#A0704A"/><circle cx="8" cy="7.5" r=".9" fill="#A0704A"/><circle cx="4" cy="8.5" r=".9" fill="#A0704A"/>` : '')
+    + (L.scar ? `<path d="M2,-16 Q7,-19 10,-14 Q6,-12 2,-16 Z" fill="#9E3B2E"/>` : '');
+  return `${marks}<g class="fN">${eye}${brow}${mouth}</g><g class="fE" style="display:none">${eyeE}${brow}${mouthE}</g>`;
+}
+
+/* =========================================================
+   SQUELETTE ANIMÉ (cinématique inverse à 2 segments)
+   angles : 0 = vers le bas, 90 = vers l'avant, 180 = vers le haut
+   ========================================================= */
+const LEN = {torso:48, ua:25, fa:24, th:32, sh:32};
+const dirv = a => [Math.sin(a*Math.PI/180), Math.cos(a*Math.PI/180)];
+function ik(a, b, l1, l2, bend){
+  let dx = b[0]-a[0], dy = b[1]-a[1], d = Math.hypot(dx, dy) || .001;
+  const max = l1 + l2 - .5;
+  if(d > max){ const k = max/d; dx *= k; dy *= k; d = max; }
+  const c = (l1*l1 + d*d - l2*l2)/(2*l1*d);
+  const t = Math.atan2(dy, dx) + bend*Math.acos(Math.max(-1, Math.min(1, c)));
+  return [[a[0]+Math.cos(t)*l1, a[1]+Math.sin(t)*l1], [a[0]+dx, a[1]+dy]];
+}
+const POSES = {
+  stand:    {hip:[100,136], t:180, hd:0,   fN:[104,198], fF:[96,198],  hN:[105,133], hF:[95,133],  kb:-1, eb:1},
+  squat:    {hip:[80,164],  t:140, hd:28,  fN:[104,198], fF:[98,198],  hN:[150,112], hF:[146,117], kb:-1, eb:1},
+  squatLow: {hip:[86,172],  t:125, hd:30,  fN:[100,198], fF:[96,198],  hN:[134,198], hF:[130,198], kb:-1, eb:1},
+  plankUp:  {hip:[96,166],  t:110, hd:-12, fN:[36,198],  fF:[32,198],  hN:[142,198], hF:[138,198], kb:-1, eb:1},
+  plankDown:{hip:[96,181],  t:100, hd:-4,  fN:[36,198],  fF:[32,198],  hN:[142,198], hF:[138,198], kb:-1, eb:1},
+  crunchA:  {hip:[112,186], t:268, hd:0,   fN:[150,198], fF:[146,198], hN:[44,172],  hF:[48,174],  kb:-1, eb:1},
+  crunchB:  {hip:[112,186], t:212, hd:-12, fN:[150,198], fF:[146,198], hN:[78,128],  hF:[82,130],  kb:-1, eb:1},
+  jumpB:    {hip:[100,112], t:180, hd:-6,  fN:[106,176], fF:[94,178],  hN:[112,20],  hF:[90,22],   kb:-1, eb:1},
+  jackB:    {hip:[100,124], t:180, hd:-4,  fN:[124,190], fF:[78,190],  hN:[124,30],  hF:[80,32],   kb:-1, eb:1},
+  lungeB:   {hip:[100,160], t:180, hd:0,   fN:[136,198], fF:[60,198],  hN:[110,160], hF:[94,160],  kb:-1, eb:1},
+  mcB:      {hip:[96,164],  t:112, hd:-12, fN:[112,188], fF:[32,198],  hN:[142,198], hF:[138,198], kb:-1, eb:1},
+  victory:  {hip:[100,134], t:180, hd:-12, fN:[106,196], fF:[94,197],  hN:[122,26],  hF:[80,30],   kb:-1, eb:1},
+  defeat:   {hip:[94,166],  t:150, hd:62,  fN:[124,198], fF:[58,198],  hN:[128,197], hF:[122,198], kb:-1, eb:1},
+};
+const swapLegs = p => Object.assign({}, p, {fN:p.fF, fF:p.fN});
+function lerpPose(a, b, f){
+  const o = {};
+  for(const k in a){
+    const va = a[k], vb = b[k];
+    o[k] = Array.isArray(va) ? [va[0]+(vb[0]-va[0])*f, va[1]+(vb[1]-va[1])*f] : (k === 'kb' || k === 'eb') ? va : va+(vb-va)*f;
+  }
+  return o;
+}
+const ease = f => f*f*(3-2*f);
+function samplePose(names, phase, alt){
+  const ps = names.map(n => alt ? swapLegs(POSES[n]) : POSES[n]);
+  if(ps.length === 1) return ps[0];
+  const x = (((phase % 1) + 1) % 1)*ps.length, i = Math.floor(x);
+  return lerpPose(ps[i], ps[(i+1) % ps.length], ease(x - i));
+}
+const shiftPose = (p, dx, dy) => { const o = Object.assign({}, p); for(const k of ['hip','fN','fF','hN','hF']) o[k] = [p[k][0]+dx, p[k][1]+dy]; return o; };
+
+let rigUid = 0;
+class Rig{
+  constructor(heroId, form = 0, opt = {}){
+    const L = this.L = lookOf(heroId, form), u = 'rg' + (++rigUid), dk = c => shade(c, -.25);
+    const img = S.img && S.img[heroId];
+    const hs = hairSVG(L);
+    const line = (k, col, w, cap = 'round') => `<line data-k="${k}" stroke="${col}" stroke-width="${w}" stroke-linecap="${cap}"/>`;
+    const handR = L.gloves ? 9 : 5.5;
+    const head = img
+      ? `<clipPath id="${u}c"><circle r="25"/></clipPath><circle r="26.5" fill="${L.aura || '#fff'}"/><image href="${esc(img)}" x="-25" y="-25" width="50" height="50" preserveAspectRatio="xMidYMid slice" clip-path="url(#${u}c)"/>`
+      : `${hs.back || ''}<circle r="21" fill="${L.skin}"/>${L.noEar ? '' : `<circle cx="-4" cy="2" r="5" fill="${shade(L.skin,-.1)}"/>`}${hs.front || ''}${faceSVG(L)}${hs.extra || ''}`;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', opt.view || '-10 -8 220 216');
+    svg.setAttribute('class', 'rig');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = `
+      <defs><radialGradient id="${u}a"><stop offset="0" stop-color="${L.aura || '#fff'}" stop-opacity=".85"/><stop offset=".55" stop-color="${L.aura || '#fff'}" stop-opacity=".35"/><stop offset="1" stop-color="${L.aura || '#fff'}" stop-opacity="0"/></radialGradient></defs>
+      ${L.aura ? `<ellipse class="aura" data-k="aura" rx="62" ry="92" fill="url(#${u}a)"/>` : ''}
+      <ellipse data-k="shadow" cy="201" rx="36" ry="5" fill="rgba(0,0,0,.35)"/>
+      ${L.cape ? `<path data-k="cape" fill="${L.cape}" stroke="${shade(L.cape,-.15)}"/>` : ''}
+      ${L.tail ? `<g data-k="tail"><path d="M0,0 L-14,-8 L-9,-14 L-26,-26 L-19,-32 L-44,-50 L-27,-22 L-33,-18 L-17,-5 Z" fill="${L.top}" stroke="${shade(L.top,-.2)}"/><path d="M0,0 L-14,-8 L-11,-11 L-2,-4 Z" fill="#8B5A2B"/></g>` : ''}
+      ${line('uaF', dk(L.arm), 10)}${line('faF', dk(L.fore), 9)}<circle data-k="hF" r="${handR}" fill="${dk(L.hand)}"/>
+      ${line('thF', dk(L.pants), 13)}${line('shF', dk(L.shin), 11)}${line('ftF', dk(L.shoe), 10)}
+      ${line('torso', L.top, 26)}<circle data-k="hip" r="12.5" fill="${L.pants}"/>${line('belt', L.belt, 25, 'butt')}
+      ${line('thN', L.pants, 13)}${line('shN', L.shin, 11)}${line('ftN', L.shoe, 10)}
+      ${line('uaN', L.arm, 10)}${line('faN', L.fore, 9)}<circle data-k="hN" r="${handR}" fill="${L.hand}"/>
+      <g data-k="head">${head}</g>`;
+    this.svg = svg;
+    this.k = {};
+    svg.querySelectorAll('[data-k]').forEach(n => this.k[n.dataset.k] = n);
+    this.fN = svg.querySelector('.fN'); this.fE = svg.querySelector('.fE'); this.eff = false;
+  }
+  ln(k, a, b){ const n = this.k[k]; if(!n) return; n.setAttribute('x1', a[0].toFixed(1)); n.setAttribute('y1', a[1].toFixed(1)); n.setAttribute('x2', b[0].toFixed(1)); n.setAttribute('y2', b[1].toFixed(1)); }
+  pose(p, effort = false, time = 0){
+    const k = this.k, H = p.hip, td = dirv(p.t), S = [H[0]+td[0]*LEN.torso, H[1]+td[1]*LEN.torso];
+    const hd = dirv(p.t + p.hd), HC = [S[0]+hd[0]*25, S[1]+hd[1]*25];
+    const back = [td[1], -td[0]];
+    this.ln('torso', H, S);
+    this.ln('belt', [H[0]+td[0]*4, H[1]+td[1]*4], [H[0]+td[0]*9, H[1]+td[1]*9]);
+    k.hip.setAttribute('cx', H[0]); k.hip.setAttribute('cy', H[1]);
+    for(const s of ['N','F']){
+      const [kn, ft] = ik(H, p['f'+s], LEN.th, LEN.sh, p.kb);
+      this.ln('th'+s, H, kn); this.ln('sh'+s, kn, ft); this.ln('ft'+s, ft, [ft[0]+8, ft[1]]);
+      const Sa = [S[0]-td[0]*5, S[1]-td[1]*5];
+      const [el, hd2] = ik(Sa, p['h'+s], LEN.ua, LEN.fa, p.eb);
+      this.ln('ua'+s, Sa, el); this.ln('fa'+s, el, hd2);
+      k['h'+s].setAttribute('cx', hd2[0]); k['h'+s].setAttribute('cy', hd2[1]);
+    }
+    k.head.setAttribute('transform', `translate(${HC[0].toFixed(1)} ${HC[1].toFixed(1)}) rotate(${(180-(p.t+p.hd)).toFixed(1)})`);
+    k.shadow.setAttribute('cx', H[0]);
+    if(k.aura){ k.aura.setAttribute('cx', ((H[0]+S[0])/2).toFixed(1)); k.aura.setAttribute('cy', ((H[1]+S[1])/2 - 8).toFixed(1)); }
+    if(k.cape){
+      const fl = Math.sin(time*7)*4;
+      const a = [S[0]+back[0]*9, S[1]+back[1]*9], b = [H[0]+back[0]*20-td[0]*16+fl, H[1]+back[1]*20-td[1]*16];
+      const c = [H[0]+back[0]*6-td[0]*10, H[1]+back[1]*6-td[1]*10], s2 = [S[0]+back[0]*3, S[1]+back[1]*3];
+      k.cape.setAttribute('d', `M${s2[0]},${s2[1]} L${a[0]},${a[1]} Q${a[0]+back[0]*14},${a[1]+back[1]*14} ${b[0]},${b[1]} L${c[0]},${c[1]} Z`);
+    }
+    if(k.tail){ const tp = [H[0]+back[0]*8, H[1]+back[1]*8]; k.tail.setAttribute('transform', `translate(${tp[0]} ${tp[1]}) rotate(${(180-p.t + Math.sin(time*6)*6).toFixed(1)})`); }
+    if(this.fN && effort !== this.eff){ this.eff = effort; this.fN.style.display = effort ? 'none' : ''; this.fE.style.display = effort ? '' : 'none'; }
+  }
+}
+
+/* Une seule boucle d'animation pour tout le jeu */
+const ANIM = new Set();
+function animAdd(fn){ ANIM.add(fn); if(ANIM.size === 1) requestAnimationFrame(animLoop); return () => ANIM.delete(fn); }
+function animLoop(now){ if(!ANIM.size) return; for(const fn of [...ANIM]) fn(now/1000); requestAnimationFrame(animLoop); }
+
+/* Poses « vivantes » : repos, victoire, défaite */
+function idlePose(ex, t){
+  const base = POSES[(EX[ex] && EX[ex].idle) || 'stand'];
+  return shiftPose(base, 0, Math.sin(t*2.2)*1.2);
+}
+function victoryPose(t){ return shiftPose(lerpPose(POSES.victory, POSES.stand, (Math.sin(t*10)+1)/6), 0, -Math.abs(Math.sin(t*5))*16); }
+function defeatPose(t){ return shiftPose(POSES.defeat, Math.sin(t*20)*.6, Math.sin(t*1.6)*1.5); }
+
+/* =========================================================
+   EXERCICES DU MODE DUEL
+   ========================================================= */
+const EX = {
+  squats:  {n:'Squats',            u:'squats',            cyc:['stand','squat'],        f:1,    stat:'squats',  e:'🦵', motion:true},
+  pompes:  {n:'Pompes',            u:'pompes',            cyc:['plankUp','plankDown'],  f:1.1,  stat:'pompes',  e:'💪', idle:'plankUp', tip:'Pose le téléphone sous ton visage et touche-le avec le nez à chaque pompe !'},
+  abdos:   {n:'Abdos',             u:'abdos',             cyc:['crunchA','crunchB'],    f:1,    stat:'abdos',   e:'🔥', idle:'crunchA', tip:'Garde le téléphone contre ta poitrine et tape à chaque remontée, ou demande à quelqu\'un de compter.'},
+  burpees: {n:'Burpees',           u:'burpees',           cyc:['stand','squatLow','plankUp','squatLow','jumpB'], f:2.6, stat:'burpees', e:'⚡', motion:true},
+  jacks:   {n:'Jumping jacks',     u:'jumping jacks',     cyc:['stand','jackB'],        f:.6,   stat:'autres',  e:'⭐', motion:true},
+  sauts:   {n:'Sauts verticaux',   u:'sauts',             cyc:['squat','jumpB'],        f:.85,  stat:'sauts',   e:'🦘', motion:true},
+  fentes:  {n:'Fentes',            u:'fentes',            cyc:['stand','lungeB'],       f:1.1,  stat:'squats',  e:'🏃', alt:true, motion:true},
+  climbers:{n:'Mountain climbers', u:'mountain climbers', cyc:['plankUp','mcB'],        f:.5,   stat:'autres',  e:'⛰️', alt:true, idle:'plankUp'},
+  gainage: {n:'Gainage',           u:'secondes',          cyc:['plankUp'],              f:1,    stat:'gainage', e:'🧱', hold:true, idle:'plankUp', tip:'Tiens la planche le plus longtemps possible. Appuie sur « Je lâche » quand tu craques.'},
+};
+const PACE = [2.3, 1.6, 1.1];        // secondes par répétition (forme 1, 2, 3), avant le facteur d'exercice
+const HOLD = [30, 60, 110];          // secondes de gainage du héros selon la forme
+const GOALS = {r10:'Premier à 10', r20:'Premier à 20', r30:'Premier à 30', r50:'Premier à 50', r100:'Premier à 100', t30:'Max en 30 s', t60:'Max en 60 s'};
+const AHEAD = ['Trop lent !','Tu peux mieux faire !','Je ne suis même pas fatigué.','Hé, tu dors ?','C\'est tout ce que tu as ?'];
+const BEHIND = ['Pas mal… pour un humain !','Je ne fais que m\'échauffer !','Impossible… tu es rapide !','Grrr, j\'accélère !','Tu m\'impressionnes !'];
+
+function heroPlan(hero, form, exId, goal){
+  const L = LOOK[hero], ex = EX[exId], pace = PACE[form]*ex.f*L.spd;
+  if(ex.hold) return {hold: HOLD[form]/L.spd*(.88 + Math.random()*.24)};
+  const timed = goal[0] === 't', N = +goal.slice(1), ends = []; let acc = 0;
+  const count = timed ? Math.ceil(N/pace*1.5) + 5 : N;
+  for(let i = 0; i < count; i++){
+    const fat = timed ? 1 + .25*Math.pow(acc/N, 2) : 1 + .22*Math.pow(i/N, 2);
+    acc += pace*fat*(.88 + Math.random()*.24);
+    ends.push(acc);
+  }
+  return {ends};
+}
+const heroCountAt = (plan, t) => { let n = 0; while(n < plan.ends.length && plan.ends[n] <= t) n++; return n; };
+function heroPoseAt(exId, plan, t, cap){
+  const ex = EX[exId], n = heroCountAt(plan, t);
+  if(cap && n >= cap) return {pose: victoryPose(t), effort:false, n: cap};
+  const st = n ? plan.ends[n-1] : 0, en = plan.ends[n] || st + 1;
+  const ph = Math.min(1, (t - st)/(en - st));
+  const pose = samplePose(ex.cyc, ph, ex.alt && n % 2 === 1);
+  return {pose, effort: Math.sin(ph*Math.PI) > .55, n};
+}
+
+/* =========================================================
+   CAPTEUR DE MOUVEMENT (téléphone en main ou dans la poche)
+   ========================================================= */
+async function motionPermission(){
+  try{
+    if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
+      return (await DeviceMotionEvent.requestPermission()) === 'granted';
+    }
+    return typeof DeviceMotionEvent !== 'undefined';
+  }catch(e){ return false; }
+}
+function startMotion(sens, onRep, onLevel){
+  let s = 9.81, base = 9.81, state = 'up', last = 0, got = false;
+  const lo = 1.3*sens, hi = 1.7*sens;
+  const h = e => {
+    const a = e.accelerationIncludingGravity; if(!a || a.x === null) return;
+    got = true;
+    const m = Math.hypot(a.x, a.y, a.z);
+    s = s*.7 + m*.3; base = base*.995 + s*.005;
+    const dv = s - base; onLevel && onLevel(dv);
+    const now = performance.now();
+    if(state === 'up' && dv < -lo) state = 'down';
+    else if(state === 'down' && dv > hi && now - last > 450){ state = 'up'; last = now; onRep(); }
+  };
+  addEventListener('devicemotion', h);
+  const chk = setTimeout(() => { if(!got) toast('Aucun capteur détecté : tape l\'écran pour compter.'); }, 2500);
+  return () => { removeEventListener('devicemotion', h); clearTimeout(chk); };
+}
+
+/* =========================================================
+   VUE DUEL — configuration
+   ========================================================= */
+const DCFG_DEFAULT = {mode:'solo', hero:'goku', form:1, ex:'squats', goal:'r10', count:'tap', sens:1, players:['Joueur 1','Joueur 2'], withHero:true};
+const dcfg = () => (S.dcfg = Object.assign({}, DCFG_DEFAULT, S.dcfg || {}));
+let prevStop = null;
+function heroThumb(id, form = 0){
+  const r = new Rig(id, form, {view:'50 6 100 100'});
+  r.pose(POSES.stand);
+  return r.svg;
+}
+function renderDuel(){
+  const c = dcfg(), hero = charById(c.hero), L = lookOf(c.hero, c.form), ex = EX[c.ex];
+  const multi = c.mode !== 'solo';
+  const v = $('#v-duel');
+  v.innerHTML = `
+    <div class="dstage" style="--zc:${hero.c}">
+      <div class="dtag"><b class="manga">${esc(hero.name)}</b><span>${esc(L.formName)} · ${esc(hero.from)}</span></div>
+      <div class="dvs manga">VS<br><small>${ex.e} ${esc(ex.n)}</small></div>
+      <div id="dPrev" class="dprev"></div>
+    </div>
+    <h3 class="sub">Mode de jeu</h3>
+    <div class="seg" id="dMode">
+      <button data-m="solo" aria-pressed="${c.mode==='solo'}">🥊 Solo</button>
+      <button data-m="face" aria-pressed="${c.mode==='face'}">👥 Face à face</button>
+      <button data-m="tour" aria-pressed="${c.mode==='tour'}">🔁 Chacun son tour</button>
+    </div>
+    <p class="muted hint">${{solo:'Toi contre le héros. Pose le téléphone ou fais-le tenir par quelqu\'un qui compte pour toi.', face:'Deux joueurs sur le même écran : posez le téléphone entre vous, chacun tape sa moitié (même avec le nez pour les pompes !).', tour:'2 à 6 joueurs passent l\'un après l\'autre contre le même héros. Classement final.'}[c.mode]}</p>
+    <h3 class="sub">Ton adversaire</h3>
+    <div class="hpick" id="dHeroes"></div>
+    <h3 class="sub">Niveau de puissance</h3>
+    <div class="seg" id="dForm">${LOOK[c.hero].forms.map((f,i) => `<button data-f="${i}" aria-pressed="${i===c.form}">${['🌱','🔥','💀'][i]} ${esc(f.n)}</button>`).join('')}</div>
+    <h3 class="sub">Exercice</h3>
+    <div class="filters wrapf" id="dEx">${Object.entries(EX).map(([k,e]) => `<button data-x="${k}" aria-pressed="${k===c.ex}">${e.e} ${esc(e.n)}</button>`).join('')}</div>
+    ${ex.hold ? `<p class="muted hint">Le dernier qui tient la planche a gagné.</p>` : `
+    <h3 class="sub">Objectif</h3>
+    <div class="filters wrapf" id="dGoal">${Object.entries(GOALS).map(([k,g]) => `<button data-g="${k}" aria-pressed="${k===c.goal}">${g}</button>`).join('')}</div>`}
+    ${!ex.hold && c.mode !== 'face' ? `
+    <h3 class="sub">Comment on compte ?</h3>
+    <div class="seg" id="dCount">
+      <button data-c="tap" aria-pressed="${c.count==='tap'}">👆 Taper l'écran</button>
+      <button data-c="motion" aria-pressed="${c.count==='motion'}" ${ex.motion ? '' : 'disabled'}>📳 Capteur de mouvement</button>
+    </div>
+    <p class="muted hint">${c.count === 'motion' && ex.motion ? 'Tiens le téléphone contre ta poitrine ou mets-le dans ta poche : chaque mouvement est compté (version bêta, tu peux aussi taper l\'écran).' : (ex.tip || 'Tape le gros bouton à chaque répétition, ou fais tenir le téléphone par quelqu\'un qui compte pour toi.')}</p>
+    ${c.count === 'motion' && ex.motion ? `<div class="seg" id="dSens">${[[.6,'Sensible'],[1,'Normal'],[1.5,'Ferme']].map(([s,l]) => `<button data-s="${s}" aria-pressed="${s===c.sens}">${l}</button>`).join('')}</div>` : ''}` : ''}
+    ${multi ? `
+    <h3 class="sub">Joueurs</h3>
+    <div id="dPlayers">${c.players.map((p,i) => `<div class="field" style="margin-bottom:8px"><input data-p="${i}" value="${esc(p)}" maxlength="16" aria-label="Joueur ${i+1}">${c.mode === 'tour' && c.players.length > 2 ? `<button class="btn ghost sm" data-rm="${i}" aria-label="Retirer">✕</button>` : ''}</div>`).join('')}</div>
+    ${c.mode === 'tour' && c.players.length < 6 ? `<button class="btn ghost sm" id="dAdd">+ Ajouter un joueur</button>` : ''}
+    ${c.mode === 'face' ? `<label class="chk"><input type="checkbox" id="dWith" ${c.withHero ? 'checked' : ''}> ${esc(hero.name)} participe aussi (3e concurrent)</label>` : ''}` : ''}
+    <button class="btn fightbtn manga" id="dGo">⚔️ COMBAT !</button>
+    <div id="dRec"></div>`;
+
+  // aperçu animé
+  if(prevStop) prevStop();
+  const rig = new Rig(c.hero, c.form); $('#dPrev').appendChild(rig.svg);
+  const plan = heroPlan(c.hero, c.form, c.ex, 'r100');
+  let t0 = null;
+  prevStop = animAdd(t => {
+    if(!document.body.contains(rig.svg)){ prevStop(); return; }
+    if(t0 === null) t0 = t;
+    const tt = (t - t0) % (ex.hold ? 4 : plan.ends[7]);
+    if(ex.hold){ rig.pose(idlePose(c.ex, t), true, t); return; }
+    const hp = heroPoseAt(c.ex, plan, tt);
+    rig.pose(hp.pose, hp.effort, t);
+  });
+
+  const hp = $('#dHeroes');
+  CHARS.forEach(h => {
+    const b = document.createElement('button');
+    b.className = 'hchip'; b.setAttribute('aria-pressed', h.id === c.hero); b.style.setProperty('--c', h.c);
+    b.appendChild(heroThumb(h.id));
+    b.insertAdjacentHTML('beforeend', `<span>${esc(shortName(h))}</span>`);
+    b.onclick = () => { c.hero = h.id; save(); renderDuel(); };
+    hp.appendChild(b);
+  });
+  requestAnimationFrame(() => { const sel = hp.querySelector('[aria-pressed="true"]'); if(sel) sel.scrollIntoView({block:'nearest', inline:'center'}); });
+
+  const bind = (sel, attr, key, conv = x => x) => v.querySelectorAll(sel + ' button').forEach(b => b.onclick = () => { c[key] = conv(b.dataset[attr]); save(); renderDuel(); });
+  bind('#dMode', 'm', 'mode'); bind('#dForm', 'f', 'form', Number); bind('#dEx', 'x', 'ex'); bind('#dGoal', 'g', 'goal'); bind('#dCount', 'c', 'count'); bind('#dSens', 's', 'sens', Number);
+  v.querySelectorAll('[data-p]').forEach(i => i.oninput = () => { c.players[+i.dataset.p] = i.value; save(); });
+  v.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { c.players.splice(+b.dataset.rm, 1); save(); renderDuel(); });
+  if($('#dAdd')) $('#dAdd').onclick = () => { c.players.push('Joueur ' + (c.players.length+1)); save(); renderDuel(); };
+  if($('#dWith')) $('#dWith').onchange = e => { c.withHero = e.target.checked; save(); };
+  if(c.mode === 'face') c.players = c.players.slice(0, 2);
+  $('#dGo').onclick = async () => {
+    const motion = c.mode !== 'face' && c.count === 'motion' && ex.motion && !ex.hold;
+    if(motion && !(await motionPermission())){ toast('Capteur refusé : on passe en comptage au doigt.'); c.count = 'tap'; save(); }
+    const names = c.players.map((p,i) => p.trim() || 'Joueur '+(i+1));
+    if(c.mode === 'solo') fight({...c, player: S.name || 'Toi', count: motion && c.count === 'motion' ? 'motion' : 'tap'});
+    else if(c.mode === 'face') faceOff({...c, players: names.slice(0,2)});
+    else tourMode({...c, players: names, count: motion && c.count === 'motion' ? 'motion' : 'tap'});
+  };
+
+  const rec = S.duels || {};
+  const beaten = Object.keys(rec).filter(k => rec[k].w);
+  $('#dRec').innerHTML = beaten.length ? `<h3 class="sub">Héros battus</h3><div class="beaten">${beaten.map(k => { const h = charById(k); return `<span class="pill" style="color:${h.c}">${esc(h.name)} ×${rec[k].w}</span>`; }).join('')}</div>` : '';
+}
+
+/* =========================================================
+   COMBAT — solo et « chacun son tour »
+   ========================================================= */
+function goalText(c){ const ex = EX[c.ex]; return ex.hold ? 'Le dernier qui tient' : GOALS[c.goal]; }
+const fmtT = s => s.toFixed(1).replace('.', ',') + ' s';
+function countdown(el, done, names){
+  let i = 0;
+  const steps = [names, '3', '2', '1', 'FIGHT !'];
+  const show = () => {
+    el.style.display = 'grid';
+    el.innerHTML = `<div class="cdt manga">${steps[i]}</div>`;
+    if(i > 0) beep(i === 4 ? 1046 : 520, i === 4 ? .3 : .12, .25);
+    i++;
+    if(i < steps.length) to = setTimeout(show, i === 1 ? 1300 : 750);
+    else to = setTimeout(() => { el.style.display = 'none'; done(); }, 600);
+  };
+  let to; show();
+  onCleanup(() => clearTimeout(to));
+}
+
+function fight(c, tour){
+  stopRun();
+  const ex = EX[c.ex], hero = charById(c.hero), L = lookOf(c.hero, c.form);
+  const hold = !!ex.hold, timed = !hold && c.goal[0] === 't', N = hold ? 0 : +c.goal.slice(1);
+  const plan = (tour && tour.plan) || heroPlan(c.hero, c.form, c.ex, c.goal);
+  const run = $('#run');
+  run.style.setProperty('--zc', hero.c);
+  run.innerHTML = `
+    <div class="fight">
+      <div class="ftop">
+        <button class="x" id="fx" aria-label="Quitter">✕</button>
+        <div class="ft"><b class="manga">${ex.e} ${esc(ex.n)}</b><span>${esc(goalText(c))}${tour ? ' · '+esc(c.player) : ''}</span></div>
+        <div class="ftime manga" id="ftime">${timed ? N+' s' : '0,0 s'}</div>
+      </div>
+      <div class="fstage" id="fst">
+        <span class="hn"><b>${esc(hero.name)}</b><small>${esc(L.formName)}</small></span>
+        <span class="hcnt manga" id="hcnt">${hold ? '' : '0'}</span>
+        <div class="say" id="fsay" hidden></div>
+      </div>
+      <div class="bars">
+        <div class="bar"><span>${esc(shortName(hero))}</span><div class="bt"><i id="hb" style="background:${hero.c}"></i></div></div>
+        <div class="bar"><span>${esc(c.player)}</span><div class="bt"><i id="pb" style="background:var(--sage)"></i></div></div>
+      </div>
+      <div class="pzone" id="pzone">
+        ${hold
+          ? `<div class="holdt manga" id="pcnt">0,0 s</div><button class="pz drop" id="pz">😵 JE LÂCHE !</button>`
+          : `<button class="pz" id="pz"><span class="pc manga" id="pcnt">0</span><span class="pl">${c.count === 'motion' ? '📳 Capteur actif · tu peux aussi taper' : esc(ex.tip ? 'Tape à chaque répétition' : 'Tape à chaque répétition (espace au clavier)')}</span>${c.count === 'motion' ? '<span class="meter"><i id="mtr"></i></span>' : ''}</button>
+             <div class="row"><button class="btn ghost sm" id="fm1">−1</button><button class="btn ghost sm" id="fgu">🏳️ Abandonner</button></div>`}
+      </div>
+      <div class="cd" id="cd"></div>
+    </div>`;
+  run.classList.add('on');
+  document.body.style.overflow = 'hidden';
+  keepAwake(true);
+  const rig = new Rig(c.hero, c.form);
+  $('#fst').appendChild(rig.svg);
+
+  fight.lb = null;
+  let phase = 'intro', t0 = 0, pc = 0, hc = 0, end = null, lastSay = 0, heroDoneSaid = false, tEnd = 0;
+  const say = (txt, ms = 2200) => { const s = $('#fsay'); if(!s) return; s.textContent = txt; s.hidden = false; clearTimeout(say.t); say.t = setTimeout(() => s.hidden = true, ms); };
+  const now = () => performance.now()/1000;
+
+  const stopAnim = animAdd(t => {
+    if(phase === 'intro'){ rig.pose(idlePose(c.ex, t), false, t); return; }
+    const el = phase === 'live' ? now() - t0 : tEnd;
+    if(phase === 'end'){
+      const heroWon = end && end.res === 'lose';
+      rig.pose(heroWon ? victoryPose(t) : end && end.res === 'draw' ? idlePose(c.ex, t) : defeatPose(t), !heroWon, t);
+      return;
+    }
+    // en direct
+    if(hold){
+      const holding = el < plan.hold;
+      rig.pose(holding ? shiftPose(POSES.plankUp, 0, Math.sin(t*2)*1 + (el > plan.hold*.75 ? Math.sin(t*30)*.8 : 0)) : defeatPose(t), holding && el > plan.hold*.5, t);
+      if(!holding && !heroDoneSaid){ heroDoneSaid = true; say(`Je lâche à ${fmtT(plan.hold)}… Tiens bon, tu as gagné si tu tiens encore !`, 3500); beep(300,.3,.2); }
+      $('#pcnt').textContent = fmtT(el);
+      $('#hb').style.width = Math.min(100, el/plan.hold*100) + '%';
+      $('#pb').style.width = Math.min(100, el/plan.hold*100) + '%';
+      $('#ftime').textContent = fmtT(el);
+      if(el - lastSay > 8 && holding){ lastSay = el; say(pick([...hero.q, 'Je peux tenir des heures !', 'Tu trembles déjà ?'])); }
+      return;
+    }
+    const hp = heroPoseAt(c.ex, plan, el, timed ? 0 : N);
+    if(hp.n !== hc){ hc = hp.n; $('#hcnt').textContent = hc; }
+    rig.pose(hp.pose, hp.effort, t);
+    const goalN = timed ? Math.max(hc, pc, 1)*1.15 : N;
+    $('#hb').style.width = Math.min(100, hc/goalN*100) + '%';
+    $('#pb').style.width = Math.min(100, pc/goalN*100) + '%';
+    if(timed){
+      const left = N - el; $('#ftime').textContent = fmtT(Math.max(0, left));
+      if(left <= 3 && Math.ceil(left) !== fight.lb){ fight.lb = Math.ceil(left); beep(660,.08,.18); }
+      if(left <= 0) finishFight(N);
+    } else {
+      $('#ftime').textContent = fmtT(el);
+      if(hc >= N && !heroDoneSaid){ heroDoneSaid = true; say(`Fini en ${fmtT(plan.ends[N-1])} ! Termine quand même 😎`, 3500); beep(300,.3,.2); }
+    }
+    if(el - lastSay > 6 && !heroDoneSaid){ lastSay = el; say(pick(hc > pc + 1 ? AHEAD : pc > hc + 1 ? BEHIND : hero.q)); }
+  });
+  onCleanup(stopAnim);
+
+  function addRep(k = 1){
+    if(phase !== 'live' || hold) return;
+    pc = Math.max(0, pc + k);
+    $('#pcnt').textContent = pc;
+    if(k > 0){ beep(620 + Math.min(pc, 50)*8, .05, .14); buzz(20); }
+    if(!timed && pc >= N) finishFight(now() - t0);
+  }
+  function finishFight(el){
+    if(phase !== 'live') return;
+    phase = 'end'; tEnd = el;
+    let res, you, them;
+    if(hold){ res = el > plan.hold ? 'win' : 'lose'; you = fmtT(el); them = fmtT(plan.hold); }
+    else if(timed){ const hcN = heroCountAt(plan, N); res = pc > hcN ? 'win' : pc === hcN ? 'draw' : 'lose'; you = pc + ' ' + ex.u; them = hcN + ' ' + ex.u; hc = hcN; }
+    else if(pc >= N){ const ht = plan.ends[N-1]; res = el < ht ? 'win' : 'lose'; you = fmtT(el); them = fmtT(ht); }
+    else { res = 'lose'; you = pc + ' / ' + N + ' (abandon)'; them = fmtT(plan.ends[N-1]); }
+    end = {res, you, them, reps: hold ? Math.round(el) : pc, time: el, gaveUp: !hold && !timed && pc < N};
+    if(res === 'win') fanfare(); else if(res === 'lose') beep(200, .5, .2);
+    buzz(res === 'win' ? [80,50,160] : 300);
+    const xp = tour ? 0 : duelReward(c, end);
+    const T = {win:'VICTOIRE !', lose:'DÉFAITE…', draw:'ÉGALITÉ !'}[res];
+    const line = res === 'win' ? pick(['Impossible… tu es plus fort que moi !', 'Bien joué. La prochaine fois, je ne te ferai pas de cadeau.', 'Tu as dépassé tes limites !']) : res === 'lose' ? pick(hold ? ['Déjà ? Je tenais encore facilement !', 'Ton gainage manque de chakra…', 'Reviens quand tu tiendras plus longtemps !'] : ['Reviens quand tu seras prêt !', 'Pas assez rapide ! Entraîne-toi encore.', 'Je suis trop fort pour toi… pour l\'instant.']) : 'On remet ça ?';
+    say(line, 60000);
+    $('#pzone').innerHTML = `
+      <div class="endp">
+        <div class="et manga ${res}">${T}</div>
+        <div class="er"><div><span>${esc(c.player)}</span><b>${esc(you)}</b></div><div><span>${esc(hero.name)}</span><b>${esc(them)}</b></div></div>
+        ${xp ? `<div class="exp manga">+${xp.gain} XP</div>${xp.lvl ? `<div class="lvlup">⬆️ Niveau ${xp.lvl} : ${titleOf(xp.lvl)} !</div>` : ''}${xp.badges.map(b => `<div class="nbg">🏆 ${b.e} ${esc(b.n)}</div>`).join('')}` : ''}
+        <div class="row">${tour ? `<button class="btn" id="eNext">${tour.last ? '🏆 Voir le classement' : '➡️ Joueur suivant'}</button>` : `<button class="btn" id="eRe">🔁 Revanche</button><button class="btn ghost" id="eBack">Changer</button>`}</div>
+      </div>`;
+    if(res === 'win') confetti();
+    if(tour) $('#eNext').onclick = () => tour.next(end);
+    else { $('#eRe').onclick = () => fight(c); $('#eBack').onclick = () => { stopRun(); renderAll(); }; }
+    renderHeader();
+  }
+
+  $('#fx').onclick = () => { stopRun(); renderAll(); };
+  const pz = $('#pz');
+  if(hold) pz.onclick = () => { if(phase === 'live') finishFight(now() - t0); };
+  else {
+    pz.addEventListener('pointerdown', e => { e.preventDefault(); addRep(1); });
+    $('#fm1').onclick = () => addRep(-1);
+    $('#fgu').onclick = () => { if(phase === 'live') finishFight(now() - t0); };
+  }
+  const key = e => { if(e.code === 'Space' && !e.target.closest('input')){ e.preventDefault(); if(hold){ if(phase === 'live') finishFight(now() - t0); } else addRep(1); } };
+  addEventListener('keydown', key); onCleanup(() => removeEventListener('keydown', key));
+
+  countdown($('#cd'), () => {
+    phase = 'live'; t0 = now();
+    if(c.count === 'motion' && !hold){
+      const stopM = startMotion(c.sens || 1, () => addRep(1), dv => { const m = $('#mtr'); if(m) m.style.width = Math.min(100, Math.abs(dv)*25) + '%'; });
+      onCleanup(stopM);
+    }
+  }, `<span class="vsn">${esc(c.player)}</span><span class="vsx">VS</span><span class="vsn" style="color:${hero.c}">${esc(hero.name)}</span>`);
+}
+
+function duelReward(c, end){
+  const ex = EX[c.ex], mult = [.7, 1, 1.6][c.form];
+  const score = ex.hold ? end.time/2 : end.reps*1.5;
+  let gain = Math.round((20 + score)*mult);
+  if(end.res !== 'win') gain = Math.round(gain*.35);
+  if(end.gaveUp) gain = Math.round(end.reps);
+  const before = levelOf(S.xp);
+  S.xp += gain;
+  S.stats[ex.stat] = (S.stats[ex.stat] || 0) + (ex.hold ? Math.round(end.time) : end.reps);
+  if(!S.days.includes(today())) S.days.push(today());
+  S.duels = S.duels || {};
+  const r = S.duels[c.hero] = S.duels[c.hero] || {w:0, l:0, top:-1};
+  if(end.res === 'win'){ r.w++; r.top = Math.max(r.top, c.form); } else if(end.res === 'lose') r.l++;
+  S.duelLog = (S.duelLog || []).concat({h:c.hero, x:c.ex, f:c.form, r:end.res, day:today(), xp:gain}).slice(-200);
+  const badges = checkBadges();
+  save();
+  const after = levelOf(S.xp);
+  return {gain, lvl: after > before ? after : 0, badges};
+}
+
+/* ---- Chacun son tour ---- */
+function tourMode(c){
+  const plan = heroPlan(c.hero, c.form, c.ex, c.goal), res = [];
+  const ex = EX[c.ex], hero = charById(c.hero);
+  const step = i => {
+    if(i >= c.players.length) return tourResults(c, plan, res);
+    stopRun();
+    const run = $('#run');
+    run.style.setProperty('--zc', hero.c);
+    run.innerHTML = `<div class="fight"><div class="ftop"><button class="x" id="fx" aria-label="Quitter">✕</button><div class="ft"><b class="manga">Chacun son tour</b><span>${ex.e} ${esc(ex.n)} · ${esc(goalText(c))}</span></div></div>
+      <div class="turn"><div class="tn manga">Au tour de</div><div class="tp manga">${esc(c.players[i])}</div><p class="muted">Joueur ${i+1} sur ${c.players.length} · passe-lui le téléphone !</p><button class="btn fightbtn manga" id="tgo">Je suis prêt !</button></div></div>`;
+    run.classList.add('on'); document.body.style.overflow = 'hidden';
+    $('#fx').onclick = () => { stopRun(); renderAll(); };
+    $('#tgo').onclick = () => fight({...c, player: c.players[i]}, {plan, last: i === c.players.length-1, next: r => { res.push({name: c.players[i], ...r}); step(i+1); }});
+  };
+  step(0);
+}
+function rankRows(c, plan, rows){
+  const ex = EX[c.ex], timed = !ex.hold && c.goal[0] === 't', N = ex.hold ? 0 : +c.goal.slice(1);
+  const hero = charById(c.hero);
+  const all = rows.map(r => ({name:r.name, score: ex.hold ? r.time : timed ? r.reps : (r.gaveUp ? 1e6 - r.reps : r.time), label: r.you}));
+  all.push({name: hero.name, hero: true, score: ex.hold ? plan.hold : timed ? heroCountAt(plan, N) : plan.ends[N-1],
+    label: ex.hold ? fmtT(plan.hold) : timed ? heroCountAt(plan, N) + ' ' + ex.u : fmtT(plan.ends[N-1])});
+  const desc = ex.hold || timed;
+  all.sort((a,b) => desc ? b.score - a.score : a.score - b.score);
+  return all;
+}
+function tourResults(c, plan, rows){
+  stopRun();
+  const hero = charById(c.hero), all = rankRows(c, plan, rows);
+  S.xp += 15; S.multi = (S.multi || 0) + 1;
+  if(!S.days.includes(today())) S.days.push(today());
+  const badges = checkBadges(); save();
+  const run = $('#run');
+  run.innerHTML = `<div class="fight"><div class="ftop"><button class="x" id="fx" aria-label="Quitter">✕</button><div class="ft"><b class="manga">Classement</b><span>${EX[c.ex].e} ${esc(EX[c.ex].n)} · ${esc(goalText(c))}</span></div></div>
+    <div class="podium">${all.map((r,i) => `<div class="pr ${r.hero ? 'ph' : ''}"><span class="pn manga">${['🥇','🥈','🥉'][i] || (i+1)+'.'}</span><span class="pname">${esc(r.name)}${r.hero ? ' <small>(héros)</small>' : ''}</span><b>${esc(r.label)}</b></div>`).join('')}</div>
+    <p class="muted" style="text-align:center;margin-top:12px">+15 XP pour la partie${badges.map(b => ' · 🏆 '+b.e+' '+esc(b.n)).join('')}</p>
+    <div class="row" style="margin-top:14px"><button class="btn" id="tre">🔁 Rejouer</button><button class="btn ghost" id="tbk">Retour</button></div></div>`;
+  run.classList.add('on');
+  confetti();
+  $('#fx').onclick = $('#tbk').onclick = () => { stopRun(); renderAll(); };
+  $('#tre').onclick = () => tourMode(c);
+  renderHeader();
+}
+
+/* =========================================================
+   FACE À FACE — 2 joueurs sur le même écran (+ le héros)
+   ========================================================= */
+function faceOff(c){
+  stopRun();
+  const ex = EX[c.ex], hero = charById(c.hero), hold = !!ex.hold, timed = !hold && c.goal[0] === 't', N = hold ? 0 : +c.goal.slice(1);
+  const plan = heroPlan(c.hero, c.form, c.ex, c.goal);
+  const P = c.players.map(n => ({name:n, n:0, done:null}));
+  const run = $('#run');
+  run.style.setProperty('--zc', hero.c);
+  const half = i => `
+    <div class="half ${i === 0 ? 'flip' : ''}" id="h${i}">
+      <div class="hhd"><b class="manga">${esc(P[i].name)}</b><span class="manga hcount" id="c${i}">${hold ? '0,0 s' : 0}</span></div>
+      <button class="hz ${hold ? 'drop' : ''}" id="z${i}">${hold ? '😵 JE LÂCHE !' : 'TAPE ICI'}</button>
+      <div class="hmsg manga" id="m${i}"></div>
+    </div>`;
+  run.innerHTML = `
+    <div class="fo">
+      ${half(0)}
+      <div class="mid">
+        <button class="x" id="fx" aria-label="Quitter">✕</button>
+        <div class="mt"><b class="manga" id="ftime">${timed ? N+' s' : '0,0 s'}</b><span>${ex.e} ${esc(ex.n)} · ${esc(goalText(c))}</span></div>
+        <button class="btn ghost sm" id="fend">Terminer</button>
+        ${c.withHero ? `<div class="mh"><div id="mrig"></div><span class="manga" id="hcnt">${hold ? '' : 0}</span></div>` : ''}
+      </div>
+      ${half(1)}
+      <div class="cd" id="cd"></div>
+    </div>`;
+  run.classList.add('on'); document.body.style.overflow = 'hidden'; keepAwake(true);
+  let rig = null;
+  if(c.withHero){ rig = new Rig(c.hero, c.form, {view:'0 0 220 210'}); $('#mrig').appendChild(rig.svg); }
+  let phase = 'intro', t0 = 0, tEnd = 0;
+  const now = () => performance.now()/1000;
+  const heroDone = () => hold ? plan.hold : timed ? null : plan.ends[N-1];
+
+  const stopAnim = animAdd(t => {
+    const el = phase === 'live' ? now() - t0 : tEnd;
+    if(rig){
+      if(phase === 'intro') rig.pose(idlePose(c.ex, t), false, t);
+      else if(hold) rig.pose(el < plan.hold ? shiftPose(POSES.plankUp, 0, Math.sin(t*2)) : defeatPose(t), el > plan.hold*.5 && el < plan.hold, t);
+      else { const hp = heroPoseAt(c.ex, plan, el, timed ? 0 : N); rig.pose(hp.pose, hp.effort, t); $('#hcnt').textContent = hp.n; }
+    }
+    if(phase !== 'live') return;
+    if(timed){ const left = N - el; $('#ftime').textContent = fmtT(Math.max(0,left)); if(left <= 0) endFO(N); }
+    else $('#ftime').textContent = fmtT(el);
+    if(hold) P.forEach((p,i) => { if(p.done === null) $('#c'+i).textContent = fmtT(el); });
+  });
+  onCleanup(stopAnim);
+
+  const tap = i => e => {
+    e.preventDefault();
+    if(phase !== 'live') return;
+    const p = P[i], el = now() - t0;
+    if(p.done !== null) return;
+    if(hold){ p.done = el; $('#c'+i).textContent = fmtT(el); $('#m'+i).textContent = 'Tenu ' + fmtT(el); beep(300,.2,.2); }
+    else {
+      p.n++; $('#c'+i).textContent = p.n; beep(i ? 700 : 520, .05, .14); buzz(15);
+      if(!timed && p.n >= N){ p.done = el; $('#m'+i).textContent = 'Fini en ' + fmtT(el) + ' !'; fanfare(); }
+    }
+    if(P.every(q => q.done !== null)) endFO(el);
+  };
+  [0,1].forEach(i => $('#z'+i).addEventListener('pointerdown', tap(i)));
+  $('#fx').onclick = () => { stopRun(); renderAll(); };
+  $('#fend').onclick = () => endFO(now() - t0);
+
+  function endFO(el){
+    if(phase !== 'live') return;
+    phase = 'end'; tEnd = el;
+    const rows = P.map(p => ({name:p.name, time: p.done ?? el, reps: p.n, gaveUp: !hold && !timed && p.done === null,
+      you: hold ? fmtT(p.done ?? el) : timed ? p.n + ' ' + ex.u : p.done !== null ? fmtT(p.done) : p.n + '/' + N}));
+    let all = rankRows(c, plan, rows);
+    if(!c.withHero) all = all.filter(r => !r.hero);
+    P.forEach((p,i) => {
+      const rk = all.findIndex(r => !r.hero && r.name === p.name && r.label === rows[i].you);
+      $('#m'+i).innerHTML = `${rk === 0 ? '🏆 GAGNÉ !' : (rk+1) + 'e place'}<small>${all.map((r,j) => `${j+1}. ${esc(r.name)} — ${esc(r.label)}`).join('<br>')}</small>`;
+      $('#z'+i).disabled = true;
+    });
+    $('#fend').remove();
+    const mid = run.querySelector('.mid .mt');
+    mid.insertAdjacentHTML('beforeend', `<div class="row" style="margin-top:6px"><button class="btn sm" id="fre">🔁 Revanche</button></div>`);
+    $('#fre').onclick = () => faceOff(c);
+    S.xp += 10; S.multi = (S.multi || 0) + 1; if(!S.days.includes(today())) S.days.push(today());
+    checkBadges(); save(); renderHeader();
+    fanfare(); confetti();
+  }
+
+  countdown($('#cd'), () => { phase = 'live'; t0 = now(); }, `<span class="vsn">${esc(P[0].name)}</span><span class="vsx">VS</span><span class="vsn">${esc(P[1].name)}</span>${c.withHero ? `<span class="vsx">+</span><span class="vsn" style="color:${hero.c}">${esc(hero.name)}</span>` : ''}`);
+}
+
+/* =========================================================
+   HÉROS — galerie + image personnalisée
+   ========================================================= */
+function renderHeroes(){
+  const box = $('#chars');
+  box.innerHTML = '';
+  CHARS.forEach(h => {
+    const L = LOOK[h.id], rec = (S.duels || {})[h.id];
+    const card = document.createElement('div');
+    card.className = 'cc'; card.setAttribute('aria-pressed', h.id === S.char);
+    const fig = document.createElement('div'); fig.className = 'ccfig'; fig.style.setProperty('--c', h.c);
+    const rig = new Rig(h.id, 0); rig.pose(POSES.stand); fig.appendChild(rig.svg);
+    card.appendChild(fig);
+    card.insertAdjacentHTML('beforeend', `
+      <span class="n">${esc(h.name)}</span>
+      <span class="s">${esc(h.from)}</span>
+      <span class="b">Coach : +25 % XP · ${esc(zoneById(h.zone).name)}</span>
+      ${rec ? `<span class="s">⚔️ ${rec.w} victoire(s) · ${rec.l} défaite(s)</span>` : ''}
+      <div class="row" style="gap:6px">
+        <button class="btn sm" data-duel="${h.id}">⚔️ Défier</button>
+        <button class="btn ghost sm" data-coach="${h.id}">${h.id === S.char ? '✓ Coach' : 'Coach'}</button>
+        <button class="btn ghost sm" data-img="${h.id}" aria-label="Image de ${esc(h.name)}">📷</button>
+      </div>`);
+    box.appendChild(card);
+    // petite animation au survol / toucher
+    let stop = null;
+    fig.onpointerenter = () => { if(stop) return; const t0 = performance.now()/1000; stop = animAdd(t => { const tt = t - t0; if(tt > 2.4 || !document.body.contains(fig)){ rig.pose(POSES.stand); stop(); stop = null; return; } rig.pose(victoryPose(tt), false, tt); }); };
+  });
+  box.querySelectorAll('[data-coach]').forEach(b => b.onclick = () => {
+    S.char = b.dataset.coach; save(); renderAll();
+    const c = charById(S.char); toast(`${c.name} : « ${pick(c.q)} »`);
+  });
+  box.querySelectorAll('[data-duel]').forEach(b => b.onclick = () => { dcfg().hero = b.dataset.duel; save(); go('duel'); });
+  box.querySelectorAll('[data-img]').forEach(b => b.onclick = () => imageSheet(b.dataset.img));
+}
+function imageSheet(id){
+  const h = charById(id), cur = S.img && S.img[id];
+  $('#sheet').innerHTML = `
+    <div class="sheet-hd"><div><div class="zt" style="color:${h.c}">Image de ${esc(h.name)}</div>
+    <p>Choisis une photo de ton téléphone ou colle le lien d'une image. Elle devient la tête du héros animé et son portrait partout dans le jeu. Elle reste sur ton appareil.</p></div>
+    <button class="x" data-close aria-label="Fermer">✕</button></div>
+    ${cur ? `<div style="text-align:center;margin-bottom:12px"><img src="${esc(cur)}" alt="" style="width:110px;height:110px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 3px ${h.c}"></div>` : ''}
+    <label class="btn" style="width:100%;margin-bottom:10px">🖼️ Choisir une image<input type="file" accept="image/*" id="imgFile" hidden></label>
+    <div class="field"><input id="imgUrl" type="url" placeholder="https://… lien d'une image" aria-label="Lien d'image"><button class="btn sm" id="imgOk">OK</button></div>
+    ${cur ? `<button class="btn ghost sm" id="imgDel" style="margin-top:12px">Retirer l'image</button>` : ''}`;
+  openSheet();
+  $('#sheet').querySelector('[data-close]').onclick = closeSheet;
+  const setImg = src => { S.img = S.img || {}; S.img[id] = src; save(); closeSheet(); renderAll(); toast('Image enregistrée pour ' + h.name); };
+  $('#imgFile').onchange = e => {
+    const f = e.target.files[0]; if(!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const cv = document.createElement('canvas'), sz = 256; cv.width = cv.height = sz;
+        const s = Math.min(im.width, im.height);
+        cv.getContext('2d').drawImage(im, (im.width-s)/2, (im.height-s)/2, s, s, 0, 0, sz, sz);
+        setImg(cv.toDataURL('image/jpeg', .85));
+      };
+      im.onerror = () => toast('Image illisible');
+      im.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+  };
+  $('#imgOk').onclick = () => {
+    const u = $('#imgUrl').value.trim();
+    if(!/^https?:\/\//i.test(u)){ toast('Colle un lien qui commence par https://'); return; }
+    const im = new Image();
+    im.onload = () => setImg(u);
+    im.onerror = () => toast('Impossible de charger cette image');
+    im.src = u;
+  };
+  if($('#imgDel')) $('#imgDel').onclick = () => { delete S.img[id]; save(); closeSheet(); renderAll(); };
+}
+
+/* Trophées du mode duel */
+BADGES.push(
+  {id:'duel1', e:'⚔️', n:'Premier K.O.',       d:'Battre un héros en duel',                ok:() => Object.values(S.duels || {}).some(r => r.w)},
+  {id:'duel5', e:'🗡️', n:'Chasseur de héros',  d:'Battre 5 héros différents',               ok:() => Object.values(S.duels || {}).filter(r => r.w).length >= 5},
+  {id:'duelA', e:'👑', n:'Plus fort que tous', d:'Battre les 18 héros',                     ok:() => Object.values(S.duels || {}).filter(r => r.w).length >= CHARS.length},
+  {id:'duelX', e:'💀', n:'Au-delà des limites', d:'Battre un héros à son niveau maximum',   ok:() => Object.values(S.duels || {}).some(r => r.top >= 2)},
+  {id:'multi', e:'👥', n:'Entre potes',         d:'Jouer une partie à plusieurs',           ok:() => (S.multi || 0) >= 1},
+);
+
+
 addEventListener('keydown', e => { if(e.key === 'Escape'){ if($('#run').classList.contains('on')){ stopRun(); renderAll(); } else closeSheet(); } });
 
 renderAll();
-if(!S.name) setTimeout(() => toast('Bienvenue ! Choisis ton coach puis lance un défi sur la carte 🗺️'), 400);
+if(!S.name) setTimeout(() => toast('Bienvenue ! Choisis un héros, un exercice, et lance le combat ⚔️'), 400);
 </script>
 </body>
 </html>
