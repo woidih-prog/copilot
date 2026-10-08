@@ -18,6 +18,35 @@
    ===================================================================== */
 (function(){
 
+/* =====================================================================
+   0. LE SPARRING S'APPELLE DÉSORMAIS « ROLEPLAY »
+   On renomme tout ce qui s'affiche, y compris les messages créés plus tard.
+   Les noms internes et les clés de stockage ne bougent pas : tes quotas,
+   ton historique et ton fichier acces.json continuent de marcher.
+   ===================================================================== */
+const renomme = t => t
+  .replace(/\bSPARRINGS?\b/g, m => m.length > 8 ? "ROLEPLAYS" : "ROLEPLAY")
+  .replace(/\bSparrings\b/g, "Roleplays").replace(/\bsparrings\b/g, "roleplays")
+  .replace(/\bSparring\b/g, "Roleplay").replace(/\bsparring\b/g, "roleplay");
+function renommeNoeud(n){
+  if(n.nodeType === 3){
+    const p = n.parentNode;
+    if(p && /^(SCRIPT|STYLE|TEXTAREA)$/.test(p.nodeName)) return;
+    if(/sparring/i.test(n.nodeValue)){ const v = renomme(n.nodeValue); if(v !== n.nodeValue) n.nodeValue = v; }
+    return;
+  }
+  if(n.nodeType === 1){
+    if(/^(SCRIPT|STYLE|TEXTAREA)$/.test(n.nodeName)) return;
+    if(n.placeholder && /sparring/i.test(n.placeholder)) n.placeholder = renomme(n.placeholder);
+    n.childNodes.forEach(renommeNoeud);
+  }
+}
+renommeNoeud(document.body);
+new MutationObserver(ms => ms.forEach(m => {
+  if(m.type === "characterData") renommeNoeud(m.target);
+  else m.addedNodes.forEach(renommeNoeud);
+})).observe(document.body, {childList:true, subtree:true, characterData:true});
+
 const esc = s => escapeHTML(s);
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 const CLE_PRONOS = "calib_pronostics";
@@ -168,7 +197,9 @@ Réponds uniquement avec ce JSON, sans markdown :
  "moment":"a quel moment precis la dire",
  "numero":le numero de la fiche dont tu es parti ou null,
  "methode":"pourquoi cette fiche repond a sa faute, ou, si aucune ne convient, ce qui manque dans sa base",
- "exercice":"un exercice concret pour la prochaine fois, une phrase"}`;
+ "exercice":"l exercice prioritaire pour la prochaine fois, une phrase",
+ "exercices":[{"titre":"nom court","consigne":"ce qu il fait exactement, seul a voix haute ou en roleplay, avec quel moment du call travailler","repetitions":"combien de fois, ou combien de sessions","reussi_si":"a quoi il reconnait que c est acquis, concretement"}]}
+Donne exactement trois exercices, tous tournes vers SA faute principale et LA chose a corriger. Du plus simple au plus exigeant. Pas d exercice generique : chacun doit pouvoir se faire des demain.`;
 }
 
 function htmlCouches(p){
@@ -201,7 +232,14 @@ function htmlMethode(m){
           : `<p style="font-size:12px;color:var(--clay);margin-top:9px">Formulation du coach : aucune fiche de ta méthode ne couvre ce moment.</p>`}`
       : `<p style="color:var(--muted)">Aucune phrase proposée.</p>`}
     ${m.methode ? `<p style="margin-top:12px;font-size:14px">${esc(m.methode)}</p>` : ""}
-    ${m.exercice ? `<p style="margin-top:12px"><strong>Exercice pour la prochaine fois</strong><br>${esc(m.exercice)}</p>` : ""}
+    ${(m.exercices||[]).length ? `<p style="margin-top:14px"><strong>Tes exercices pour retravailler ça</strong></p>
+      ${m.exercices.map((x,i) => `<div style="border-left:2px solid var(--steel);padding-left:12px;margin-top:10px">
+        <div style="font-weight:600">${i+1}. ${esc(x.titre||"")}</div>
+        <p style="font-size:13.5px;margin-top:3px">${esc(x.consigne||"")}</p>
+        ${x.repetitions ? `<p style="font-size:12.5px;color:var(--muted);margin-top:3px">Combien : ${esc(x.repetitions)}</p>` : ""}
+        ${x.reussi_si ? `<p style="font-size:12.5px;color:var(--sage);margin-top:3px">Réussi si : ${esc(x.reussi_si)}</p>` : ""}
+      </div>`).join("")}`
+      : (m.exercice ? `<p style="margin-top:12px"><strong>Exercice pour la prochaine fois</strong><br>${esc(m.exercice)}</p>` : "")}
   </div>`;
 }
 
@@ -264,10 +302,14 @@ function rendDebriefSpar(j, m){
       <p id="calibSparEtat" style="font-size:13px;margin-top:10px"></p>
     </div>
     <div class="row">
+      <button class="pill" id="btnEcouteDebrief" style="border-color:var(--amber);color:var(--amber)">Écouter le débrief</button>
+      <button class="pill" id="btnPdfDebrief">Télécharger en PDF</button>
       <button class="pill" id="btnRejouerMeme" style="border-color:var(--amber);color:var(--amber)">Refaire le même exercice</button>
       <button class="pill" id="btnAutreProspect">Changer de réglages</button>
     </div>`;
 
+  $("btnEcouteDebrief").onclick = () => ecouteDebrief();
+  $("btnPdfDebrief").onclick = () => pdfDebrief();
   $("btnRejouerMeme").onclick = () => {
     $("sparDebrief").innerHTML = "";
     $("sparSetup").style.display = "none"; $("sparJeu").style.display = "block";
@@ -331,7 +373,9 @@ function branchCalibSpar(){
 }
 
 $("btnSparFin").onclick = async () => {
-  if(!SPAR) return;
+  if(!SPAR || DEBRIEF_EN_COURS) return;
+  DEBRIEF_EN_COURS = true;
+  boutonFinAppuye(true);
   arreteSparMicro(); coupeAudio();
   phase("terminé", "var(--line)", false);
   $("sparDebrief").innerHTML = '<div class="block"><p style="color:var(--muted)">Le coach relit ton exercice…</p></div>';
@@ -341,12 +385,14 @@ $("btnSparFin").onclick = async () => {
   try{
     j = await appelJson(promptDebrief1(), 2800, REQUIS_SPAR);
   }catch(e){
+    DEBRIEF_EN_COURS = false; boutonFinAppuye(false);
     $("sparDebrief").innerHTML = '<div class="block"><p style="color:var(--clay)">Débrief impossible : ' + esc(e.message) +
       '</p><button class="pill" id="btnReDebrief" style="margin-top:10px">Réessayer</button></div>';
     $("btnReDebrief").onclick = () => $("btnSparFin").click();
     return;
   }
   SPAR.dernierDebrief = j;
+  SPAR.dernierMethode = null;
   $("sparJeu").style.display = "none";
   rendDebriefSpar(j, null);
   $("spar").scrollTop = 0;
@@ -354,7 +400,7 @@ $("btnSparFin").onclick = async () => {
   const note = num(j.note);
   HISTO = HISTO.filter(h => h.id !== SPAR.debut);
   HISTO.push({id:SPAR.debut, date:new Date().toISOString().slice(0,10),
-              prospect:"Sparring · " + segmentCourant().nom + " · " + SPAR.p.prenom,
+              prospect:"Roleplay · " + segmentCourant().nom + " · " + SPAR.p.prenom,
               duree:Math.round((Date.now() - SPAR.debut)/60000),
               resultat: j.trouve === true ? "relance" : j.trouve === false ? "perdu" : "inconnu",
               sparring:true, note,
@@ -367,15 +413,182 @@ $("btnSparFin").onclick = async () => {
   let m;
   try{
     const fiches = fichesPour([].concat(j.recherches || [], j.faute, j.une_chose), 8, segmentCourant().terrain);
-    const r = await appelJson(promptDebrief2(j, fiches), 1200, ["exercice"]);
+    const r = await appelJson(promptDebrief2(j, fiches), 1800, ["exercice","exercices"]);
     m = Object.assign({}, r, {fiche: ficheParNumero(fiches, r.numero)});
   }catch(e){ m = {erreur: e.message}; }
+  DEBRIEF_EN_COURS = false; boutonFinAppuye(false);
   if(SPAR && SPAR.dernierDebrief === j){
+    SPAR.dernierMethode = m;
     const box = document.querySelector("#sparDebrief");
     const blocs = box ? [...box.querySelectorAll(".block")] : [];
     const cible = blocs.find(b => /Dans ta méthode|Ce qu'il fallait dire/.test(b.textContent));
     if(cible){ const d = document.createElement("div"); d.innerHTML = htmlMethode(m); cible.replaceWith(d.firstElementChild); }
+    // en mains libres, le coach te lit le débrief tout seul
+    if(sparCanal === "vocal") ecouteDebrief();
   }
+};
+
+/* ---- le débrief à voix haute ---- */
+let DEBRIEF_EN_COURS = false, LECTURE_DEBRIEF = false;
+function texteDebriefVocal(){
+  const j = SPAR.dernierDebrief || {}, m = SPAR.dernierMethode || {};
+  const b = [];
+  if(j.lecture) b.push("Alors. " + j.lecture);
+  if(num(j.note) !== null) b.push("Je te mets " + num(j.note) + " sur 10.");
+  if(j.trouve === true) b.push("Tu as trouvé son vrai blocage.");
+  if(j.trouve === false) b.push("Tu es passé à côté de son vrai blocage. C'était : " + (SPAR.p.vrai || "") + ".");
+  if(j.fort) b.push("Ce qui était bon : " + j.fort);
+  if(j.faute) b.push("Ta faute principale : " + j.faute);
+  if(j.bascule) b.push("Là où ça a basculé : " + j.bascule);
+  if(m.aurait_du) b.push("Ce qu'il fallait dire : " + m.aurait_du);
+  if(j.une_chose) b.push("La seule chose à corriger la prochaine fois : " + j.une_chose);
+  if((m.exercices||[]).length){
+    b.push("Tes exercices.");
+    m.exercices.forEach((x,i) => b.push((i+1) + ". " + (x.titre||"") + ". " + (x.consigne||"") + (x.repetitions ? " " + x.repetitions + "." : "")));
+  }
+  return b.join(" ");
+}
+function ecouteDebrief(){
+  const btn = $("btnEcouteDebrief");
+  if(LECTURE_DEBRIEF){ coupeAudio(); LECTURE_DEBRIEF = false; if(btn) btn.textContent = "Écouter le débrief"; return; }
+  if(!SPAR || !SPAR.dernierDebrief) return;
+  debloqueSon();
+  LECTURE_DEBRIEF = true; if(btn) btn.textContent = "Arrêter la lecture";
+  const avant = VOIX_TOUJOURS; VOIX_TOUJOURS = true;
+  faisParlerCoach(texteDebriefVocal(), () => {
+    VOIX_TOUJOURS = avant; LECTURE_DEBRIEF = false;
+    const b2 = $("btnEcouteDebrief"); if(b2) b2.textContent = "Écouter le débrief";
+    phase("terminé", "var(--line)", false);
+  });
+}
+
+/* ---- le débrief en PDF, avec les exercices ---- */
+function pdfDebrief(){
+  if(!SPAR || !SPAR.dernierDebrief) return;
+  const j = SPAR.dernierDebrief, m = SPAR.dernierMethode || {}, p = SPAR.p;
+  const d = new Date().toLocaleDateString("fr-FR");
+  const bloc = (t, c) => c ? `<h2>${t}</h2>${c}` : "";
+  const para = t => t ? `<p>${esc(t)}</p>` : "";
+  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Débrief roleplay ${esc(d)}</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#1d1d1d;margin:32px;line-height:1.5;font-size:12.5pt}
+    h1{font-size:20pt;margin:0 0 4px} .meta{color:#666;font-size:10.5pt;margin-bottom:18px}
+    h2{font-size:12pt;text-transform:uppercase;letter-spacing:.08em;color:#a8671b;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:22px}
+    .note{font-size:28pt;font-weight:bold} .cite{font-style:italic} .ok{color:#2e7d4f} .ko{color:#b23a26}
+    .ex{border-left:3px solid #4a7fa5;padding-left:10px;margin:10px 0;page-break-inside:avoid}
+    .case{display:inline-block;width:12px;height:12px;border:1px solid #333;margin-right:6px;vertical-align:middle}
+  </style></head><body>
+  <h1>Débrief roleplay — ${esc(segmentCourant().nom)}</h1>
+  <div class="meta">${esc(d)} · Prospect : ${esc(p.prenom||"")}${p.metier ? ", " + esc(p.metier) : ""} · Coach : ${esc(manniereDuCoach().nom)}</div>
+  <div class="note">${num(j.note) === null ? "—" : num(j.note) + "/10"}</div>
+  ${bloc("Ce que le coach a vu", para(j.lecture) + (j.bascule ? `<p><b>Là où ça a basculé :</b> ${esc(j.bascule)}</p>` : "") + para(j.mecanique))}
+  ${bloc("Son vrai blocage", para(p.vrai) + `<p class="${j.trouve===true?"ok":"ko"}">${j.trouve===true?"Trouvé.":j.trouve===false?"Pas trouvé.":"Non tranché."}</p>` + para(j.quand))}
+  ${bloc("Les moments qui ont compté", (j.moments||[]).map((x,i) => `<p><b>${i+1}. ${esc(x.quand||"")}</b><br>Il t'offrait : ${esc(x.offert||"")}<br>Tu en as fait : ${esc(x.fait||"")}<br>Ça t'a coûté : ${esc(x.coute||"")}</p>`).join(""))}
+  ${bloc("Les critères", (j.criteres||[]).map(c => `<p><span class="${c.ok?"ok":"ko"}">${c.ok?"✓":"✕"}</span> ${esc(c.c)}<br><small>${esc(c.note)}</small></p>`).join(""))}
+  ${bloc("Ce qui était bon", para(j.fort))}
+  ${bloc("Ta faute principale", para(j.faute))}
+  ${bloc("Ce qu'il fallait dire", m.aurait_du ? `<p class="cite">« ${esc(m.aurait_du)} »</p>${para(m.moment)}${m.fiche ? `<p><small>D'après ${esc(m.fiche.ecole||"ta base")} — « ${esc(m.fiche.phrase)} »</small></p>` : ""}${para(m.methode)}` : "")}
+  ${bloc("La seule chose à corriger", para(j.une_chose))}
+  ${bloc("Tes exercices", (m.exercices||[]).length
+      ? m.exercices.map((x,i) => `<div class="ex"><b>${i+1}. ${esc(x.titre||"")}</b><p>${esc(x.consigne||"")}</p>${x.repetitions ? `<p><small>Combien : ${esc(x.repetitions)}</small></p>` : ""}${x.reussi_si ? `<p><small>Réussi si : ${esc(x.reussi_si)}</small></p>` : ""}<p><span class="case"></span>fait&nbsp;&nbsp;<span class="case"></span>refait&nbsp;&nbsp;<span class="case"></span>acquis</p></div>`).join("")
+      : para(m.exercice))}
+  </body></html>`;
+  const f = document.createElement("iframe");
+  f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+  document.body.appendChild(f);
+  f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
+  setTimeout(() => {
+    try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){ toast("Impression bloquée par le navigateur"); }
+    setTimeout(() => f.remove(), 60000);
+  }, 300);
+  toast("Choisis « Enregistrer au format PDF » comme imprimante");
+}
+
+/* ---- le bouton « Terminer et débriefer » : toujours visible, et il reste appuyé ---- */
+(function(){
+  const st = document.createElement("style");
+  st.textContent = `
+    #btnSparFin{position:fixed;right:18px;bottom:18px;z-index:65;background:var(--amber);color:#0E1216;
+      border-color:var(--amber);font-weight:700;padding:12px 20px;box-shadow:0 8px 24px -8px rgba(0,0,0,.6)}
+    #btnSparFin:hover{color:#0E1216;filter:brightness(1.08)}
+    #btnSparFin.appuye{background:#8a5f22;border-color:#8a5f22;color:var(--ink);transform:translateY(2px);
+      box-shadow:inset 0 2px 6px rgba(0,0,0,.5);cursor:wait}
+    #coachCarte{box-shadow:0 0 0 1px rgba(217,85,63,.35)}`;
+  document.head.appendChild(st);
+})();
+function boutonFinAppuye(oui){
+  const b = $("btnSparFin"); if(!b) return;
+  b.classList.toggle("appuye", oui);
+  b.disabled = oui;
+  b.textContent = oui ? "Débrief en cours…" : "Terminer et débriefer";
+}
+
+/* =====================================================================
+   LE PERSONNAGE DICTÉ, ET LE PASSAGE DU MICRO
+   La dictée du personnage ne s'arrêtait jamais toute seule : elle se
+   relançait en boucle pendant le roleplay. Chrome n'accepte qu'une seule
+   écoute à la fois, donc la dictée et le micro du roleplay se volaient
+   le micro. Désormais, au lancement, toute dictée s'arrête et c'est le
+   micro du roleplay qui prend la main.
+   La description dictée est aussi rendue prioritaire sur les réglages
+   (profil, couleur, température) et rappelée au prospect à chaque tour.
+   ===================================================================== */
+function coupeDictees(){
+  ["btnDescMicro","btnCtxMicro"].forEach(id => {
+    const b = $(id);
+    if(b && b._rec){ const r = b._rec; b._rec = null; r.onend = null; try{ r.stop(); }catch(e){} b.textContent = "Dicter"; }
+  });
+}
+
+let DESC_SPAR = "";
+const callClaudeOrigine = callClaude;
+callClaude = function(prompt, max){
+  if(typeof prompt === "string"){
+    if(DESC_SPAR && /^Fabrique un prospect francophone/.test(prompt)){
+      prompt = `LE CLOSER A DÉCRIT LUI-MÊME LE PERSONNAGE QU'IL VEUT AFFRONTER. C'EST TA CONSIGNE PRINCIPALE :
+« ${DESC_SPAR} »
+Reprends EXACTEMENT ce qu'il a donné : prénom, âge, métier, situation, chiffres, entourage, et son blocage s'il l'a dit. N'invente que ce qu'il n'a pas précisé, et de façon cohérente avec sa description.
+Si les réglages plus bas (profil, couleur, température) contredisent sa description, c'est SA DESCRIPTION qui gagne.
+
+` + prompt;
+    } else if(SPAR && SPAR.description && /^Tu joues un prospect dans un entraînement/.test(prompt)){
+      prompt = prompt.replace("QUI TU ES", `CE QUE LE CLOSER A DÉCRIT DE TOI — tu le respectes à chaque réplique : « ${SPAR.description} »\n\nQUI TU ES`);
+    }
+  }
+  return callClaudeOrigine(prompt, max);
+};
+
+const lancerOrigine = $("btnSparGo").onclick;
+$("btnSparGo").onclick = async function(){
+  DESC_SPAR = (typeof sparSource !== "undefined" && sparSource === "reel") ? "" : ($("sparDesc").value || "").trim();
+  coupeDictees();                                   // la dictée rend le micro au roleplay
+  const ancien = SPAR;
+  const r = await lancerOrigine.apply(this, arguments);
+  if(SPAR && SPAR !== ancien && DESC_SPAR){
+    SPAR.description = DESC_SPAR;
+    const inf = $("sparInfo");
+    if(inf && !inf.textContent) inf.innerHTML = '<span style="color:var(--sage)">Personnage créé d\'après ta description.</span>';
+  }
+  boutonFinAppuye(false);
+  return r;
+};
+
+/* ---- le coach passe en premier ----
+   Quand il t'arrête, sa carte passe au-dessus du prospect et reste affichée
+   après qu'il a parlé, pour que tu puisses la relire en reprenant. */
+(function(){
+  const c = $("coachCarte"), p = $("sparCarte");
+  if(c && p && p.parentNode) p.parentNode.insertBefore(c, p);
+})();
+const coachParleOrigine = faisParlerCoach;
+faisParlerCoach = function(txt, apres){
+  const carte = $("coachCarte");
+  const visible = carte && carte.style.display === "block" && SPAR && $("sparJeu").style.display !== "none";
+  if(visible) carte.scrollIntoView({block:"start", behavior:"smooth"});
+  return coachParleOrigine(txt, function(){
+    if(apres) apres();
+    if(visible) carte.style.display = "block";      // il reste lisible jusqu'à ta prochaine réponse
+  });
 };
 
 /* =====================================================================
