@@ -591,80 +591,334 @@ faisParlerCoach = function(txt, apres){
   });
 };
 
+
 /* =====================================================================
-   1B. « LE COACH LIT MON CALL » — même principe, + pronostic à l'aveugle
+   1B. « LE COACH LIT MON CALL » — PHASE PAR PHASE
+   L'ancienne lecture demandait tout en un seul appel : « les moments
+   décisifs » et « la phrase qui a fait basculer ». Le coach ne regardait
+   donc que la fin du call. Désormais :
+     1. il découpe le call selon la trame ;
+     2. il juge chaque phase avec ses propres critères (B2C ou B2B),
+        en deux appels parallèles : la découverte, puis la fin du call ;
+     3. il fait la synthèse, remonte à la cause, va chercher dans ta
+        méthode ce qu'il fallait dire, et te donne des exercices ;
+     4. le pronostic à l'aveugle est un appel séparé, qui n'oriente plus
+        la lecture.
    ===================================================================== */
-const REQUIS_LECTURE = ["pronostic","note","verdict","moments","exercice"];
 const contexteRevele = t => /sign|vendu|perdu|relance|ne r[ée]pond plus|a pay[ée]|n'?a pas pris|ghost/i.test(t || "");
 const hashTxt = t => { let h = 0; for(let i = 0; i < t.length; i++){ h = (h*31 + t.charCodeAt(i)) | 0; } return String(h); };
+async function pronostics(){ const l = await Store.get(CLE_PRONOS); return Array.isArray(l) ? l : []; }
 
-function promptLecture1(tours, nom, ctx, marche){
-  const terrainEcoles = Object.entries(ECOLES)
-    .filter(([k,v]) => !["moi","sami"].includes(k) && (!v.marches || v.marches.includes(marche)))
-    .map(([k,v]) => v.nom + " sur " + (v.terrains||[]).join(" et ")).join(" · ");
-  return `Tu es un coach de closing. Tu viens de lire l'enregistrement d'un vrai call de ton élève, et tu lui rends la copie.
+/* Les phases d'un call. Les critères viennent des moments du roleplay,
+   pour qu'on soit jugé de la même façon en vrai et à l'entraînement. */
+function critSeg(k, marche){
+  const v = (marche === "b2b" && SEGMENTS_B2B[k]) ? Object.assign({}, SEGMENTS[k], SEGMENTS_B2B[k]) : SEGMENTS[k];
+  return (v && v.criteres) ? v.criteres.slice() : [];
+}
+function phasesDuMarche(marche){
+  const b2b = marche === "b2b";
+  const l = [
+    {k:"ouverture",  nom:"Ouverture et cadrage", groupe:"debut", seg:"ouverture", terrain:"cadrage",    crit:critSeg("ouverture", marche)},
+    {k:"situation",  nom:"État des lieux",       groupe:"debut", seg:"situation", terrain:"decouverte", crit:critSeg("situation", marche)},
+    {k:"douleur",    nom: b2b ? "Impact et enjeu personnel" : "Douleur", groupe:"debut", seg:"douleur", terrain:"decouverte", crit:critSeg("douleur", marche)},
+    {k:"cout",       nom:"Coût de l'inaction",   groupe:"debut", seg:"cout",      terrain:"decouverte", crit:critSeg("cout", marche)}
+  ];
+  if(b2b) l.push({k:"circuit", nom:"Déclencheur, circuit de décision et budget", groupe:"debut", seg:"transition", terrain:"decouverte", crit:[
+    "A-t-il trouvé le déclencheur : pourquoi maintenant et pas dans six mois ?",
+    "A-t-il fait raconter comment une décision comme celle-là s'est déjà prise chez eux ?",
+    "A-t-il identifié qui peut freiner, pas seulement qui signe ?",
+    "A-t-il su comment un budget se débloque, sur quelle enveloppe et quel calendrier ?",
+    "A-t-il cherché ce qui pourrait faire capoter le dossier en interne ?"]});
+  l.push(
+    {k:"vision",       nom: b2b ? "Résultat attendu" : "Vision et objectif", groupe:"debut", seg:"vision", terrain:"decouverte", crit:critSeg("vision", marche)},
+    {k:"transition",   nom:"Bascule vers le pitch", groupe:"fin", seg:"transition", terrain:"decouverte", crit:critSeg("transition", marche)},
+    {k:"presentation", nom:"Présentation et prix",  groupe:"fin", seg:"transition", terrain:"closing", crit:[
+      "La présentation reprenait-elle les mots et les chiffres du prospect ?",
+      "A-t-il présenté seulement ce qui répond à son problème, pas tout le catalogue ?",
+      "A-t-il demandé son avis avant d'annoncer le prix ?",
+      "Le prix a-t-il été annoncé sec, sans justification, puis suivi d'un silence ?"]
+      .concat(b2b ? ["A-t-il relié la solution aux indicateurs que le prospect avait donnés ?"] : [])},
+    {k:"objection",    nom:"Objections",            groupe:"fin", seg:"objection", terrain:"objection", crit:critSeg("objection", marche)},
+    {k:"closing",      nom:"Closing et paiement",   groupe:"fin", seg:"closing",   terrain:"closing",   crit:critSeg("closing", marche).concat(critSeg("paiement", marche).slice(0,2))}
+  );
+  return l;
+}
 
-${manniereDuCoach().ton}
+/* La manière du coach selon la phase et le marché */
+function maniereFor(terrain, marche){
+  const e = Object.entries(ECOLES).find(([k,v]) =>
+    (v.terrains||[]).includes(terrain) && (!v.marches || v.marches.includes(marche)) && !["moi","sami"].includes(k) && MANIERE_COACH[k]);
+  return e ? MANIERE_COACH[e[0]] : {nom:"Coach", ton:"Tu reprends de façon directe et concrète, sans faire de leçon. Tu tutoies."};
+}
+
+/* Les fiches qui conviennent au marché du call */
+function fichesMarche(requetes, n, marche){
+  const vues = new Set(), out = [];
+  const okMarche = f => { const e = ECOLES[f.ecole]; return !e || !e.marches || e.marches.includes(marche); };
+  (requetes || []).filter(Boolean).forEach(q => {
+    chercheFiches(String(q), {n:8, dicible:true}).filter(okMarche).slice(0, 4).forEach(f => {
+      const k = ficheCle(f);
+      if(!vues.has(k) && out.length < (n || 14)){ vues.add(k); out.push(f); }
+    });
+  });
+  return out;
+}
+
+const texteCall = (tours, nom) => tours.map((t,i) => `[${i+1}] ${t.moi ? "CLOSER" : nom.toUpperCase()} : ${t.text}`).join("\n");
+const consigneMarche = m => m === "b2b"
+  ? `MARCHÉ : B2B. Ton élève dit lui-même qu'il perd ses calls B2B. Sois particulièrement exigeant sur ce qui fait la différence en B2B :
+${CONSIGNE_B2B}
+Ne lui reproche jamais de ne pas avoir cherché l'émotion : en B2B, ça fait fuir un professionnel.`
+  : "MARCHÉ : B2C haut de gamme, le prospect décide pour lui.";
+
+/* ---- Passage 1 : découper le call ---- */
+function promptDecoupage(tours, nom, phases){
+  return `Tu es coach de closing. Avant de juger quoi que ce soit, tu découpes un vrai call en phases, comme quand on réécoute un enregistrement.
+
+LES PHASES POSSIBLES, dans l'ordre habituel :
+${phases.map(p => `- ${p.k} : ${p.nom}`).join("\n")}
+
+Un call réel ne suit pas toujours cet ordre : une phase peut être absente, survolée, revenir plus tard. Une phase absente est une information importante : signale-la, ne l'invente pas.
+
+LE CALL
+${texteCall(tours, nom)}
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"phases":[{"phase":"code de la phase","present":true ou false,"debut":numero de replique ou null,"fin":numero de replique ou null,"resume":"ce qui s y passe, une phrase, ou pourquoi elle manque"}]}
+Donne TOUTES les phases de la liste, dans l'ordre, présentes ou non.`;
+}
+
+/* ---- Passage 2 : juger chaque phase ---- */
+function promptPhases(tours, nom, ctx, marche, groupe, decoupage){
+  const coach = maniereFor(groupe[0].terrain, marche);
+  const reperes = decoupage
+    ? groupe.map(p => { const d = decoupage.find(x => x.phase === p.k) || {};
+        return `- ${p.nom} : ${d.present === false ? "ABSENTE d'après le découpage" : "répliques " + (d.debut||"?") + " à " + (d.fin||"?")}${d.resume ? " — " + d.resume : ""}`; }).join("\n")
+    : "Découpage indisponible : repère toi-même les répliques de chaque phase.";
+  return `Tu es ${coach.nom}, coach de closing. Tu réécoutes un vrai call de ton élève, phase par phase.
+
+${coach.ton}
 
 ${ctx ? "CE QU'IL T'A DIT SUR CE CALL :\n" + ctx : ""}
 
-TU NE CONNAIS PAS L'ISSUE DE CE CALL, ET C'EST VOULU.
-Avant tout, tu fais ton pronostic à partir de ce que tu lis : a-t-il signé, est-il parti en relance, ou l'a-t-il perdu ? On compare ensuite avec la réalité pour mesurer si ton jugement est fiable. Ne te réfugie pas dans « relance » par prudence : tranche selon les indices, et cite-les.
+${consigneMarche(marche)}
 
-MARCHÉ : ${marche === "b2b" ? "B2B — ne lui reproche jamais de ne pas avoir cherché l'émotion. Ce qu'on attend : chiffres, propagation aux autres équipes, circuit de décision, déclencheur, enjeu personnel abordé par le côté." : "B2C haut de gamme."}
-MÉTHODES DE RÉFÉRENCE : ${terrainEcoles}
+LE CALL ENTIER — pour le contexte. Tu ne juges que les phases demandées plus bas.
+${texteCall(tours, nom)}
 
-TU N'AS PAS SA MÉTHODE SOUS LES YEUX, C'EST VOULU. Tu lis le call d'abord. Les phrases à dire viendront ensuite, tirées de sa méthode.
+OÙ SE TROUVENT LES PHASES À JUGER :
+${reperes}
 
-LE CALL, réplique par réplique
-${tours.map((t,i) => `[${i+1}] ${t.moi ? "CLOSER" : nom.toUpperCase()} : ${t.text}`).join("\n")}
+LES PHASES À JUGER, avec leurs critères. Tu les juges TOUTES, une par une :
+${groupe.map(p => `### ${p.k} — ${p.nom}\n${p.crit.map(c => "- " + c).join("\n")}`).join("\n\n")}
 
-RÈGLES :
-Observation d'abord, interprétation ensuite, jamais de certitude psychologique.
-Distingue la cause de la conséquence : si la dégradation a commencé plus tôt, dis où.
-Cite ses mots exacts. Sans citation, ton reproche ne vaut rien.
-Sois franc. S'il a bien fait quelque chose, dis-le précisément.
-LA NOTE doit être reproductible : relue demain, tu donnerais la même.
-Tutoie-le. En français.
-Dans "recherches", écris une à quatre phrases décrivant ce que tu irais chercher dans sa méthode pour corriger ses fautes, avec les mots du métier.
+COMMENT TU JUGES :
+- Chaque phase sur ses propres critères, pas sur l'issue du call.
+- Une phase absente ou survolée n'est pas neutre : c'est une faute, et tu dis ce qu'elle a coûté pour la suite.
+- Observation d'abord, interprétation ensuite. Cite ses mots exacts, avec le numéro de réplique.
+- Si la phase est bien menée, dis-le précisément : c'est aussi utile qu'un reproche.
+- La note de chaque phase doit être reproductible : relue demain, tu donnerais la même.
+- Au plus deux moments par phase, les plus importants.
+- Dans "recherche", une phrase qui décrit ce que tu irais chercher dans sa méthode pour corriger cette phase, avec les mots du métier.
 
-Réponds uniquement avec ce JSON, sans markdown, concis dans chaque champ :
-{"pronostic":{"issue":"vendu|perdu|relance","confiance":0 a 100,"indices":"ce qui te fait dire ca, cite les mots"},
- "note":0 a 10,
- "verdict":"en deux phrases, ce qui s est vraiment joue",
- "marche":[{"quoi":"ce qu il a bien fait","cite":"ses mots exacts","pourquoi":"pourquoi c etait juste"}],
- "ameliorer":[{"quoi":"ce qui doit progresser","cite":"ses mots exacts ou null"}],
- "moments":[{"replique":numero,"cite":"ses mots exacts","fait":"ce qu il a fait","effet":"ce que ca a provoque ensuite"}],
- "bascule":{"replique":numero ou null,"cite":"la phrase qui a fait basculer","pourquoi":"pourquoi celle-la"},
- "exercice":"un seul exercice concret pour le prochain call",
- "recherches":["ce que tu irais chercher dans sa methode"]}`;
+Réponds uniquement avec ce JSON, sans markdown, concis :
+{"phases":[{"phase":"code",
+  "note":0 a 10 ou null si la phase est absente,
+  "present":true ou false,
+  "bien":[{"quoi":"ce qui etait juste","cite":"ses mots","replique":numero}],
+  "manque":[{"quoi":"ce qui a manque ou etait faux","cite":"ses mots ou null","replique":numero ou null}],
+  "cout":"ce que cette phase ratee ou absente a coute pour la suite du call, ou null",
+  "moments":[{"replique":numero,"cite":"ses mots exacts","fait":"ce qu il a fait","effet":"ce que ca a provoque ensuite"}],
+  "recherche":"ce que tu irais chercher dans sa methode, une phrase"}]}`;
 }
 
-function promptLecture2(j, tours, nom, fiches, issue){
-  return `Tu es ${manniereDuCoach().nom}, coach de closing. Tu as lu le call de ton élève et rendu ta copie.
-${issue ? `ISSUE RÉELLE DU CALL, que tu ne connaissais pas : ${issue}. Ton pronostic était : ${(j.pronostic||{}).issue || "?"}.` : "Issue réelle non précisée."}
+/* ---- Passage 3 : synthèse, méthode et exercices ---- */
+function promptSynthese(tours, nom, marche, phasesNotes, moments, fiches, issue){
+  const coach = maniereFor(marche === "b2b" ? "decouverte" : "objection", marche);
+  const segs = Object.keys(SEGMENTS).filter(k => k !== "complet");
+  return `Tu es ${coach.nom}, coach de closing. Tu as réécouté le call de ton élève phase par phase. Tu rends maintenant ta synthèse.
 
-TES MOMENTS DÉCISIFS :
-${(j.moments||[]).map(m => `[réplique ${m.replique}] « ${m.cite||""} » — ${m.fait||""}`).join("\n")}
+${coach.ton}
 
-TES POINTS À AMÉLIORER, dans l'ordre :
-${(j.ameliorer||[]).map((a,i) => `${i+1}. ${a.quoi||""}${a.cite ? " (« " + a.cite + " »)" : ""}`).join("\n") || "aucun"}
+${consigneMarche(marche)}
+${issue ? "ISSUE RÉELLE DU CALL : " + issue + "." : "Issue du call non précisée."}
 
-Pour situer, les répliques autour des moments :
-${(j.moments||[]).map(m => { const k = (num(m.replique)||1) - 1; return tours.slice(Math.max(0,k-2), k+1).map((t,i) => `[${Math.max(0,k-2)+i+1}] ${t.moi?"CLOSER":nom.toUpperCase()} : ${t.text}`).join("\n"); }).join("\n---\n")}
+CE QUE TU AS VU, PHASE PAR PHASE :
+${phasesNotes}
 
-MAINTENANT tu ouvres sa méthode. Voici les fiches que tu es allé chercher :
+LES MOMENTS QUE TU AS RELEVÉS :
+${moments.map(m => `[réplique ${m.replique}] (${m.phaseNom}) « ${m.cite||""} » — ${m.fait||""}`).join("\n") || "aucun"}
+
+LES FICHES DE SA MÉTHODE que tu es allé chercher pour corriger ces fautes :
 ${listeFiches(fiches)}
 
 ${REGLE_ADAPTATION}
 
-Réponds uniquement avec ce JSON, sans markdown :
-{"moments":[{"replique":numero,"dire":"la phrase a dire, adaptee, ou null","numero":numero de fiche ou null}],
- "ameliorer":["ce qu il faut faire a la place, une phrase par point, dans l ordre"],
- "relecture":${issue ? '"ce que ton pronostic avait vu juste ou rate, maintenant que tu connais l issue, une ou deux phrases"' : "null"}}`;
+CE QUE TU DOIS FAIRE :
+1. Remonte à la cause. Une objection ou un échec en fin de call vient presque toujours d'une phase ratée plus tôt. Dis où le call a vraiment basculé, et quelle phase en amont l'a préparé.
+2. Pour chaque moment relevé, la phrase qu'il fallait dire, tirée d'une fiche, avec son numéro. Si aucune fiche ne s'applique, dire = null.
+3. Ses trois points forts et ses trois chantiers prioritaires, dans l'ordre d'impact sur ses ventes.
+4. Des exercices pour travailler là où il est bloqué : trois à cinq, tournés vers les phases les plus faibles${marche === "b2b" ? ", en priorité ce qui lui fait perdre ses calls B2B" : ""}. Chaque exercice doit pouvoir se faire en roleplay dans son outil : donne le moment à travailler (un de ces codes : ${segs.join(", ")}) et le prospect à jouer, inspiré de celui de ce call.
+
+Réponds uniquement avec ce JSON, sans markdown, concis :
+{"note":0 a 10 pour le call entier,
+ "verdict":"en deux phrases, ce qui s est vraiment joue",
+ "bascule":{"replique":numero ou null,"cite":"la phrase","pourquoi":"pourquoi ca a bascule la","cause_amont":"la phase plus tot qui l a prepare, et comment"},
+ "marche":[{"quoi":"point fort","cite":"ses mots","pourquoi":"pourquoi c etait juste"}],
+ "ameliorer":[{"quoi":"chantier prioritaire","cite":"ses mots ou null","comment":"ce qu il faut faire a la place"}],
+ "dires":[{"replique":numero,"dire":"la phrase adaptee ou null","numero":numero de fiche ou null}],
+ "exercices":[{"titre":"nom court","phase":"la phase travaillee","consigne":"ce qu il fait exactement","repetitions":"combien de fois","reussi_si":"a quoi il reconnait que c est acquis","segment":"un code de moment de la liste","prospect":"le prospect a jouer en roleplay, deux phrases, inspire de ce call"}],
+ "exercice":"l exercice prioritaire, une phrase"}`;
 }
 
-async function pronostics(){ const l = await Store.get(CLE_PRONOS); return Array.isArray(l) ? l : []; }
+/* ---- Pronostic à l'aveugle : un appel séparé, qui n'oriente plus la lecture ---- */
+function promptPronostic(tours, nom, ctx){
+  return `Voici la transcription d'un vrai call de vente. Tu ne connais pas son issue.
+${ctx && !contexteRevele(ctx) ? "Contexte : " + ctx : ""}
+
+${texteCall(tours, nom)}
+
+D'après ce que tu lis, le prospect a-t-il signé, est-il parti en relance, ou l'affaire est-elle perdue ? Tranche selon les indices, ne te réfugie pas dans « relance » par prudence.
+
+Réponds uniquement avec ce JSON, sans markdown :
+{"issue":"vendu|perdu|relance","confiance":0 a 100,"indices":"ce qui te fait dire ca, cite les mots"}`;
+}
+
+/* ---- l'impression en PDF, commune ---- */
+function imprimeHtml(titre, corps){
+  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(titre)}</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#1d1d1d;margin:32px;line-height:1.5;font-size:12pt}
+    h1{font-size:19pt;margin:0 0 4px} .meta{color:#666;font-size:10.5pt;margin-bottom:16px}
+    h2{font-size:12pt;text-transform:uppercase;letter-spacing:.08em;color:#a8671b;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:22px}
+    h3{font-size:11.5pt;margin:14px 0 4px} .ok{color:#2e7d4f} .ko{color:#b23a26} .cite{font-style:italic}
+    .ex{border-left:3px solid #4a7fa5;padding-left:10px;margin:10px 0;page-break-inside:avoid}
+    .case{display:inline-block;width:12px;height:12px;border:1px solid #333;margin-right:6px;vertical-align:middle}
+  </style></head><body>${corps}</body></html>`;
+  const f = document.createElement("iframe");
+  f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+  document.body.appendChild(f);
+  f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
+  setTimeout(() => {
+    try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){ toast("Impression bloquée par le navigateur"); }
+    setTimeout(() => f.remove(), 60000);
+  }, 300);
+  toast("Choisis « Enregistrer au format PDF » comme imprimante");
+}
+
+/* ---- lancer un exercice en roleplay, déjà réglé ---- */
+function lanceExercice(seg, prospect, marche){
+  $("rejeu").classList.remove("on");
+  $("btnSpar").click();
+  setTimeout(() => {
+    const src = document.querySelector('#sparSource [data-src="invente"]'); if(src) src.click();
+    const mb = document.querySelector('#sparMarche [data-m="' + marche + '"]'); if(mb) mb.click();
+    if(SEGMENTS[seg]){
+      SEGMENTS_CHOISIS = [seg]; sparSegment = seg;
+      document.querySelectorAll("#sparSegments [data-seg]").forEach(b => b.classList.toggle("on", b.dataset.seg === seg));
+      majSegDetail();
+    }
+    if(prospect) $("sparDesc").value = prospect;
+    $("sparEtat").innerHTML = '<span style="color:var(--amber)">Exercice prêt : ' + esc((SEGMENTS[seg]||{}).nom || seg) +
+      '. Vérifie les réglages, puis clique sur « Lancer le roleplay ».</span>';
+    $("btnSparGo").scrollIntoView({block:"center"});
+  }, 150);
+}
+
+const couleurNote = n => n === null || n === undefined ? "var(--clay)" : n >= 7 ? "var(--sage)" : n >= 5 ? "var(--amber)" : "var(--clay)";
+
+function htmlPhases(L){
+  return `<div class="block">
+    <h3>Ton call, phase par phase</h3>
+    <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">${L.marche === "b2b" ? "Jugé avec la grille B2B." : "Jugé avec la grille B2C."} Une phase absente compte comme une faute : c'est souvent là que le call s'est perdu.</p>
+    ${L.phases.map(p => {
+      const n = num(p.note), c = couleurNote(n);
+      const d = (L.decoupage || []).find(x => x.phase === p.k) || {};
+      return `<div style="border-left:2px solid ${c};padding-left:13px;margin-bottom:18px">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">
+          <span style="font-weight:600">${esc(p.nom)}</span>
+          <span style="font-family:'Archivo Narrow';font-weight:700;color:${c}">${p.erreur ? "non analysée" : p.present === false ? "absente" : (n === null ? "—" : n + "/10")}</span>
+        </div>
+        ${d.debut ? `<div style="font-size:11.5px;color:var(--muted)">répliques ${esc(String(d.debut))}–${esc(String(d.fin||"?"))}</div>` : ""}
+        ${p.erreur ? `<p style="font-size:13px;color:var(--clay);margin-top:4px">${esc(p.erreur)}</p>` : ""}
+        ${(p.bien||[]).map(x => `<p style="font-size:13.5px;margin-top:5px"><span style="color:var(--sage)">✓</span> ${esc(x.quoi||"")}${x.cite ? ` <span style="color:var(--muted)">— « ${esc(x.cite)} »</span>` : ""}</p>`).join("")}
+        ${(p.manque||[]).map(x => `<p style="font-size:13.5px;margin-top:5px"><span style="color:var(--clay)">✕</span> ${esc(x.quoi||"")}${x.cite ? ` <span style="color:var(--muted)">— « ${esc(x.cite)} »</span>` : ""}</p>`).join("")}
+        ${p.cout ? `<p style="font-size:13px;color:#E9B9AE;margin-top:5px">Ce que ça a coûté : ${esc(p.cout)}</p>` : ""}
+        ${(n !== null && n < 7) || p.present === false ? `<button class="pill" data-phase-ex="${esc(p.seg)}" style="margin-top:8px;font-size:12px;padding:6px 12px">M'entraîner sur cette phase</button>` : ""}
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+function htmlExercices(L){
+  const ex = L.j.exercices || [];
+  if(!ex.length) return "";
+  return `<div class="block" style="border-left:2px solid var(--steel)">
+    <h3>Tes exercices pour débloquer ça</h3>
+    ${ex.map((x,i) => `<div style="border-left:2px solid var(--line);padding-left:12px;margin-bottom:14px">
+      <div style="font-weight:600">${i+1}. ${esc(x.titre||"")}${x.phase ? ` <span style="font-size:12px;color:var(--muted)">· ${esc(x.phase)}</span>` : ""}</div>
+      <p style="font-size:13.5px;margin-top:4px">${esc(x.consigne||"")}</p>
+      ${x.repetitions ? `<p style="font-size:12.5px;color:var(--muted);margin-top:3px">Combien : ${esc(x.repetitions)}</p>` : ""}
+      ${x.reussi_si ? `<p style="font-size:12.5px;color:var(--sage);margin-top:3px">Réussi si : ${esc(x.reussi_si)}</p>` : ""}
+      ${SEGMENTS[x.segment] ? `<button class="pill" data-ex="${i}" style="margin-top:8px;font-size:12px;padding:6px 12px;border-color:var(--amber);color:var(--amber)">Faire cet exercice en roleplay</button>` : ""}
+    </div>`).join("")}
+    <div class="row"><button class="pill" id="btnPdfLecture">Télécharger le débrief et les exercices en PDF</button></div>
+  </div>`;
+}
+
+function pdfLecture(L){
+  const j = L.j, d = new Date().toLocaleDateString("fr-FR");
+  const p = t => t ? `<p>${esc(t)}</p>` : "";
+  imprimeHtml("Débrief de call " + d, `
+    <h1>Débrief de call — ${esc(L.nom)}</h1>
+    <div class="meta">${esc(d)} · ${L.marche === "b2b" ? "B2B" : "B2C"}${rjIssueChoisie ? " · issue : " + esc(rjIssueChoisie) : ""}</div>
+    <h2>Note du call : ${num(j.note) === null ? "—" : num(j.note) + "/10"}</h2>
+    ${p(j.verdict)}
+    ${j.bascule && j.bascule.cite ? `<h2>Là où ça a basculé</h2><p class="cite">« ${esc(j.bascule.cite)} »</p>${p(j.bascule.pourquoi)}${j.bascule.cause_amont ? `<p><b>La cause en amont :</b> ${esc(j.bascule.cause_amont)}</p>` : ""}` : ""}
+    <h2>Phase par phase</h2>
+    ${L.phases.map(ph => `<h3>${esc(ph.nom)} — ${ph.present === false ? "absente" : (num(ph.note) === null ? "—" : num(ph.note) + "/10")}</h3>
+      ${(ph.bien||[]).map(x => `<p class="ok">✓ ${esc(x.quoi||"")}</p>`).join("")}
+      ${(ph.manque||[]).map(x => `<p class="ko">✕ ${esc(x.quoi||"")}${x.cite ? ` — « ${esc(x.cite)} »` : ""}</p>`).join("")}
+      ${ph.cout ? `<p><small>Ce que ça a coûté : ${esc(ph.cout)}</small></p>` : ""}`).join("")}
+    <h2>Les moments, et ce qu'il fallait dire</h2>
+    ${(j.moments||[]).map(m => `<p><b>[${esc(String(m.replique||"?"))}] ${esc(m.phaseNom||"")}</b> — « ${esc(m.cite||"")} »<br>${esc(m.fait||"")}${m.dire ? `<br><span class="cite">À dire : « ${esc(m.dire)} »</span>` : ""}</p>`).join("")}
+    <h2>Tes chantiers</h2>
+    ${(j.ameliorer||[]).map(a => `<p><b>${esc(a.quoi||"")}</b><br>${esc(a.comment||"")}</p>`).join("")}
+    <h2>Tes exercices</h2>
+    ${(j.exercices||[]).map((x,i) => `<div class="ex"><b>${i+1}. ${esc(x.titre||"")}</b>${x.phase ? ` <small>(${esc(x.phase)})</small>` : ""}<p>${esc(x.consigne||"")}</p>${x.repetitions ? `<p><small>Combien : ${esc(x.repetitions)}</small></p>` : ""}${x.reussi_si ? `<p><small>Réussi si : ${esc(x.reussi_si)}</small></p>` : ""}<p><span class="case"></span>fait&nbsp;&nbsp;<span class="case"></span>refait&nbsp;&nbsp;<span class="case"></span>acquis</p></div>`).join("") || p(j.exercice)}
+  `);
+}
+
+/* Le texte écouté et le texte copié incluent maintenant les phases et les exercices */
+const texteDuDebriefOrigine = texteDuDebrief;
+texteDuDebrief = function(){
+  let t = texteDuDebriefOrigine();
+  const L = LECTURE;
+  if(L && L.phases){
+    const faibles = L.phases.filter(p => p.present === false || (num(p.note) !== null && num(p.note) < 5));
+    if(faibles.length) t += " Les phases où tu perds le call : " + faibles.map(p => p.nom + (p.present === false ? ", absente" : ", " + num(p.note) + " sur 10")).join(". ") + ".";
+    if(L.j.bascule && L.j.bascule.cause_amont) t += " La cause en amont : " + L.j.bascule.cause_amont;
+    (L.j.exercices || []).forEach((x,i) => { t += " Exercice " + (i+1) + ". " + (x.titre||"") + ". " + (x.consigne||""); });
+  }
+  return t;
+};
+const debriefEnTexteOrigine = debriefEnTexte;
+debriefEnTexte = function(){
+  let t = debriefEnTexteOrigine();
+  const L = LECTURE;
+  if(L && L.phases){
+    t += "\n\nPHASE PAR PHASE";
+    L.phases.forEach(p => {
+      t += "\n- " + p.nom + " : " + (p.present === false ? "absente" : (num(p.note) === null ? "—" : num(p.note) + "/10"));
+      (p.manque||[]).forEach(x => { t += "\n    ✕ " + (x.quoi||""); });
+    });
+    if((L.j.exercices||[]).length){
+      t += "\n\nEXERCICES";
+      L.j.exercices.forEach((x,i) => { t += "\n" + (i+1) + ". " + (x.titre||"") + " — " + (x.consigne||"") + (x.repetitions ? " (" + x.repetitions + ")" : "") + (x.reussi_si ? " · Réussi si : " + x.reussi_si : ""); });
+    }
+  }
+  return t;
+};
 
 $("btnLire").onclick = async () => {
   const brut = $("rjTexte").value;
@@ -684,71 +938,125 @@ $("btnLire").onclick = async () => {
   const ctx = $("rjContexte").value.trim();
   const issue = {perdu:"il n'a pas signé", relance:"le call s'est terminé en relance", vendu:"il a signé"}[rjIssueChoisie] || "";
   const marche = sparMarche === "b2b" ? "b2b" : "b2c";
+  const phases = phasesDuMarche(marche);
+  const etat = msg => { $("lecture").innerHTML = '<p style="color:var(--amber)">' + msg + '</p>'; };
 
   remetLectureAuDebut();
   $("btnLire").disabled = true;
-  $("lecture").innerHTML = '<p style="color:var(--amber)">Le coach lit ton call, sans connaître l\'issue… une à deux minutes.</p>';
   try{
-    const j = await appelJson(promptLecture1(tours, nom, ctx, marche), 3800, REQUIS_LECTURE);
-    j.note = num(j.note);
+    // Le pronostic part tout de suite, en parallèle et à l'aveugle
+    const pronoP = rjIssueChoisie
+      ? appelJson(promptPronostic(tours, nom, ctx), 600, ["issue"]).catch(() => null)
+      : Promise.resolve(null);
 
-    $("lecture").innerHTML = '<p style="color:var(--amber)">Il va maintenant chercher dans ta méthode ce qu\'il fallait dire…</p>';
-    let relecture = null;
+    // 1. découpage
+    etat(`1/3 — Le coach découpe ton call en phases… (${tours.length} répliques reconnues)`);
+    let decoupage = null;
     try{
-      const req = [].concat(j.recherches || [], (j.ameliorer||[]).map(a => a.quoi), (j.moments||[]).map(m => m.fait));
-      const fiches = fichesPour(req, 12);
-      const r = await appelJson(promptLecture2(j, tours, nom, fiches, issue), 2200, ["moments"]);
-      (r.moments || []).forEach(x => {
-        const m = (j.moments || []).find(y => num(y.replique) === num(x.replique));
-        if(!m || !x.dire) return;
-        const f = ficheParNumero(fiches, x.numero);
-        m.dire = x.dire;
-        m.source = f ? (f.ecole || "ta base") : "formulation du coach, hors de ta méthode";
-        if(f && String(f.phrase).trim().toLowerCase() !== String(x.dire).trim().toLowerCase()) m.fiche_origine = f.phrase;
-      });
-      (j.ameliorer || []).forEach((a,i) => { a.comment = (r.ameliorer || [])[i] || ""; });
-      relecture = r.relecture || null;
-    }catch(e){
-      (j.ameliorer || []).forEach(a => { a.comment = a.comment || ""; });
-      relecture = "La recherche dans ta méthode a échoué : " + e.message;
-    }
+      const dj = await appelJson(promptDecoupage(tours, nom, phases), 1800, ["phases"]);
+      decoupage = Array.isArray(dj.phases) ? dj.phases : null;
+    }catch(e){ decoupage = null; }
 
+    // 2. jugement de chaque phase, en deux appels parallèles
+    etat("2/3 — Il juge chaque phase avec ses critères" + (marche === "b2b" ? " B2B" : "") + "… une à deux minutes.");
+    const groupes = ["debut","fin"].map(g => phases.filter(p => p.groupe === g));
+    const resultats = await Promise.all(groupes.map(g =>
+      appelJson(promptPhases(tours, nom, ctx, marche, g, decoupage), 4200, ["phases"])
+        .then(r => r.phases || []).catch(e => g.map(p => ({phase:p.k, erreur:e.message})))));
+    const parCode = {};
+    resultats.flat().forEach(r => { if(r && r.phase) parCode[r.phase] = r; });
+    const phasesJugees = phases.map(p => Object.assign({}, p, parCode[p.k] || {erreur:"pas de réponse pour cette phase"}));
+    if(phasesJugees.every(p => p.erreur)) throw new Error(phasesJugees[0].erreur);
+
+    // tous les moments, répartis sur le call entier
+    const moments = [];
+    phasesJugees.forEach(p => (p.moments || []).forEach(m => {
+      if(num(m.replique) && !moments.some(x => num(x.replique) === num(m.replique)))
+        moments.push(Object.assign({}, m, {phaseNom:p.nom}));
+    }));
+    moments.sort((a,b) => num(a.replique) - num(b.replique));
+
+    // 3. synthèse, méthode, exercices
+    etat("3/3 — Synthèse, phrases tirées de ta méthode et exercices…");
+    const req = [];
+    phasesJugees.forEach(p => { req.push(p.recherche); (p.manque || []).forEach(x => req.push(x.quoi)); });
+    const fiches = fichesMarche(req, 14, marche);
+    const notes = phasesJugees.map(p => `- ${p.nom} : ${p.erreur ? "non analysée" : p.present === false ? "ABSENTE" : (num(p.note) === null ? "—" : num(p.note) + "/10")}`
+      + (p.manque && p.manque.length ? " — manque : " + p.manque.map(x => x.quoi).join(" ; ") : "")
+      + (p.cout ? " — coût : " + p.cout : "")).join("\n");
+    let s = {};
+    try{ s = await appelJson(promptSynthese(tours, nom, marche, notes, moments, fiches, issue), 3800, ["note","verdict","exercices"]); }
+    catch(e){ s = {verdict:"La synthèse a échoué : " + e.message + ". Le détail par phase reste valable."}; }
+
+    (s.dires || []).forEach(x => {
+      const m = moments.find(y => num(y.replique) === num(x.replique));
+      if(!m || !x.dire) return;
+      const f = ficheParNumero(fiches, x.numero);
+      m.dire = x.dire;
+      m.source = f ? (f.ecole || "ta base") : "formulation du coach, hors de ta méthode";
+      if(f && String(f.phrase).trim().toLowerCase() !== String(x.dire).trim().toLowerCase()) m.fiche_origine = f.phrase;
+    });
+    (s.ameliorer || []).forEach(a => { a.comment = a.comment || ""; });
+
+    const j = {note: num(s.note), verdict: s.verdict || "", marche: s.marche || [], ameliorer: s.ameliorer || [],
+               moments, bascule: s.bascule || null, exercice: s.exercice || "", exercices: s.exercices || []};
+    const L = {j, tours, nom, phases: phasesJugees, decoupage, marche};
     const noteCalib = j.note;
-    if(j.note === null) j.note = "—";          // jamais « null/10 » à l'écran
-    LECTURE = {j, tours, nom};
+    if(j.note === null) j.note = "—";
+    LECTURE = L;
     rendLecture();
     j.note = noteCalib;
     if(AUDIO_CALL) poseLesMarques();
 
-    // La calibration : pronostic à l'aveugle contre l'issue réelle
-    const pr = j.pronostic || {};
-    const prono = String(pr.issue || "").toLowerCase();
-    const valide = !!rjIssueChoisie && !contexteRevele(ctx) && ["vendu","perdu","relance"].includes(prono);
-    if(valide){
-      const l = await pronostics();
-      const cle = hashTxt(brut.slice(0, 4000));
-      const entree = {cle, date:new Date().toISOString().slice(0,10), nom, prono,
-                      confiance:num(pr.confiance), reel:rjIssueChoisie, note:noteCalib};
-      const i = l.findIndex(x => x.cle === cle);
-      if(i >= 0) l[i] = entree; else l.push(entree);
-      await Store.set(CLE_PRONOS, l.slice(-300));
+    // phases en tête, exercices à la fin
+    const zone = $("lecture");
+    const bl = document.createElement("div"); bl.innerHTML = htmlPhases(L);
+    const premier = zone.querySelector(".block");
+    if(premier && premier.nextSibling) zone.insertBefore(bl.firstElementChild, premier.nextSibling); else zone.appendChild(bl.firstElementChild);
+    if(j.bascule && j.bascule.cause_amont){
+      const cible = [...zone.querySelectorAll(".block")].find(b => /basculer/.test(b.textContent));
+      if(cible){ const p = document.createElement("p"); p.style.cssText = "font-size:13.5px;margin-top:8px"; p.innerHTML = "<b style='color:var(--ink)'>La cause en amont :</b> " + esc(j.bascule.cause_amont); cible.appendChild(p); }
     }
-    const l = await pronostics();
-    const ok = l.filter(x => x.prono === x.reel).length;
-    const juste = prono && prono === rjIssueChoisie;
-    const bloc = document.createElement("div");
-    bloc.className = "block";
-    bloc.style.borderLeft = "2px solid var(--steel)";
-    bloc.innerHTML = `<h3>Pronostic à l'aveugle</h3>
-      <p style="font-size:15px">Le coach pensait : <b>${esc(prono || "?")}</b>${num(pr.confiance) !== null ? " (sûr à " + num(pr.confiance) + " %)" : ""}.
-        ${rjIssueChoisie ? ` Réalité : <b>${esc(rjIssueChoisie)}</b> — <span style="color:${juste?"var(--sage)":"var(--clay)"}">${juste?"juste":"raté"}</span>.` : ""}</p>
-      ${pr.indices ? `<p style="font-size:13px;color:var(--muted);margin-top:6px">${esc(pr.indices)}</p>` : ""}
-      ${relecture ? `<p style="font-size:13.5px;margin-top:10px">${esc(relecture)}</p>` : ""}
-      <p style="font-size:12.5px;color:var(--muted);margin-top:10px">${
-        !rjIssueChoisie ? "Indique l'issue réelle avant de lancer la lecture : sans elle, ce call ne compte pas dans la mesure de fiabilité."
-        : contexteRevele(ctx) ? "Ton contexte révèle l'issue (signé, perdu, relance…) : ce call ne compte pas dans la mesure. Retire cette info du contexte pour tester le coach."
-        : `Compté. Fiabilité cumulée : ${ok}/${l.length} pronostics justes. Le détail est dans Ma progression.`}</p>`;
-    $("lecture").prepend(bloc);
+    const be = document.createElement("div"); be.innerHTML = htmlExercices(L);
+    if(be.firstElementChild) zone.appendChild(be.firstElementChild);
+    zone.querySelectorAll("[data-ex]").forEach(b => {
+      b.onclick = () => { const x = j.exercices[+b.dataset.ex]; lanceExercice(x.segment, x.prospect || "", marche); };
+    });
+    zone.querySelectorAll("[data-phase-ex]").forEach(b => {
+      b.onclick = () => lanceExercice(b.dataset.phaseEx, `Un prospect qui ressemble à ${nom}. ${ctx ? ctx.slice(0, 300) : ""}`.trim(), marche);
+    });
+    const bp = $("btnPdfLecture"); if(bp) bp.onclick = () => pdfLecture(L);
+
+    // 4. le pronostic à l'aveugle, pour la calibration
+    const pr = await pronoP;
+    if(rjIssueChoisie){
+      const prono = String((pr && pr.issue) || "").toLowerCase();
+      const valide = !contexteRevele(ctx) && ["vendu","perdu","relance"].includes(prono);
+      if(valide){
+        const l = await pronostics();
+        const cle = hashTxt(brut.slice(0, 4000));
+        const entree = {cle, date:new Date().toISOString().slice(0,10), nom, prono,
+                        confiance:num(pr.confiance), reel:rjIssueChoisie, note:noteCalib};
+        const i = l.findIndex(x => x.cle === cle);
+        if(i >= 0) l[i] = entree; else l.push(entree);
+        await Store.set(CLE_PRONOS, l.slice(-300));
+      }
+      const l = await pronostics();
+      const ok = l.filter(x => x.prono === x.reel).length;
+      const juste = prono && prono === rjIssueChoisie;
+      const bloc = document.createElement("div");
+      bloc.className = "block";
+      bloc.style.borderLeft = "2px solid var(--steel)";
+      bloc.innerHTML = `<h3>Pronostic à l'aveugle</h3>
+        <p style="font-size:15px">Le coach, sans connaître l'issue, pensait : <b>${esc(prono || "?")}</b>${pr && num(pr.confiance) !== null ? " (sûr à " + num(pr.confiance) + " %)" : ""}.
+          Réalité : <b>${esc(rjIssueChoisie)}</b> — <span style="color:${juste?"var(--sage)":"var(--clay)"}">${juste?"juste":"raté"}</span>.</p>
+        ${pr && pr.indices ? `<p style="font-size:13px;color:var(--muted);margin-top:6px">${esc(pr.indices)}</p>` : ""}
+        <p style="font-size:12.5px;color:var(--muted);margin-top:10px">${
+          contexteRevele(ctx) ? "Ton contexte révèle l'issue (signé, perdu, relance…) : ce call ne compte pas dans la mesure. Retire cette info du contexte pour tester le coach."
+          : !valide ? "Pronostic indisponible pour ce call."
+          : `Compté. Fiabilité cumulée : ${ok}/${l.length} pronostics justes. Le détail est dans Ma progression.`}</p>`;
+      zone.appendChild(bloc);
+    }
   }catch(e){
     $("lecture").innerHTML = '<p style="color:var(--clay)">Lecture impossible : ' + esc(e.message) + '</p>';
   }
