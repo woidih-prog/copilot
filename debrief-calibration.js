@@ -59,12 +59,14 @@ function manque(j, champs){
 
 /* Un appel qui doit rendre un JSON complet. Si des champs manquent, la réponse
    a presque toujours été coupée : on redemande une fois, plus court, plus long. */
-async function appelJson(prompt, max, requis){
+async function appelJson(prompt, max, requis, o){
+  // avec des options (doctrine, effort), on passe par le cerveau 5.5 ; sinon, l'ancien chemin
+  const appel = (p, mx) => o ? appelCerveau(p, Object.assign({}, o, {max: mx})) : callClaude(p, mx);
   let j = null, m = requis.slice();
-  try{ j = parseModelJson(await callClaude(prompt, max)); m = manque(j, requis); }catch(e){ if(!/illisible|invalide/i.test(e.message)) throw e; }
+  try{ j = parseModelJson(await appel(prompt, max)); m = manque(j, requis); }catch(e){ if(!/illisible|invalide/i.test(e.message)) throw e; }
   if(m.length){
     try{
-      const j2 = parseModelJson(await callClaude(prompt +
+      const j2 = parseModelJson(await appel(prompt +
         "\n\nIMPORTANT : ta réponse précédente a été coupée avant la fin. Sois plus bref dans chaque champ, mais remplis-les TOUS, jusqu'à la dernière accolade.",
         Math.round(max * 1.4)));
       const m2 = manque(j2, requis);
@@ -129,7 +131,7 @@ Dis-lui clairement s'il a corrigé son erreur ou s'il l'a refaite.` : ""}
 
 L'ÉCHANGE :
 ${SPAR.tours.map(t => (t.qui === "MOI" ? "CLOSER" : "PROSPECT") + " : " + t.txt).join("\n")}
-
+${souvenirs(SPAR.tours.slice(-12).map(t => t.txt).join(" ") + " " + (p.vrai || "") + " " + seg.objectif, [seg.terrain], b2b ? "b2b" : "b2c", 8)}
 ${b2b ? `CE CALL EST EN B2B. Ne lui reproche jamais de ne pas avoir cherché l'émotion. Ce qu'on attend : des chiffres, la propagation du problème aux autres équipes, le circuit de décision, le déclencheur, l'enjeu personnel abordé par le côté.` : ""}
 
 LE MOMENT TRAVAILLÉ : ${seg.nom}
@@ -189,6 +191,7 @@ ${SPAR.tours.slice(-10).map(t => (t.qui === "MOI" ? "CLOSER" : "PROSPECT") + " :
 
 MAINTENANT tu ouvres sa méthode. Voici les fiches que tu es allé chercher pour corriger sa faute :
 ${listeFiches(fiches)}
+${souvenirs((j.faute || "") + " " + (j.une_chose || "") + " " + (j.quand || ""), [segmentCourant().terrain], (SPAR && SPAR.marche) || sparMarche, 6)}
 
 ${REGLE_ADAPTATION}
 
@@ -351,7 +354,7 @@ function branchCalibSpar(){
     const btn = $("btnRenoter"); btn.disabled = true;
     $("calibSparEtat").innerHTML = '<span style="color:var(--muted)">Le coach relit le même échange, sans savoir qu\'il l\'a déjà noté…</span>';
     try{
-      const j2 = await appelJson(promptDebrief1(), 2800, REQUIS_SPAR);
+      const j2 = await appelJson(promptDebrief1(), 2800, REQUIS_SPAR, optsDebrief());
       const j1 = SPAR.dernierDebrief || {};
       const n1 = num(j1.note), n2 = num(j2.note);
       const s = await majSession(SPAR.debut, x => { if(n2 !== null) x.notes.push(n2); });
@@ -383,7 +386,7 @@ $("btnSparFin").onclick = async () => {
 
   let j;
   try{
-    j = await appelJson(promptDebrief1(), 2800, REQUIS_SPAR);
+    j = await appelJson(promptDebrief1(), 2800, REQUIS_SPAR, optsDebrief());
   }catch(e){
     DEBRIEF_EN_COURS = false; boutonFinAppuye(false);
     $("sparDebrief").innerHTML = '<div class="block"><p style="color:var(--clay)">Débrief impossible : ' + esc(e.message) +
@@ -413,7 +416,7 @@ $("btnSparFin").onclick = async () => {
   let m;
   try{
     const fiches = fichesPour([].concat(j.recherches || [], j.faute, j.une_chose), 8, segmentCourant().terrain);
-    const r = await appelJson(promptDebrief2(j, fiches), 1800, ["exercice","exercices"]);
+    const r = await appelJson(promptDebrief2(j, fiches), 1800, ["exercice","exercices"], optsDebrief());
     m = Object.assign({}, r, {fiche: ficheParNumero(fiches, r.numero)});
   }catch(e){ m = {erreur: e.message}; }
   DEBRIEF_EN_COURS = false; boutonFinAppuye(false);
@@ -553,6 +556,19 @@ Si les réglages plus bas (profil, couleur, température) contredisent sa descri
 ` + prompt;
     } else if(SPAR && SPAR.description && /^Tu joues un prospect dans un entraînement/.test(prompt)){
       prompt = prompt.replace("QUI TU ES", `CE QUE LE CLOSER A DÉCRIT DE TOI — tu le respectes à chaque réplique : « ${SPAR.description} »\n\nQUI TU ES`);
+    }
+    // Le coach du roleplay raisonne avec le cerveau de tes coachs, sur le modèle 5.5
+    if(/Tu observes un entraînement en direct/.test(prompt)){
+      const marche = (SPAR && SPAR.marche) || sparMarche, seg = segmentCourant();
+      const sys = doctrinePour([seg.terrain], marche);
+      const recent = ((SPAR && SPAR.tours) || []).slice(-4).map(t => t.txt).join(" ");
+      const mem = souvenirs(recent + " " + seg.objectif, [seg.terrain], marche, 6);
+      if(mem) prompt = prompt.replace("LE MOMENT TRAVAILLÉ", mem + "\nLE MOMENT TRAVAILLÉ");
+      return appelCerveau(prompt, {max, systeme: sys, effort: "low", facultatif: true});
+    }
+    // Le prospect et sa fabrication : modèle 5.5, effort léger pour rester rapide
+    if(/^(Tu joues un prospect|Fabrique un prospect|LE CLOSER A DÉCRIT)/.test(prompt)){
+      return appelCerveau(prompt, {max, effort: "low"});
     }
   }
   return callClaudeOrigine(prompt, max);
@@ -711,6 +727,11 @@ ${reperes}
 
 LES PHASES À JUGER, avec leurs critères. Tu les juges TOUTES, une par une :
 ${groupe.map(p => `### ${p.k} — ${p.nom}\n${p.crit.map(c => "- " + c).join("\n")}`).join("\n\n")}
+${souvenirs(groupe.map(p => {
+    const d = (decoupage || []).find(x => x.phase === p.k) || {};
+    const extrait = (d.debut && d.fin) ? tours.slice(Math.max(0, d.debut - 1), Math.min(tours.length, d.fin, d.debut + 6)).map(t => t.text).join(" ") : "";
+    return p.nom + " " + (d.resume || "") + " " + extrait;
+  }).join(" "), groupe[0].groupe === "debut" ? ["cadrage","decouverte"] : ["objection","closing"], marche, 10)}
 
 COMMENT TU JUGES :
 - Chaque phase sur ses propres critères, pas sur l'issue du call.
@@ -751,6 +772,7 @@ ${moments.map(m => `[réplique ${m.replique}] (${m.phaseNom}) « ${m.cite||""} �
 
 LES FICHES DE SA MÉTHODE que tu es allé chercher pour corriger ces fautes :
 ${listeFiches(fiches)}
+${souvenirs(phasesNotes, ["cadrage","decouverte","objection","closing"], marche, 10)}
 
 ${REGLE_ADAPTATION}
 
@@ -946,14 +968,14 @@ $("btnLire").onclick = async () => {
   try{
     // Le pronostic part tout de suite, en parallèle et à l'aveugle
     const pronoP = rjIssueChoisie
-      ? appelJson(promptPronostic(tours, nom, ctx), 600, ["issue"]).catch(() => null)
+      ? appelJson(promptPronostic(tours, nom, ctx), 600, ["issue"], {effort: "medium"}).catch(() => null)
       : Promise.resolve(null);
 
     // 1. découpage
     etat(`1/3 — Le coach découpe ton call en phases… (${tours.length} répliques reconnues)`);
     let decoupage = null;
     try{
-      const dj = await appelJson(promptDecoupage(tours, nom, phases), 1800, ["phases"]);
+      const dj = await appelJson(promptDecoupage(tours, nom, phases), 1800, ["phases"], {effort: "medium"});
       decoupage = Array.isArray(dj.phases) ? dj.phases : null;
     }catch(e){ decoupage = null; }
 
@@ -961,7 +983,8 @@ $("btnLire").onclick = async () => {
     etat("2/3 — Il juge chaque phase avec ses critères" + (marche === "b2b" ? " B2B" : "") + "… une à deux minutes.");
     const groupes = ["debut","fin"].map(g => phases.filter(p => p.groupe === g));
     const resultats = await Promise.all(groupes.map(g =>
-      appelJson(promptPhases(tours, nom, ctx, marche, g, decoupage), 4200, ["phases"])
+      appelJson(promptPhases(tours, nom, ctx, marche, g, decoupage), 4200, ["phases"],
+        {systeme: doctrinePour(g[0].groupe === "debut" ? ["cadrage","decouverte"] : ["objection","closing"], marche), effort: "high"})
         .then(r => r.phases || []).catch(e => g.map(p => ({phase:p.k, erreur:e.message})))));
     const parCode = {};
     resultats.flat().forEach(r => { if(r && r.phase) parCode[r.phase] = r; });
@@ -985,7 +1008,8 @@ $("btnLire").onclick = async () => {
       + (p.manque && p.manque.length ? " — manque : " + p.manque.map(x => x.quoi).join(" ; ") : "")
       + (p.cout ? " — coût : " + p.cout : "")).join("\n");
     let s = {};
-    try{ s = await appelJson(promptSynthese(tours, nom, marche, notes, moments, fiches, issue), 3800, ["note","verdict","exercices"]); }
+    try{ s = await appelJson(promptSynthese(tours, nom, marche, notes, moments, fiches, issue), 3800, ["note","verdict","exercices"],
+          {systeme: doctrinePour(["cadrage","decouverte","objection","closing"], marche), effort: "high"}); }
     catch(e){ s = {verdict:"La synthèse a échoué : " + e.message + ". Le détail par phase reste valable."}; }
 
     (s.dires || []).forEach(x => {
@@ -1134,6 +1158,643 @@ async function rendCalibration(){
     <p style="font-size:13px;color:${cC};margin-top:8px">${vC}</p>
   </div>`;
 }
+
+/* =====================================================================
+   5. LE CERVEAU DES COACHS — la doctrine au lieu des fiches
+   Les fiches ne gardaient que des répliques. La doctrine garde la façon
+   de penser : principes, règles de décision, questions de diagnostic,
+   erreurs corrigées, cas raisonnés. Elle est construite une fois à partir
+   des transcripts, puis donnée en entier au coach à chaque analyse.
+   ===================================================================== */
+const MODELE_COACH = "claude-sonnet-5-5";
+let SERVEUR_INFO = null;
+async function infoServeur(){
+  if(SERVEUR_INFO) return SERVEUR_INFO;
+  // on ne retient la réponse que si le serveur a accepté le code : sinon on redemandera
+  try{
+    const r = await fetch(srvCopilote() + "/api/ping", {headers: {"x-code": codeAcces()}});
+    const d = await r.json();
+    const info = {version: d.version || 1, systeme: !!d.systeme, modeles: d.modeles || []};
+    if(r.ok) SERVEUR_INFO = info;
+    return info;
+  }catch(e){ return {version: 1, systeme: false, modeles: []}; }
+}
+
+/* Une seule porte vers le cerveau 5.5, avec la doctrine en consignes mises en cache.
+   Sur un ancien serveur, on retombe sur l'ancien chemin sans rien casser. */
+async function appelCerveau(prompt, o){
+  o = o || {};
+  const max = o.max || 1500;
+  await pretOuTantPis();
+  COMPTEUR.fond++;
+  if(parLeServeur()){
+    const inf = await infoServeur();
+    if(!inf.systeme || !inf.modeles.includes(MODELE_COACH)){
+      const sys = (o.systeme && !o.facultatif) ? o.systeme + "\n\n" : "";
+      return viaServeur(sys + prompt, max, MODELE_FOND);
+    }
+    let r;
+    try{
+      r = await fetch(srvCopilote() + "/api/claude", {method: "POST",
+        headers: {"Content-Type": "application/json", "x-code": codeAcces()},
+        body: JSON.stringify({prompt, max, modele: MODELE_COACH, systeme: o.systeme || undefined, effort: o.effort || "medium"})});
+    }catch(e){ throw new Error("Le serveur ne répond pas. Vérifie ta connexion."); }
+    const d = await r.json().catch(() => ({}));
+    if(r.status === 402){ const e = new Error(d.erreur || "Ton essai gratuit est terminé."); e.quota = true; throw e; }
+    if(r.status === 401) throw new Error("Code d'accès refusé. Vérifie-le, ou demande-en un nouveau.");
+    if(!r.ok) throw new Error(d.erreur || ("Serveur : erreur " + r.status));
+    if(!String(d.texte || "").trim()) throw new Error("réponse vide");
+    return d.texte;
+  }
+  if(!API_KEY){                       // ouvert depuis Claude : l'ancien chemin sait faire
+    return callClaudeOrigine((o.systeme && !o.facultatif ? o.systeme + "\n\n" : "") + prompt, max);
+  }
+  const corps = {model: MODELE_COACH, max_tokens: Math.min(20000, max + 4000),
+                 output_config: {effort: o.effort || "medium"}, messages: [{role: "user", content: prompt}]};
+  if(o.systeme) corps.system = [{type: "text", text: o.systeme, cache_control: {type: "ephemeral"}}];
+  let r;
+  try{
+    r = await fetch("https://api.anthropic.com/v1/messages", {method: "POST",
+      headers: {"Content-Type": "application/json", "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
+                "anthropic-dangerous-direct-browser-access": "true"},
+      body: JSON.stringify(corps)});
+  }catch(e){ throw new Error("Pas de réseau, ou clé refusée."); }
+  if(!r.ok){
+    const codes = {401:"Clé API invalide.", 403:"Clé sans accès.", 429:"Trop de demandes, ça se calme tout seul.", 400:"Requête refusée."};
+    const e = new Error(codes[r.status] || ("HTTP " + r.status)); e.status = r.status; throw e;
+  }
+  const d = await r.json();
+  if(d.stop_reason === "refusal") throw new Error("Le cerveau a refusé de répondre à cette demande.");
+  const t = (d.content || []).filter(c => c.type === "text").map(c => c.text || "").join("");
+  if(!t.trim()) throw new Error("réponse vide");
+  return t;
+}
+
+/* ---- les doctrines ---- */
+let DOCTRINES = {};
+const CLE_DOCTRINES = "doctrines";
+const CATS = {
+  principes:   {nom:"Principes",              cle: x => (x.titre||"") + " " + (x.idee||"")},
+  regles:      {nom:"Règles de décision",     cle: x => (x.si||"") + " " + (x.alors||"")},
+  diagnostics: {nom:"Questions de diagnostic", cle: x => x.question || ""},
+  erreurs:     {nom:"Erreurs corrigées",      cle: x => x.erreur || ""},
+  cas:         {nom:"Cas raisonnés",          cle: x => x.situation || ""},
+  phrases:     {nom:"Phrases",                cle: x => x.phrase || ""}
+};
+const cleEcole = nom => String(nom || "").trim().toLowerCase();
+
+async function chargeDoctrines(){
+  const d = await Store.get(CLE_DOCTRINES);
+  if(d && typeof d === "object") DOCTRINES = d;
+  // Les doctrines publiées à côté de l'app (pour tes testeurs) sont récupérées seules
+  try{
+    const r = await fetch("./doctrines.json?t=" + Date.now(), {cache: "no-store"});
+    if(r.ok){
+      const p = await r.json();
+      let change = false;
+      Object.entries((p && p.doctrines) || {}).forEach(([k, doc]) => {
+        if(doc && doc.cerveau && (!DOCTRINES[k] || (doc.maj || 0) > (DOCTRINES[k].maj || 0))){ DOCTRINES[k] = doc; change = true; }
+      });
+      Object.entries((p && p.ecoles) || {}).forEach(([k, e]) => { if(!ECOLES[k]){ ECOLES[k] = e; change = true; } });
+      if(change){ await Store.set(CLE_DOCTRINES, DOCTRINES); await Store.set("ecoles", ECOLES); }
+    }
+  }catch(e){}
+  rendDoctrines();
+}
+const sauveDoctrines = () => Store.set(CLE_DOCTRINES, DOCTRINES);
+
+/* La doctrine qui convient au moment et au marché, dans un ordre stable (pour le cache) */
+function doctrinePour(terrains, marche, maxChars){
+  const t = [].concat(terrains || []);
+  const l = Object.keys(DOCTRINES).sort().map(k => {
+    const d = DOCTRINES[k], e = ECOLES[k] || {};
+    if(!d || !d.cerveau) return null;
+    if(e.marches && marche && !e.marches.includes(marche)) return null;
+    const terrain = !t.length || !e.terrains || e.terrains.some(x => t.includes(x));
+    return {k, d, e, sc: terrain ? 2 : 1};
+  }).filter(Boolean).sort((a,b) => b.sc - a.sc);
+  let out = "";
+  for(const x of l){
+    const bloc = `### LE CERVEAU DE ${(x.e.nom || x.k).toUpperCase()}\n${x.d.cerveau}\n\n`;
+    if(out.length + bloc.length > (maxChars || 70000)) break;
+    out += bloc;
+  }
+  if(!out) return "";
+  return `Tu as étudié en profondeur les coachs que suit ton élève. Ce qui suit n'est pas une liste de répliques : c'est leur façon de penser, ce qu'un élève intériorise après des mois à les suivre.
+Tu raisonnes avec, comme un coach qui les a longtemps écoutés : tu lis la situation, tu reconnais ce qu'ils y verraient, et tu décides. Tu ne récites pas ce texte, tu ne le cites pas, et tu ne nommes pas ces coachs à ton élève sauf s'il le demande.
+Quand les consignes de la demande te donnent un format de réponse, tu le respectes.
+
+${out}`;
+}
+/* ---- la mémoire profonde ----
+   Le cerveau est un résumé. Derrière, l'app garde tout ce qui a été extrait :
+   des centaines de règles, de cas, d'erreurs. Au moment d'analyser, le coach
+   va chercher ceux qui ressemblent le plus à la situation, comme un coach qui
+   se souvient d'une revue de call précise. */
+const CATS_MEMOIRE = ["cas","regles","erreurs","diagnostics","principes"];
+const texteItem = (cat, x) => {
+  if(cat === "cas") return `Cas — situation : ${x.situation||""} | ce qu'il y voit : ${x.lecture||""} | ce qu'il fait : ${x.action||""}${x.phrase ? " | « " + x.phrase + " »" : ""}`;
+  if(cat === "regles") return `Règle — si ${x.si||""}, alors ${x.alors||""}${x.sauf ? ", sauf " + x.sauf : ""}`;
+  if(cat === "erreurs") return `Erreur corrigée — ${x.erreur||""} | comment il la repère : ${x.signe||""} | à la place : ${x.correction||""}`;
+  if(cat === "diagnostics") return `Question de diagnostic — « ${x.question||""} » | révèle : ${x.revele||""} | quand : ${x.quand||""}`;
+  return `Principe — ${x.titre||""} : ${x.idee||""}${x.pourquoi ? " (pourquoi : " + x.pourquoi + ")" : ""}`;
+};
+let INDEX_MEMOIRE = null, CLE_INDEX_MEMOIRE = "";
+function indexMemoire(){
+  const cle = Object.keys(DOCTRINES).sort().map(k => k + ":" + (DOCTRINES[k].maj || 0) + ":" + Object.values(DOCTRINES[k].items || {}).reduce((s,a) => s + a.length, 0)).join("|");
+  if(INDEX_MEMOIRE && cle === CLE_INDEX_MEMOIRE) return INDEX_MEMOIRE;
+  const docs = [];
+  Object.keys(DOCTRINES).forEach(k => CATS_MEMOIRE.forEach(cat => (DOCTRINES[k].items[cat] || []).forEach(x => {
+    const t = texteItem(cat, x), mots = motsDe(t), tf = {};
+    mots.forEach(m => tf[m] = (tf[m] || 0) + 1);
+    docs.push({k, cat, x, t, tf, n: mots.length || 1});
+  })));
+  const df = {}; docs.forEach(d => Object.keys(d.tf).forEach(m => df[m] = (df[m] || 0) + 1));
+  const N = docs.length || 1, idf = {};
+  Object.keys(df).forEach(m => idf[m] = Math.log(1 + (N - df[m] + 0.5) / (df[m] + 0.5)));
+  const moy = docs.reduce((s,d) => s + d.n, 0) / N;
+  INDEX_MEMOIRE = {docs, idf, moy}; CLE_INDEX_MEMOIRE = cle;
+  return INDEX_MEMOIRE;
+}
+function souvenirs(situation, terrains, marche, n){
+  if(!Object.keys(DOCTRINES).length) return "";
+  const ix = indexMemoire(); if(!ix.docs.length) return "";
+  const q = [...new Set(motsDe(situation))]; if(!q.length) return "";
+  const t = [].concat(terrains || []);
+  const ok = k => { const e = ECOLES[k] || {}; return (!e.marches || !marche || e.marches.includes(marche)); };
+  const notes = ix.docs.filter(d => ok(d.k)).map(d => {
+    let sc = 0;
+    q.forEach(m => { const f = d.tf[m]; if(f) sc += (ix.idf[m] || 0) * (f * 2.4) / (f + 1.4 * (0.3 + 0.7 * d.n / ix.moy)); });
+    if(!sc) return null;
+    const e = ECOLES[d.k] || {};
+    if(t.length && e.terrains && e.terrains.some(x => t.includes(x))) sc *= 1.15;
+    sc *= 1 + Math.log(1 + (d.x.poids || 1)) * 0.25;           // ce qui revient souvent chez lui pèse un peu plus
+    if(d.cat === "cas") sc *= 1.2;                              // les cas sont les souvenirs les plus utiles
+    return {d, sc};
+  }).filter(Boolean).sort((a,b) => b.sc - a.sc);
+  const pris = [];
+  for(const s of notes){
+    if(pris.length >= (n || 8)) break;
+    if(pris.some(p => memeIdee(p.d.t, s.d.t))) continue;
+    pris.push(s);
+  }
+  if(!pris.length) return "";
+  return `\nCE QUE TU TE RAPPELLES DE TES COACHS sur des situations proches — des souvenirs précis, à utiliser seulement s'ils éclairent vraiment ce cas :\n` +
+    pris.map(p => `- [${(ECOLES[p.d.k] && ECOLES[p.d.k].nom) || p.d.k}] ${p.d.t}`).join("\n") + "\n";
+}
+
+function optsDebrief(){
+  return {systeme: doctrinePour([segmentCourant().terrain], (SPAR && SPAR.marche) || sparMarche), effort: "high"};
+}
+
+/* ---- lire un fichier de transcript, quel que soit son format ---- */
+function nettoieSousTitresFichier(t){
+  const lignes = String(t).replace(/\r/g, "").split("\n");
+  const out = [];
+  for(const l0 of lignes){
+    const l = l0.replace(/<[^>]+>/g, "").trim();
+    if(!l || /^WEBVTT|^Kind:|^Language:|^NOTE\b/.test(l)) continue;
+    if(/^\d+$/.test(l)) continue;                                    // numéro de sous-titre
+    if(/-->/.test(l)) continue;                                      // horodatage
+    if(out.length && out[out.length-1] === l) continue;              // les sous-titres auto répètent chaque ligne
+    out.push(l);
+  }
+  return out.join(" ").replace(/\s{2,}/g, " ");
+}
+async function texteDuFichier(f){
+  const n = f.name.toLowerCase();
+  if(/\.(vtt|srt)$/.test(n)) return nettoieSousTitresFichier(await f.text());
+  if(/\.json$/.test(n)){
+    try{
+      const d = JSON.parse(await f.text());
+      const tires = [];
+      const fouille = x => {
+        if(!x) return;
+        if(typeof x === "string") return;
+        if(Array.isArray(x)) return x.forEach(fouille);
+        if(typeof x === "object"){
+          ["transcript","texte","text","content","contenu","traduction"].forEach(k => { if(typeof x[k] === "string" && x[k].length > 300) tires.push(x[k]); });
+          Object.values(x).forEach(v => { if(typeof v === "object") fouille(v); });
+        }
+      };
+      fouille(d);
+      return tires.join("\n\n");
+    }catch(e){ return ""; }
+  }
+  return await readFile(f);                                          // txt, md, pdf : le lecteur de l'app
+}
+function decoupeTexte(t, taille){
+  const out = []; let i = 0;
+  while(i < t.length){
+    let fin = Math.min(t.length, i + taille);
+    if(fin < t.length){ const p = t.lastIndexOf(". ", fin); if(p > i + taille * 0.6) fin = p + 1; }
+    out.push(t.slice(i, fin)); i = fin;
+  }
+  return out;
+}
+
+/* ---- passage 1 : ce qu'un morceau de contenu apprend sur la façon de penser du coach ---- */
+function promptExtraction(nomCoach, titre, morceau){
+  return `Tu étudies un contenu de ${nomCoach}, un coach de vente. Ce peut être un roleplay, une revue de call, une masterclass ou une interview, souvent en anglais.
+Titre : ${titre}
+
+"""${morceau}"""
+
+Tu n'extrais pas des répliques à recopier. Tu cherches à comprendre COMMENT CE COACH PENSE : ce qu'il regarde, ce qu'il en conclut, ce qu'il fait faire, et pourquoi.
+
+Ce que tu cherches :
+- ses principes, avec la raison qu'il donne ;
+- ses règles de décision : dans telle situation, il fait ceci, sauf dans tel cas ;
+- ses questions de diagnostic, et ce qu'elles révèlent ;
+- les erreurs qu'il corrige chez les vendeurs : comment il les repère, ce qu'il fait faire à la place ;
+- les cas qu'il analyse : la situation, sa lecture, ce qu'il fait ;
+- quelques phrases à dire au prospect, seulement si elles portent un mécanisme clair.
+
+Tout en français. Ne traduis jamais mot à mot : fais passer le mécanisme, dans le français parlé d'un closer, en tutoiement. Pour les phrases, garde l'original dans "origine".
+Ignore la promotion, les appels à s'abonner, les anecdotes sans enseignement. Si le morceau n'apprend rien, renvoie des listes vides.
+N'invente rien qui ne soit pas dans le texte.
+
+Réponds uniquement avec ce JSON, sans markdown, concis :
+{"marche":"b2c|b2b|les deux",
+ "principes":[{"titre":"court","idee":"le principe","pourquoi":"sa raison","quand":"quand il s applique"}],
+ "regles":[{"si":"la situation","alors":"ce qu il fait","sauf":"l exception, ou null"}],
+ "diagnostics":[{"question":"la question, en francais parle","revele":"ce qu elle revele","quand":"quand la poser"}],
+ "erreurs":[{"erreur":"l erreur du vendeur","signe":"comment il la repere","correction":"ce qu il fait faire a la place"}],
+ "cas":[{"situation":"la situation","lecture":"ce qu il y voit","action":"ce qu il fait ou fait faire","phrase":"la phrase cle, ou null"}],
+ "phrases":[{"phrase":"en francais","situation":"quand la dire","mecanisme":"le levier","origine":"la phrase d origine"}]}
+Au plus 6 éléments par liste, les plus importants.`;
+}
+
+/* ---- passage 2 : le cerveau, écrit à partir de tout ce qui a été extrait ---- */
+function promptCerveau(nomCoach, doc){
+  const bloc = (cat, max) => {
+    const l = (doc.items[cat] || []).slice().sort((a,b) => (b.poids||1) - (a.poids||1));
+    let s = "", n = 0;
+    for(const x of l){
+      const ligne = "- [vu " + (x.poids||1) + "x] " + Object.entries(x).filter(([k]) => !["poids","sources"].includes(k) && x[k]).map(([k,v]) => k + " : " + v).join(" | ") + "\n";
+      if(s.length + ligne.length > max) break;
+      s += ligne; n++;
+    }
+    return `## ${CATS[cat].nom} (${n} sur ${l.length})\n${s}`;
+  };
+  return `Tu as étudié ${doc.sources.length} contenus de ${nomCoach} : roleplays, revues de calls, masterclass. Voici, regroupé, tout ce que tu en as tiré. « vu Nx » indique combien de fois un élément revient : ce qui revient souvent est central chez lui.
+
+${bloc("principes", 14000)}
+${bloc("regles", 12000)}
+${bloc("diagnostics", 8000)}
+${bloc("erreurs", 10000)}
+${bloc("cas", 10000)}
+
+Écris maintenant LE CERVEAU DE ${nomCoach.toUpperCase()} : ce qu'un élève qui l'a suivi pendant des mois a intériorisé. Ce texte sera donné à un coach IA pour qu'il raisonne comme lui. Il doit permettre de JUGER une situation qu'on n'a jamais vue, pas seulement de réciter.
+
+Dans cet ordre :
+1. Sa vision du métier, en quelques phrases.
+2. Comment il lit un call : ce qu'il regarde, dans quel ordre, ce qui l'alerte.
+3. Ses principes, chacun avec son pourquoi.
+4. Ses règles de décision : si…, alors…, sauf…
+5. Ses questions de diagnostic, et ce qu'elles révèlent.
+6. Les erreurs qu'il corrige le plus : comment il les repère, ce qu'il fait faire à la place.
+7. Ce qu'il ne fait jamais, et ce qu'il interdit à ses élèves.
+8. Trois cas typiques, raisonnés comme il le ferait.
+9. Sa façon de reprendre un élève : ton, rythme, expressions.
+10. Ses limites : les situations où sa méthode s'applique mal, ou ce qu'il ne traite pas.
+
+Dense, concret, sans remplissage. En français. Au plus 2 500 mots. Garde ce qui revient souvent ; laisse de côté ce qui n'apparaît qu'une fois sans être important. N'invente rien qui ne soit pas dans le matériau.
+Réponds avec le texte seul, en titres simples, sans JSON.`;
+}
+
+/* Deux éléments disent la même chose : mêmes mots porteurs, ou presque.
+   Les éléments courts (deux ou trois mots) doivent être identiques. */
+function memeIdee(a, b){
+  const ma = motsDe(a), mb = motsDe(b);
+  if(ma.join(" ") === mb.join(" ")) return ma.length > 0;
+  const sa = new Set(ma), sb = new Set(mb);
+  if(Math.min(sa.size, sb.size) < 3){
+    return sa.size === sb.size && [...sa].every(w => sb.has(w));
+  }
+  return procheDe(sa, sb);
+}
+
+function fusionne(doc, extrait, source){
+  Object.keys(CATS).forEach(cat => {
+    doc.items[cat] = doc.items[cat] || [];
+    (extrait[cat] || []).forEach(x => {
+      if(!x || typeof x !== "object") return;
+      const cle = CATS[cat].cle(x);
+      if(!cle.trim()) return;
+      const deja = doc.items[cat].find(y => memeIdee(CATS[cat].cle(y), cle));
+      if(deja){
+        deja.poids = (deja.poids || 1) + 1;
+        if(!(deja.sources || []).includes(source)) (deja.sources = deja.sources || []).push(source);
+      } else {
+        doc.items[cat].push(Object.assign({}, x, {poids: 1, sources: [source]}));
+      }
+    });
+    if(doc.items[cat].length > 500) doc.items[cat] = doc.items[cat].sort((a,b) => (b.poids||1) - (a.poids||1)).slice(0, 500);
+  });
+  const m = extrait.marche;
+  if(m) doc.marches[m] = (doc.marches[m] || 0) + 1;
+}
+
+/* Les phrases rejoignent ta base, pour que les « à dire » en profitent aussi */
+function versesPhrases(doc, k){
+  let n = 0;
+  (doc.items.phrases || []).forEach(x => {
+    if(!x.phrase || FICHES.some(f => f.phrase === x.phrase)) return;
+    FICHES.push({objection:"AUTRE", label: x.situation || "Phrase", type:"DIAGNOSTIC", situation: x.situation || "",
+                 phrase: x.phrase, pourquoi: x.mecanisme || "", origine: x.origine || undefined,
+                 source: (ECOLES[k] && ECOLES[k].nom || k) + " — doctrine", ecole: k, valide: 0});
+    n++;
+  });
+  if(n) saveKb();
+  return n;
+}
+
+/* ---- l'écran, dans « Ma méthode » ---- */
+let DOC_FICHIERS = [], DOC_STOP = false;
+function blocDoctrineHtml(){
+  return `<div class="block" id="doctrineBloc" style="border-left:2px solid var(--amber);margin-top:18px">
+    <h3>Le cerveau de tes coachs</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Dépose les transcripts complets d'un coach : vidéos, roleplays, revues de calls. L'app n'en tire plus des répliques, mais sa façon de penser : principes, règles de décision, questions de diagnostic, erreurs qu'il corrige, cas qu'il analyse. Ce cerveau est ensuite donné au coach à chaque débrief, à chaque lecture de call et pendant le roleplay.</p>
+    <p id="docServeur" style="font-size:12.5px;margin-bottom:12px"></p>
+    <div id="doctrineListe"></div>
+    <label style="display:block;font-size:12.5px;color:var(--muted);margin:14px 0 6px">Le coach</label>
+    <select id="docCoach" style="width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)"></select>
+    <input type="text" id="docCoachNom" placeholder="Nom du nouveau coach" style="display:none;width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink);margin-top:8px">
+    <div id="docDrop" style="border:1.5px dashed var(--line);border-radius:11px;padding:20px;text-align:center;cursor:pointer;margin-top:12px">
+      <strong style="font-size:15px">Dépose ses transcripts ici</strong><br>
+      <span style="font-size:12.5px;color:var(--muted)">Le dossier du scraper en entier, son zip, ou des fichiers TXT, VTT, SRT, PDF, JSON</span>
+      <input type="file" id="docFiles" multiple hidden>
+      <input type="file" id="docDossier" webkitdirectory directory multiple hidden>
+    </div>
+    <div class="row" style="margin-top:8px"><button class="pill" id="btnDocDossier" style="font-size:12px;padding:6px 12px">Choisir un dossier entier</button></div>
+    <p id="docEstim" style="font-size:13px;margin-top:10px"></p>
+    <div class="row" style="margin-top:10px">
+      <button class="pill" id="btnDocGo" style="border-color:var(--amber);color:var(--amber)">Construire le cerveau</button>
+      <button class="pill" id="btnDocStop">Arrêter</button>
+      <button class="pill" id="btnDocExport">Exporter pour mes testeurs</button>
+      <button class="pill" id="btnDocImport">Importer</button>
+      <input type="file" id="docImportFile" accept=".json" hidden>
+    </div>
+    <div class="track" style="margin-top:12px"><div id="docFill" style="height:100%;width:0%;background:var(--amber);transition:width .3s"></div></div>
+    <p id="docEtat" style="font-size:13px;margin-top:8px"></p>
+  </div>`;
+}
+
+function rendDoctrines(){
+  const l = $("doctrineListe"); if(!l) return;
+  const ks = Object.keys(DOCTRINES).sort();
+  l.innerHTML = ks.length ? ks.map(k => {
+    const d = DOCTRINES[k], nb = Object.values(d.items || {}).reduce((s,a) => s + a.length, 0);
+    return `<div style="border-bottom:1px solid var(--line);padding:9px 0">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+        <span><b>${esc((ECOLES[k] && ECOLES[k].nom) || k)}</b> <span style="font-size:12px;color:var(--muted)">${(d.sources||[]).length} contenus · ${nb} éléments · ${d.cerveau ? Math.round(d.cerveau.length/1000) + " k caractères de cerveau" : "cerveau pas encore écrit"}</span></span>
+        <span>
+          <button class="pill" data-doc-lire="${esc(k)}" style="font-size:11.5px;padding:5px 11px">Lire</button>
+          <button class="pill" data-doc-reecrire="${esc(k)}" style="font-size:11.5px;padding:5px 11px">Réécrire le cerveau</button>
+          <button class="pill" data-doc-suppr="${esc(k)}" style="font-size:11.5px;padding:5px 11px">Supprimer</button>
+        </span>
+      </div>
+      <pre id="docTexte-${esc(k)}" style="display:none;white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.55;margin-top:10px;max-height:420px;overflow:auto">${esc(d.cerveau || "")}</pre>
+    </div>`;
+  }).join("") : '<p style="font-size:13px;color:var(--muted)">Aucun cerveau construit pour l\'instant.</p>';
+  l.querySelectorAll("[data-doc-lire]").forEach(b => b.onclick = () => {
+    const p = document.getElementById("docTexte-" + b.dataset.docLire); if(p) p.style.display = p.style.display === "none" ? "block" : "none";
+  });
+  l.querySelectorAll("[data-doc-reecrire]").forEach(b => b.onclick = () => ecritCerveau(b.dataset.docReecrire));
+  l.querySelectorAll("[data-doc-suppr]").forEach(b => b.onclick = async () => {
+    if(!confirm("Supprimer le cerveau de " + b.dataset.docSuppr + " ? Les fiches déjà versées dans ta base restent.")) return;
+    delete DOCTRINES[b.dataset.docSuppr]; await sauveDoctrines(); rendDoctrines();
+  });
+  const s = $("docCoach");
+  if(s){
+    const v = s.value;
+    s.innerHTML = Object.entries(ECOLES).filter(([k]) => k !== "moi").map(([k,e]) => `<option value="${esc(k)}">${esc(e.nom || k)}</option>`).join("")
+      + '<option value="__nouveau">+ Un nouveau coach</option>';
+    if(v) s.value = v;
+  }
+}
+
+async function estimeDoc(){
+  const el = $("docEstim"); if(!el) return;
+  if(!DOC_FICHIERS.length){ el.textContent = ""; return; }
+  let car = 0;
+  for(const f of DOC_FICHIERS) car += f.texte.length;
+  const morceaux = DOC_FICHIERS.reduce((s,f) => s + Math.ceil(f.texte.length / 40000), 0);
+  const inf = parLeServeur() ? await infoServeur() : {systeme: true, modeles: [MODELE_COACH]};
+  const nouveau = !parLeServeur() || (inf.systeme && inf.modeles.includes(MODELE_COACH));
+  const pe = nouveau ? 2 : 3, ps = nouveau ? 10 : 15;
+  const entree = car / 3.6 + morceaux * 1500 + 30000, sortie = morceaux * 3500 + 8000;
+  const cout = (entree * pe + sortie * ps) / 1e6;
+  el.innerHTML = `<b>${DOC_FICHIERS.length}</b> fichiers lisibles, ${Math.round(car/1000)} k caractères, ${morceaux} morceaux à étudier.
+    Coût estimé : <b>${cout.toFixed(2).replace(".", ",")} $</b>, à payer une seule fois. Durée : environ ${Math.max(2, Math.round(morceaux * 0.6 / 3))} minutes. Tu peux arrêter et reprendre : rien n'est perdu.`;
+}
+
+/* Le dossier du scraper, son zip, ou des fichiers en vrac : tout est accepté.
+   Les fichiers techniques sont ignorés, et une même vidéo n'est lue qu'une fois. */
+const FICHIERS_IGNORES = /^(database\.json|index\.csv|errors\.log|requirements\.txt|readme\.(md|txt)|lisezmoi\.txt|.*\.(bat|py|ps1|csv|log|png|jpg|html|js))$/i;
+const idVideo = nom => { const m = String(nom).match(/\[([\w-]{11})\]/) || String(nom).match(/(?:^|[\\/])([\w-]{11})(?:\.[a-z]{2,3})?\.(?:vtt|srt)$/i); return m ? m[1] : null; };
+async function deplieZip(f){
+  await loadZipLib();
+  const zip = await JSZip.loadAsync(f);
+  const out = [];
+  for(const n of Object.keys(zip.files)){
+    const e = zip.files[n]; if(e.dir) continue;
+    const court = n.split("/").pop();
+    if(/\.zip$/i.test(court)){ try{ out.push(...await deplieZip(await e.async("blob"))); }catch(_){} continue; }
+    if(!/\.(txt|vtt|srt|json|md)$/i.test(court)) continue;
+    out.push({name: court, chemin: n, text: () => e.async("string")});
+  }
+  return out;
+}
+async function ajouteFichiersDoc(liste){
+  const deja = new Set(DOC_FICHIERS.map(f => f.nom));
+  const videos = new Set(DOC_FICHIERS.map(f => f.video).filter(Boolean));
+  let tous = [];
+  for(const f of [...liste]){
+    if(/\.zip$/i.test(f.name)){
+      $("docEtat").innerHTML = '<span style="color:var(--amber)">J\'ouvre ' + esc(f.name) + '…</span>';
+      try{ tous.push(...await deplieZip(f)); }catch(e){ $("docEtat").innerHTML = '<span style="color:var(--clay)">Zip illisible : ' + esc(e.message) + '</span>'; }
+    } else tous.push(f);
+  }
+  // les .txt du scraper passent avant les .vtt bruts de la même vidéo
+  const nbDeposes = tous.length;
+  tous = tous.filter(f => !FICHIERS_IGNORES.test(f.name) && !/[\\/]\.venv[\\/]|[\\/]_tmp[\\/]/.test(f.chemin || f.webkitRelativePath || ""))
+             .sort((a,b) => (/\.txt$/i.test(b.name) ? 1 : 0) - (/\.txt$/i.test(a.name) ? 1 : 0));
+  let ignores = 0;
+  for(const f of tous){
+    const v = idVideo(f.name);
+    if(deja.has(f.name) || (v && videos.has(v))){ ignores++; continue; }
+    try{
+      const t = (await texteDuFichier(f) || "").trim();
+      if(t.replace(/\s/g, "").length > 800){
+        DOC_FICHIERS.push({nom: f.name, texte: t, video: v});
+        deja.add(f.name); if(v) videos.add(v);
+      } else ignores++;
+    }catch(e){ ignores++; }
+  }
+  await estimeDoc();
+  ignores += nbDeposes - tous.length;
+  if(ignores) $("docEtat").innerHTML = '<span style="color:var(--muted)">' + ignores + ' fichier' + (ignores > 1 ? "s" : "") + ' ignoré' + (ignores > 1 ? "s" : "") + ' : doublons, fichiers techniques ou trop courts.</span>';
+}
+
+/* Un dossier glissé dans la zone : on descend dans tous ses sous-dossiers */
+async function fichiersDuDepot(dt){
+  const items = [...(dt.items || [])].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if(!items.length || items.every(e => e.isFile)) return [...dt.files];
+  const out = [];
+  const lis = entree => new Promise(res => {
+    if(entree.isFile){ entree.file(f => { try{ Object.defineProperty(f, "chemin", {value: entree.fullPath}); }catch(_){} out.push(f); res(); }, () => res()); return; }
+    if(/^(\.venv|_tmp|node_modules)$/.test(entree.name)) return res();
+    const r = entree.createReader(), toutes = [];
+    const lot = () => r.readEntries(async es => { if(!es.length){ for(const e of toutes) await lis(e); res(); } else { toutes.push(...es); lot(); } }, () => res());
+    lot();
+  });
+  for(const e of items) await lis(e);
+  return out;
+}
+
+async function ecritCerveau(k){
+  const d = DOCTRINES[k]; if(!d) return;
+  const nom = (ECOLES[k] && ECOLES[k].nom) || k;
+  $("docEtat").innerHTML = '<span style="color:var(--amber)">J\'écris le cerveau de ' + esc(nom) + ' à partir de tout ce qui a été extrait…</span>';
+  try{
+    const txt = await appelCerveau(promptCerveau(nom, d), {max: 8000, effort: "high"});
+    d.cerveau = txt.trim(); d.maj = Date.now();
+    await sauveDoctrines(); rendDoctrines();
+    const n = versesPhrases(d, k);
+    $("docEtat").innerHTML = '<span style="color:var(--sage)">Le cerveau de ' + esc(nom) + ' est prêt' + (n ? ", et " + n + " nouvelles phrases ont rejoint ta base" : "") + '. Clique sur « Lire » pour le relire avant de t\'en servir.</span>';
+  }catch(e){
+    $("docEtat").innerHTML = '<span style="color:var(--clay)">Écriture du cerveau impossible : ' + esc(e.message) + '. Les extraits sont gardés : réessaie avec « Réécrire le cerveau ».</span>';
+  }
+}
+
+async function construisDoctrine(){
+  if(!DOC_FICHIERS.length) return toast("Dépose d'abord des transcripts");
+  let k = $("docCoach").value;
+  if(k === "__nouveau"){
+    const nom = $("docCoachNom").value.trim();
+    if(!nom) return toast("Donne un nom au coach");
+    k = cleEcole(nom);
+    if(!ECOLES[k]){ ECOLES[k] = {nom, terrains:["cadrage","decouverte","objection","closing"], note:"cerveau construit depuis ses contenus"}; await Store.set("ecoles", ECOLES); }
+  }
+  const nom = (ECOLES[k] && ECOLES[k].nom) || k;
+  const d = DOCTRINES[k] = DOCTRINES[k] || {items:{}, sources:[], faits:[], marches:{}, cerveau:"", maj:0};
+  d.faits = d.faits || []; d.marches = d.marches || {}; d.items = d.items || {};
+  const travail = [];
+  DOC_FICHIERS.forEach(f => decoupeTexte(f.texte, 40000).forEach((m, i, a) => travail.push({titre: f.nom + (a.length > 1 ? " (partie " + (i+1) + ")" : ""), source: f.nom, texte: m})));
+  const aFaire = travail.filter(t => !d.faits.includes(hashTxt(t.texte)));
+  DOC_STOP = false;
+  $("btnDocGo").disabled = true;
+  let ok = 0, ko = 0, derniere = "", suivant = 0, fini = 0, casse = false;
+  // trois morceaux étudiés en même temps : trois fois plus vite
+  const ouvrier = async () => {
+    while(!DOC_STOP && !casse && suivant < aFaire.length){
+      const t = aFaire[suivant++];
+      $("docEtat").innerHTML = '<span style="color:var(--amber)">' + fini + " / " + aFaire.length + " étudiés — en cours : " + esc(t.titre) + "</span>";
+      try{
+        const ex = parseModelJson(await appelCerveau(promptExtraction(nom, t.titre, t.texte), {max: 4000, effort: "medium"}));
+        fusionne(d, ex, t.source);
+        d.faits.push(hashTxt(t.texte));
+        if(!d.sources.includes(t.source)) d.sources.push(t.source);
+        ok++;
+        await sauveDoctrines();               // on peut s'arrêter et reprendre sans rien perdre
+      }catch(e){
+        ko++; derniere = e.message;
+        if(e.quota || (ko >= 3 && ok === 0)) casse = true;
+      }
+      fini++;
+      $("docFill").style.width = Math.round(fini / aFaire.length * 100) + "%";
+    }
+  };
+  await Promise.all([ouvrier(), ouvrier(), ouvrier()]);
+  $("docFill").style.width = "100%";
+  $("btnDocGo").disabled = false;
+  rendDoctrines();
+  if(ok === 0 && aFaire.length){
+    $("docEtat").innerHTML = '<span style="color:var(--clay)">Rien n\'a pu être étudié. Dernière erreur : ' + esc(derniere) + '</span>';
+    return;
+  }
+  // le coach est-il plutôt B2C, B2B, ou les deux ?
+  const mv = d.marches, b2b = (mv.b2b || 0) + (mv["les deux"] || 0), b2c = (mv.b2c || 0) + (mv["les deux"] || 0);
+  if(ECOLES[k] && !ECOLES[k].marches && (b2b || b2c)){
+    ECOLES[k].marches = b2b > b2c * 2 ? ["b2b"] : b2c > b2b * 2 ? ["b2c"] : ["b2c","b2b"];
+    await Store.set("ecoles", ECOLES);
+  }
+  if(ko) $("docEtat").innerHTML = '<span style="color:var(--amber)">' + ok + " morceaux étudiés, " + ko + " en échec (" + esc(derniere) + "). J'écris le cerveau avec ce qui a été lu.</span>";
+  if(DOC_STOP){ $("docEtat").innerHTML = '<span style="color:var(--amber)">Arrêté. Ce qui a été lu est gardé : relance pour continuer, puis « Réécrire le cerveau ».</span>'; return; }
+  DOC_FICHIERS = []; estimeDoc();
+  await ecritCerveau(k);
+}
+
+function exporteDoctrines(){
+  const ecoles = {};
+  Object.keys(DOCTRINES).forEach(k => { if(ECOLES[k]) ecoles[k] = ECOLES[k]; });
+  // Pour tes testeurs : le cerveau, et la mémoire profonde allégée (les 300 éléments
+  // les plus fréquents par catégorie). Les phrases restent chez toi, dans ta base.
+  const legeres = {};
+  Object.entries(DOCTRINES).forEach(([k,d]) => {
+    const items = {};
+    CATS_MEMOIRE.forEach(cat => {
+      items[cat] = (d.items[cat] || []).slice().sort((a,b) => (b.poids||1) - (a.poids||1)).slice(0, 300)
+        .map(x => { const y = Object.assign({}, x); delete y.sources; return y; });
+    });
+    legeres[k] = {cerveau: d.cerveau, maj: d.maj, sources: d.sources, items};
+  });
+  const b = new Blob([JSON.stringify({version:1, date:new Date().toISOString(), doctrines: legeres, ecoles}, null, 1)], {type:"application/json"});
+  const a = document.createElement("a"), u = URL.createObjectURL(b);
+  a.href = u; a.download = "doctrines.json"; a.click();
+  setTimeout(() => URL.revokeObjectURL(u), 1000);
+  toast("Mets doctrines.json sur GitHub, à côté de l'app");
+}
+
+async function installeEcranDoctrine(){
+  const ancre = $("keyBox");
+  if(!ancre || $("doctrineBloc")) return;
+  const d = document.createElement("div"); d.innerHTML = blocDoctrineHtml();
+  ancre.parentNode.insertBefore(d.firstElementChild, ancre.nextSibling);
+  $("docCoach").onchange = () => { $("docCoachNom").style.display = $("docCoach").value === "__nouveau" ? "block" : "none"; };
+  $("docDrop").onclick = () => $("docFiles").click();
+  $("docDrop").ondragover = e => { e.preventDefault(); $("docDrop").style.borderColor = "var(--amber)"; };
+  $("docDrop").ondragleave = () => $("docDrop").style.borderColor = "var(--line)";
+  $("docDrop").ondrop = async e => {
+    e.preventDefault(); $("docDrop").style.borderColor = "var(--line)";
+    $("docEtat").innerHTML = '<span style="color:var(--amber)">Je lis le contenu déposé…</span>';
+    ajouteFichiersDoc(await fichiersDuDepot(e.dataTransfer));
+  };
+  $("docFiles").onchange = e => ajouteFichiersDoc(e.target.files);
+  $("btnDocDossier").onclick = () => $("docDossier").click();
+  $("docDossier").onchange = e => ajouteFichiersDoc([...e.target.files].map(f => { try{ Object.defineProperty(f, "chemin", {value: f.webkitRelativePath}); }catch(_){} return f; }));
+  $("btnDocGo").onclick = construisDoctrine;
+  $("btnDocStop").onclick = () => { DOC_STOP = true; };
+  $("btnDocExport").onclick = exporteDoctrines;
+  $("btnDocImport").onclick = () => $("docImportFile").click();
+  $("docImportFile").onchange = async e => {
+    try{
+      const p = JSON.parse(await e.target.files[0].text());
+      Object.entries(p.doctrines || {}).forEach(([k, doc]) => { if(doc && doc.cerveau) DOCTRINES[k] = Object.assign({items:{}, sources:[], faits:[], marches:{}}, DOCTRINES[k] || {}, doc); });
+      Object.entries(p.ecoles || {}).forEach(([k, ec]) => { if(!ECOLES[k]) ECOLES[k] = ec; });
+      await sauveDoctrines(); await Store.set("ecoles", ECOLES); rendDoctrines(); toast("Cerveaux importés");
+    }catch(_){ toast("Fichier illisible"); }
+  };
+  rendDoctrines();
+  majDocServeur();
+  const kbOrigine = $("btnKb").onclick;
+  $("btnKb").onclick = function(){ const r = kbOrigine.apply(this, arguments); rendDoctrines(); majDocServeur(); return r; };
+}
+async function majDocServeur(){
+  const ds = $("docServeur"); if(!ds) return;
+  await pretOuTantPis();
+  if(parLeServeur()){
+    const inf = await infoServeur();
+    ds.innerHTML = (inf.systeme && inf.modeles.includes(MODELE_COACH))
+      ? '<span style="color:var(--sage)">Serveur à jour : cerveau Sonnet 5.5, doctrine mise en cache.</span>'
+      : '<span style="color:var(--clay)">Ton serveur est l\'ancienne version : le cerveau tourne encore sur Sonnet 4.6 et la doctrine n\'est pas mise en cache, ce qui coûte plus cher. Installe la mise à jour du serveur.</span>';
+  } else ds.innerHTML = API_KEY ? '<span style="color:var(--sage)">Clé directe : cerveau Sonnet 5.5, doctrine mise en cache.</span>'
+                                : '<span style="color:var(--muted)">Mets ton code d\'accès ou ta clé plus haut pour construire un cerveau.</span>';
+}
+installeEcranDoctrine();
+chargeDoctrines();
 
 const renderProgOrigine = renderProg;
 renderProg = function(){ renderProgOrigine(); rendCalibration(); };
