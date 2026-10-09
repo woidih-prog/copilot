@@ -1253,7 +1253,11 @@ async function chargeDoctrines(){
       const p = await r.json();
       let change = false;
       Object.entries((p && p.doctrines) || {}).forEach(([k, doc]) => {
-        if(doc && doc.cerveau && (!DOCTRINES[k] || (doc.maj || 0) > (DOCTRINES[k].maj || 0))){ DOCTRINES[k] = doc; change = true; }
+        if(doc && doc.cerveau && (!DOCTRINES[k] || (doc.maj || 0) > (DOCTRINES[k].maj || 0))){
+          DOCTRINES[k] = doc; change = true;
+          // le cerveau publié arrive avec ses réglages (marchés, terrains)
+          if(p.ecoles && p.ecoles[k]) ECOLES[k] = Object.assign({}, ECOLES[k] || {}, p.ecoles[k]);
+        }
       });
       Object.entries((p && p.ecoles) || {}).forEach(([k, e]) => { if(!ECOLES[k]){ ECOLES[k] = e; change = true; } });
       if(change){ await Store.set(CLE_DOCTRINES, DOCTRINES); await Store.set("ecoles", ECOLES); }
@@ -1684,6 +1688,12 @@ async function construisDoctrine(){
   const travail = [];
   DOC_FICHIERS.forEach(f => decoupeTexte(f.texte, 40000).forEach((m, i, a) => travail.push({titre: f.nom + (a.length > 1 ? " (partie " + (i+1) + ")" : ""), source: f.nom, texte: m})));
   const aFaire = travail.filter(t => !d.faits.includes(hashTxt(t.texte)));
+  if(!aFaire.length && d.cerveau){
+    // tout est déjà dans le cerveau : on ne le réécrit pas, rien à payer
+    DOC_FICHIERS = []; estimeDoc();
+    $("docEtat").innerHTML = '<span style="color:var(--sage)">Tout ce que tu as déposé est déjà dans le cerveau de ' + esc(nom) + '. Rien à refaire, rien à payer.</span>';
+    return;
+  }
   DOC_STOP = false;
   $("btnDocGo").disabled = true;
   let ok = 0, ko = 0, derniere = "", suivant = 0, fini = 0, casse = false;
@@ -1773,7 +1783,7 @@ async function installeEcranDoctrine(){
     try{
       const p = JSON.parse(await e.target.files[0].text());
       Object.entries(p.doctrines || {}).forEach(([k, doc]) => { if(doc && doc.cerveau) DOCTRINES[k] = Object.assign({items:{}, sources:[], faits:[], marches:{}}, DOCTRINES[k] || {}, doc); });
-      Object.entries(p.ecoles || {}).forEach(([k, ec]) => { if(!ECOLES[k]) ECOLES[k] = ec; });
+      Object.entries(p.ecoles || {}).forEach(([k, ec]) => { ECOLES[k] = Object.assign({}, ECOLES[k] || {}, ec); });
       await sauveDoctrines(); await Store.set("ecoles", ECOLES); rendDoctrines(); toast("Cerveaux importés");
     }catch(_){ toast("Fichier illisible"); }
   };
