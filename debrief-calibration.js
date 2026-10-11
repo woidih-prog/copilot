@@ -1809,4 +1809,880 @@ chargeDoctrines();
 const renderProgOrigine = renderProg;
 renderProg = function(){ renderProgOrigine(); rendCalibration(); };
 
+/* =====================================================================
+   6. LE COPILOTE EN DIRECT : DEUX OREILLES
+   Avant, l'app n'écoutait que le micro : avec un casque, elle n'entendait
+   jamais le prospect, et elle devinait qui parlait. Maintenant :
+   - le son de l'appel (onglet Meet, ou écran entier pour Zoom) = le prospect,
+     transcrit par le serveur ;
+   - ton micro = toi, transcrit par Chrome.
+   Plus besoin de bouton MOI / PROSPECT. Et une nouvelle phrase n'annule plus
+   l'analyse en cours : la carte avance au lieu de rester figée.
+   ===================================================================== */
+(function deuxOreilles(){
+// si la page n'a pas le moteur du direct (autre version de l'app), on ne touche à rien
+if(typeof CONSIGNES !== "function" || typeof lancerAnalyse !== "function" || typeof nouvellePhrase !== "function" || !$("btnStart") || !$("btnEnd")) return;
+const OREILLE = {flux:null, ctx:null, proc:null, actif:false, seg:null, preroll:[], silence:0, fond:0,
+                 file:Promise.resolve(), num:0, envoyes:0, erreurs:0, derniereErreur:""};
+const CLE_OPENAI = "woidih_cle_openai";
+const HALLU = /(sous-titr|merci d'avoir regard|abonnez-vous|amara\.org|transcription réalisée|♪)/i;
+
+function ajouteAideDemarrage(){
+  const b = $("btnStart"); if(!b || $("aideDeuxOreilles")) return;
+  const p = document.createElement("p");
+  p.id = "aideDeuxOreilles";
+  p.style.cssText = "font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5";
+  p.innerHTML = "Au démarrage, Chrome te demande quoi partager, pour que le copilote entende ton prospect :<br>" +
+    "· <b>Google Meet</b> : choisis l'onglet du call et laisse <b>« Partager l'audio de l'onglet »</b> coché.<br>" +
+    "· <b>Zoom</b> (application) : choisis <b>« Écran entier »</b> et coche <b>« Partager l'audio du système »</b>.<br>" +
+    "Mets un casque : ton micro n'entendra que toi.";
+  b.insertAdjacentElement("afterend", p);
+}
+ajouteAideDemarrage();
+
+/* --- le son du prospect : on découpe ses prises de parole --- */
+function versWav16k(morceaux, taux){
+  const n = morceaux.reduce((s,a) => s + a.length, 0);
+  const tout = new Float32Array(n); let o = 0;
+  morceaux.forEach(a => { tout.set(a, o); o += a.length; });
+  const pas = taux / 16000, m = Math.floor(n / pas);
+  const buf = new ArrayBuffer(44 + m * 2), v = new DataView(buf);
+  const ecrit = (p, s) => { for(let i = 0; i < s.length; i++) v.setUint8(p + i, s.charCodeAt(i)); };
+  ecrit(0, "RIFF"); v.setUint32(4, 36 + m * 2, true); ecrit(8, "WAVE"); ecrit(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  ecrit(36, "data"); v.setUint32(40, m * 2, true);
+  for(let i = 0; i < m; i++){
+    // moyenne sur la fenêtre : un ré-échantillonnage simple, suffisant pour la voix
+    const a = Math.floor(i * pas), b = Math.min(n, Math.floor((i + 1) * pas));
+    let s = 0; for(let k = a; k < b; k++) s += tout[k];
+    const x = Math.max(-1, Math.min(1, s / Math.max(1, b - a)));
+    v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7FFF, true);
+  }
+  return new Uint8Array(buf);
+}
+function enBase64(octets){
+  let s = ""; const pas = 0x8000;
+  for(let i = 0; i < octets.length; i += pas) s += String.fromCharCode.apply(null, octets.subarray(i, i + pas));
+  return btoa(s);
+}
+
+async function transcrit(octets){
+  const contexte = "Appel de vente en français." + (S.domaine ? " Sujet : " + S.domaine + "." : "");
+  if(parLeServeur()){
+    const r = await fetch(srvCopilote() + "/api/transcrire", {
+      method: "POST", headers: {"Content-Type": "application/json", "x-code": codeAcces()},
+      body: JSON.stringify({audio: enBase64(octets), langue: "fr", contexte})
+    });
+    const d = await r.json().catch(() => ({}));
+    if(r.status === 402){ const e = new Error(d.erreur || "Quota atteint."); e.quota = true; throw e; }
+    if(!r.ok) throw new Error(d.erreur || ("transcription : erreur " + r.status));
+    return d.texte || "";
+  }
+  let cle = ""; try{ cle = localStorage.getItem(CLE_OPENAI) || ""; }catch(_){}
+  if(!cle) throw new Error("il manque la clé de transcription");
+  const fd = new FormData();
+  fd.append("file", new Blob([octets], {type: "audio/wav"}), "prospect.wav");
+  fd.append("model", "gpt-4o-mini-transcribe");
+  fd.append("language", "fr");
+  fd.append("prompt", contexte);
+  const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {method: "POST", headers: {Authorization: "Bearer " + cle}, body: fd});
+  const d = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error((d.error && d.error.message) || ("transcription : erreur " + r.status));
+  return d.text || "";
+}
+
+function envoieSegment(morceaux, taux){
+  const duree = morceaux.reduce((s,a) => s + a.length, 0) / taux;
+  if(duree < 0.45) return;                                   // un bruit, pas une phrase
+  const octets = versWav16k(morceaux, taux);
+  const promesse = transcrit(octets).catch(e => { OREILLE.erreurs++; OREILLE.derniereErreur = e.message; ECOUTE.erreur = "prospect non transcrit : " + e.message; return ""; });
+  OREILLE.envoyes++;
+  // les phrases du prospect arrivent dans l'ordre où il les a dites
+  OREILLE.file = OREILLE.file.then(() => promesse).then(t => {
+    t = String(t || "").trim();
+    if(!S.running || !t || t.length < 2 || HALLU.test(t)) return;
+    ECOUTE.erreur = "";
+    dit("PROSPECT", t);
+  });
+}
+
+function ecouteLAppel(flux){
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  try{ ctx.resume(); }catch(_){}
+  const src = ctx.createMediaStreamSource(new MediaStream(flux.getAudioTracks()));
+  const proc = ctx.createScriptProcessor(4096, 1, 1);
+  const muet = ctx.createGain(); muet.gain.value = 0;         // on écoute sans rejouer le son
+  src.connect(proc); proc.connect(muet); muet.connect(ctx.destination);
+  const taux = ctx.sampleRate, trame = 4096 / taux;
+  Object.assign(OREILLE, {flux, ctx, proc, actif: true, seg: null, preroll: [], silence: 0, fond: 0.002});
+  proc.onaudioprocess = e => {
+    if(!S.running){ arreteOreille(); return; }
+    const x = new Float32Array(e.inputBuffer.getChannelData(0));
+    let s = 0; for(let i = 0; i < x.length; i++) s += x[i] * x[i];
+    const rms = Math.sqrt(s / x.length);
+    const parle = rms > Math.max(0.01, OREILLE.fond * 3.5);
+    if(!parle) OREILLE.fond = OREILLE.fond * 0.95 + rms * 0.05;   // le bruit de fond, appris en continu
+    if(OREILLE.seg){
+      OREILLE.seg.push(x);
+      if(parle){ OREILLE.silence = 0; S.lastSpeech = Date.now(); }
+      else OREILLE.silence += trame;
+      const duree = OREILLE.seg.length * trame;
+      // fin de sa prise de parole : 0,7 s de silence ; ou 12 s d'affilée, pour ne pas attendre la fin d'un monologue
+      if(OREILLE.silence >= 0.7 || duree >= 12){
+        const garde = OREILLE.silence >= 0.7 ? OREILLE.seg.slice(0, OREILLE.seg.length - Math.floor(0.5 / trame)) : OREILLE.seg;
+        envoieSegment(garde, taux);
+        OREILLE.seg = null; OREILLE.silence = 0;
+      }
+    } else if(parle){
+      OREILLE.seg = OREILLE.preroll.slice(); OREILLE.seg.push(x);   // on garde le début du mot
+      OREILLE.silence = 0; S.lastSpeech = Date.now();
+      try{ etatEcoute("Le prospect parle…"); }catch(_){}
+    } else {
+      OREILLE.preroll.push(x); if(OREILLE.preroll.length > 4) OREILLE.preroll.shift();
+    }
+  };
+  flux.getTracks().forEach(t => t.onended = () => {
+    if(!S.running) return;
+    ECOUTE.erreur = "partage du son de l'appel arrêté : le copilote n'entend plus le prospect";
+    try{ etatEcoute(ECOUTE.erreur, "err"); }catch(_){}
+  });
+}
+function arreteOreille(){
+  if(!OREILLE.actif) return;
+  OREILLE.actif = false;
+  try{ OREILLE.proc.onaudioprocess = null; OREILLE.proc.disconnect(); }catch(_){}
+  try{ OREILLE.ctx.close(); }catch(_){}
+  try{ OREILLE.flux.getTracks().forEach(t => t.stop()); }catch(_){}
+  OREILLE.flux = null; OREILLE.seg = null;
+}
+
+/* --- chaque phrase, avec la bonne étiquette --- */
+function memeTexte(a, b){
+  const ma = motsDe(a), mb = new Set(motsDe(b));
+  if(ma.length < 3) return false;
+  return ma.filter(w => mb.has(w)).length / ma.length >= 0.6;
+}
+function dit(qui, txt){
+  const maintenant = (Date.now() - S.t0) / 1000;
+  if(qui === "PROSPECT"){
+    // sans casque, ton micro a pu capter sa voix : on retire le doublon rangé à ton nom
+    for(let i = S.transcript.length - 1; i >= 0 && maintenant - S.transcript[i].t < 15; i--){
+      const l = S.transcript[i];
+      if(l.qui === "CLOSER" && memeTexte(l.text, txt)){
+        S.transcript.splice(i, 1);
+        const lignes = [...document.querySelectorAll("#log .line.moi")];
+        const el = lignes.reverse().find(d => d.textContent.endsWith(l.text)); if(el) el.remove();
+        break;
+      }
+    }
+  } else if(S.transcript.some(l => l.qui === "PROSPECT" && maintenant - l.t < 10 && memeTexte(txt, l.text))){
+    return;                                                   // c'est l'écho du prospect, pas toi
+  }
+  S.manuelRecent = false;
+  nouvellePhrase(txt, {qui, surete: 1});
+}
+
+/* --- le démarrage --- */
+const demarrageOrigine = $("btnStart").onclick;
+$("btnStart").onclick = async function(){
+  let flux = null;
+  if(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia){
+    try{
+      // en premier : Chrome n'ouvre ce choix que juste après ton clic
+      flux = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: {echoCancellation: false, noiseSuppression: false, autoGainControl: false},
+        systemAudio: "include", selfBrowserSurface: "exclude"
+      });
+    }catch(_){ flux = null; }
+    if(flux && !flux.getAudioTracks().length){
+      flux.getTracks().forEach(t => t.stop()); flux = null;
+      alert("Le son n'a pas été partagé.\n\nRecommence et coche « Partager l'audio de l'onglet » (Meet) ou « Partager l'audio du système » (Zoom, écran entier).\n\nSans ça, le copilote n'entendra que toi.");
+    }
+  }
+  if(!flux){
+    if(!confirm("Démarrer quand même sans le son de l'appel ?\n\nLe copilote n'entendra que ton micro, comme avant.")) return;
+    return demarrageOrigine.apply(this, arguments);
+  }
+  if(!parLeServeur()){
+    let cle = ""; try{ cle = localStorage.getItem(CLE_OPENAI) || ""; }catch(_){}
+    if(!cle){
+      cle = (prompt("Pour transcrire ton prospect sans passer par ton serveur, colle ta clé OpenAI (elle reste dans ce navigateur).\n\nSinon, annule et mets ton code d'accès dans Ma méthode.") || "").trim();
+      if(!cle){ flux.getTracks().forEach(t => t.stop()); return; }
+      try{ localStorage.setItem(CLE_OPENAI, cle); }catch(_){}
+    }
+  }
+  await pretOuTantPis();
+  if(!API_KEY && !window.storage && !parLeServeur()){
+    flux.getTracks().forEach(t => t.stop());
+    return alert("Il manque ta clé API ou ton code d'accès.\n\nVa dans « Ma méthode ».");
+  }
+  // Pas d'assureMicro() ici : retenir le micro rend la reconnaissance de Chrome muette.
+  if(!initRec()){ flux.getTracks().forEach(t => t.stop()); return; }
+  rec.onresult = e => {
+    S.lastSpeech = Date.now();
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const txt = (e.results[i][0].transcript || "").trim();
+      if(!txt) continue;
+      etatEcoute(txt);
+      if(e.results[i].isFinal) dit("CLOSER", txt);
+    }
+  };
+  S.prospect = $("pname").value.trim() || "Prospect";
+  S.domaine = $("pdomaine").value.trim();
+  S.situation = SITUATION;
+  S.marche = MARCHE;
+  S.running = true; S.t0 = Date.now(); S.lastSpeech = Date.now();
+  S.moiQuiParle = true; S.deuxOreilles = true;
+  $("btnQui").textContent = "Étiquettes automatiques";
+  $("home").style.display = "none";
+  $("call").classList.add("on");
+  ecouteLAppel(flux);
+  idleCard();
+  $("heardTxt").textContent = "Deux oreilles : le son de l'appel pour le prospect, ton micro pour toi.";
+  try{ rec.start(); }catch(_){}
+  loop();
+};
+const finOrigine = $("btnEnd").onclick;
+$("btnEnd").onclick = function(){ arreteOreille(); S.deuxOreilles = false; return finOrigine.apply(this, arguments); };
+
+/* --- l'analyse n'est plus annulée à chaque phrase --- */
+let analyseDepuis = 0, enAttente = null;
+async function lanceAnalyse(cible){
+  if(ECOUTE.enCours){
+    // une analyse tourne : on garde la phrase la plus récente pour juste après,
+    // sauf si celle qui tourne est bloquée depuis trop longtemps
+    if(Date.now() - analyseDepuis < 12000){ enAttente = cible; return; }
+    try{ ECOUTE.annuleur && ECOUTE.annuleur.abort(); }catch(_){}
+    ECOUTE.enCours = false;
+  }
+  analyseDepuis = Date.now();
+  try{ await lancerAnalyse(cible); }catch(_){}
+  if(enAttente && S.running){
+    const suivante = enAttente; enAttente = null;
+    lanceAnalyse(suivante);
+  }
+}
+planifierAnalyse = function(text, qui, mots){
+  const brut = text.trim();
+  if(!API_KEY && !window.storage && !parLeServeur()){
+    ECOUTE.erreur = "il manque ta clé API ou ton code";
+    return note(brut, qui, false, "pas de clé ni de code");
+  }
+  if(BAVARDAGE.test(brut))       return note(brut, qui, false, "simple acquiescement");
+  if(POLITESSE.test(brut))       return note(brut, qui, false, "politesse d'ouverture");
+  if(mots < ECO.motsMin)         return note(brut, qui, false, "trop court (" + mots + " mots)");
+  if(qui === "CLOSER" && !estUneQuestion(brut) && !ANNONCE_CLOSER.test(brut) && mots < 40){
+    return note(brut, qui, false, "ton pitch, pas une question");
+  }
+  note(brut, qui, true, "analysé");
+  clearTimeout(ECOUTE.horloge);
+  const cible = S.transcript[S.transcript.length - 1];
+  // la voix du prospect arrive déjà découpée : pas besoin d'attendre en plus
+  const delai = (S.deuxOreilles && qui === "PROSPECT") ? 150 : RYTHME.pause;
+  ECOUTE.horloge = setTimeout(() => lanceAnalyse(cible), delai);
+  return true;
+};
+
+/* --- plus rapide, et avec le cerveau de tes coachs --- */
+const consignesOrigine = CONSIGNES;
+CONSIGNES = function(){
+  const base = consignesOrigine();
+  // le cerveau ne dépend que du marché : identique pendant tout le call, donc mis en cache
+  const cerveau = doctrinePour([], S.marche || "b2c", 32000);
+  return cerveau ? base + "\n\n" + cerveau + "\nEN DIRECT : une seule phrase courte à dire, tout de suite utilisable. Le cerveau t'aide à choisir laquelle, il ne s'affiche pas." : base;
+};
+choisirModele = function(){
+  const t = S.transcript || [];
+  const dernier = (t.length ? t[t.length-1].text : "").toLowerCase();
+  const lourd = !!S.current || (S.events||[]).filter(e => e.type === "OBJ").length >= 2 || /(cher|prix|budget|argent|payer|coûte|tarif|moyens|financ|réfléchir|associé|femme|mari)/.test(dernier);
+  if(CHOIX_MODELE !== "auto") return CHOIX_MODELE;
+  if(lourd) COMPTE_LOURD++;
+  // on prend la génération 5.5 si ton serveur la connaît, sinon l'ancienne
+  const connu = m => !parLeServeur() || !!(SERVEUR_INFO && SERVEUR_INFO.modeles && SERVEUR_INFO.modeles.includes(m));
+  if(lourd) return connu("claude-sonnet-5-5") ? "claude-sonnet-5-5" : "claude-sonnet-4-6";
+  return connu("claude-haiku-5-5") ? "claude-haiku-5-5" : "claude-haiku-4-5-20251001";
+};
+callClaudeStream = async function(prompt, onTexte, fixe, signal){
+  await pretOuTantPis();
+  COMPTEUR.direct++;
+  if(parLeServeur()){ try{ await infoServeur(); }catch(_){} }   // savoir quels modèles le serveur connaît
+  const modele = choisirModele();
+  // quelques souvenirs précis de tes coachs, proches de ce qui vient d'être dit
+  let p = prompt;
+  try{
+    if(S.running && S.transcript.length){
+      const sv = souvenirs(S.transcript.slice(-2).map(x => x.text).join(" "), [], S.marche, 4);
+      if(sv) p += "\n" + sv;
+    }
+  }catch(_){}
+  if(parLeServeur()){
+    const inf = SERVEUR_INFO || {};
+    const r = await fetch(srvCopilote() + "/api/claude", {
+      method: "POST", signal,
+      headers: {"Content-Type": "application/json", "x-code": codeAcces()},
+      body: JSON.stringify(inf.systeme ? {prompt: p, systeme: fixe || "", max: 900, modele, effort: "low"}
+                                       : {prompt: p + (fixe ? "\n\n" + fixe : ""), max: 900, modele})
+    }).catch(e => { if(e.name === "AbortError") throw e; throw new Error("Le serveur ne répond pas. Vérifie ta connexion."); });
+    const d = await r.json().catch(() => ({}));
+    if(r.status === 402){ const e = new Error(d.erreur || "Quota atteint."); e.quota = true; throw e; }
+    if(!r.ok) throw new Error(d.erreur || ("Serveur : erreur " + r.status));
+    const t = d.texte || "";
+    if(typeof onTexte === "function" && t) onTexte(t);
+    return t;
+  }
+  const h = {"Content-Type": "application/json"};
+  if(API_KEY){ h["x-api-key"] = API_KEY; h["anthropic-version"] = "2023-06-01"; h["anthropic-dangerous-direct-browser-access"] = "true"; }
+  const nouveau = /-5-5$/.test(modele);
+  const corpsR = {model: modele, max_tokens: nouveau ? 3000 : 900, stream: true, messages: [{role: "user", content: p}]};
+  if(nouveau) corpsR.output_config = {effort: "low"};
+  if(fixe) corpsR.system = [{type: "text", text: fixe, cache_control: {type: "ephemeral"}}];
+  const r = await fetch("https://api.anthropic.com/v1/messages", {method: "POST", headers: h, signal, body: JSON.stringify(corpsR)});
+  if(!r.ok || !r.body){
+    const codes = {401: "Clé API invalide.", 403: "Clé sans accès.", 429: "Trop de demandes.", 400: "Requête refusée."};
+    const err = new Error(codes[r.status] || ("HTTP " + r.status)); err.status = r.status; throw err;
+  }
+  const lecteur = r.body.getReader(), dec = new TextDecoder();
+  let reste = "", txt = "";
+  while(true){
+    const {done, value} = await lecteur.read();
+    if(done) break;
+    reste += dec.decode(value, {stream: true});
+    const lignes = reste.split("\n"); reste = lignes.pop();
+    for(const l of lignes){
+      if(!l.startsWith("data:")) continue;
+      try{
+        const d = JSON.parse(l.slice(5));
+        if(d.type === "message_start" && d.message && d.message.usage){
+          if(d.message.usage.cache_creation_input_tokens) CACHE.ecrit++;
+          if(d.message.usage.cache_read_input_tokens) CACHE.relu++;
+        }
+        if(d.type === "content_block_delta" && d.delta && d.delta.type === "text_delta" && d.delta.text){
+          txt += d.delta.text;
+          if(onTexte) onTexte(txt);
+        }
+      }catch(_){}
+    }
+  }
+  if(!txt.trim()) throw new Error("réponse vide");
+  return txt;
+};
+
+})();
+
+/* =====================================================================
+   7. MON COACH — rien que pour toi
+   Un coach à qui parler, avant ou après un call. Il raisonne avec le cerveau
+   de tes coachs, lit tes vrais calls depuis ton suivi, te pose des questions
+   au lieu de te donner la réponse, te donne du travail et te le redemande.
+   Il parle avec les voix de ton studio, et sa bouche bouge avec sa voix.
+   Visible seulement sur TON navigateur : ouvre une fois l'app avec ?moncoach=1
+   ===================================================================== */
+(function monCoach(){
+if(typeof Store === "undefined" || !$("btnSpar") || !$("home")) return;
+const CLE_ACTIF = "woidih_coach_perso", CLE_SOUFFLEUR = "woidih_souffleur";
+try{
+  const q = new URLSearchParams(location.search);
+  if(q.get("moncoach") === "1") localStorage.setItem(CLE_ACTIF, "1");
+  if(q.get("moncoach") === "0") localStorage.removeItem(CLE_ACTIF);
+}catch(_){}
+const actif = () => { try{ return localStorage.getItem(CLE_ACTIF) === "1"; }catch(_){ return false; } };
+
+/* --- le souffleur en direct est mis en pause --- */
+(function pauseSouffleur(){
+  let sur = false; try{ sur = localStorage.getItem(CLE_SOUFFLEUR) === "1"; }catch(_){}
+  const b = $("btnStart"); if(!b || sur) return;
+  b.textContent = "Souffleur en direct : en pause";
+  b.style.opacity = ".45";
+  b.onclick = () => toast("Le souffleur est en pause. Travaille avec ton coach et le roleplay.");
+  const p = document.createElement("p");
+  p.style.cssText = "font-size:12px;color:var(--muted);text-align:center;margin-top:6px";
+  p.innerHTML = 'Mis de côté pour l\'instant. <a href="#" id="reactiveSouffleur" style="color:var(--muted)">Le réactiver</a>';
+  b.insertAdjacentElement("afterend", p);
+  const aide = $("aideDeuxOreilles"); if(aide) aide.style.display = "none";
+  $("reactiveSouffleur").onclick = e => { e.preventDefault(); try{ localStorage.setItem(CLE_SOUFFLEUR, "1"); }catch(_){} location.reload(); };
+})();
+
+if(!actif()) return;
+
+/* --- l'écran --- */
+const style = document.createElement("style");
+style.textContent = `
+#coachPerso{display:none;height:100%;overflow-y:auto;padding:26px 20px 60px}
+#coachPerso.on{display:block}
+#coachPerso .cp-wrap{max-width:760px;margin:0 auto}
+.cp-tete{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.cp-tete h2{font-family:'Archivo Narrow',sans-serif;font-size:26px;margin:0}
+.cp-scene{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.cp-avatar{width:190px;height:190px;border-radius:50%;overflow:hidden;position:relative;flex:none;background:#1b2229;border:2px solid var(--line);transition:transform .25s}
+.cp-avatar.parle{border-color:var(--amber)}
+.cp-avatar .cp-couche{position:absolute;inset:0;background-size:cover;background-position:center}
+.cp-avatar svg{width:100%;height:100%;display:block}
+.cp-avatar.placer{cursor:crosshair;outline:2px dashed var(--amber)}
+#cpFil{margin-top:18px;display:flex;flex-direction:column;gap:10px}
+.cp-msg{padding:11px 14px;border-radius:14px;line-height:1.55;font-size:15px;max-width:88%;white-space:pre-wrap}
+.cp-msg.moi{align-self:flex-end;background:rgba(94,155,196,.14);border:1px solid rgba(94,155,196,.3)}
+.cp-msg.coach{align-self:flex-start;background:rgba(232,163,61,.08);border:1px solid rgba(232,163,61,.25)}
+.cp-msg small{display:block;color:var(--muted);font-size:11.5px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.06em}
+.cp-saisie{position:sticky;bottom:0;background:var(--bg);padding:12px 0 4px;margin-top:12px}
+.cp-saisie textarea{width:100%;min-height:70px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:11px 13px;color:var(--ink);font-family:inherit;font-size:15px}
+#coachPerso details{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+#coachPerso summary{cursor:pointer;color:var(--muted);font-size:13.5px}
+#coachPerso input[type=text],#coachPerso input[type=password],#coachPerso select{width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--ink);margin-top:6px}
+.cp-devoir{display:flex;gap:9px;align-items:flex-start;font-size:14px;padding:6px 0;border-top:1px solid var(--line)}
+.cp-devoir:first-child{border-top:0}
+.cp-devoir.fait span{text-decoration:line-through;color:var(--muted)}
+`;
+document.head.appendChild(style);
+const sec = document.createElement("section");
+sec.id = "coachPerso";
+sec.innerHTML = `<div class="cp-wrap">
+  <div class="cp-tete"><button class="pill" id="cpRetour">← Retour</button><h2>Mon coach</h2></div>
+  <div class="cp-scene">
+    <div class="cp-avatar" id="cpAvatar" title="Ton coach"></div>
+    <div style="flex:1;min-width:220px">
+      <label style="font-size:12.5px;color:var(--muted)">Qui te coache aujourd'hui</label>
+      <select id="cpQui"></select>
+      <p id="cpEtat" style="font-size:13px;color:var(--muted);margin-top:8px"></p>
+    </div>
+  </div>
+  <div class="block" id="cpDevoirsBloc" style="margin-top:16px;display:none;border-left:2px solid var(--amber)">
+    <h3 style="margin-bottom:6px">Ton travail en cours</h3><div id="cpDevoirs"></div>
+  </div>
+  <div id="cpFil"></div>
+  <div id="cpEntrainer" style="display:none;margin-top:10px"></div>
+  <div class="cp-saisie">
+    <p id="cpCallJoint" style="font-size:12.5px;color:var(--amber);margin-bottom:6px"></p>
+    <textarea id="cpMoi" placeholder="Raconte. Par exemple : « Ce matin j'ai eu un dirigeant d'agence, je n'ai pas réussi à trouver sa douleur. Comment j'aurais dû faire ? »"></textarea>
+    <div class="row" style="margin-top:8px;align-items:center">
+      <button class="pill" id="cpMicro">Parler au micro</button>
+      <button class="pill" id="cpEnvoi" style="border-color:var(--amber);color:var(--amber)">Envoyer</button>
+      <button class="pill" id="cpStop">Le faire taire</button>
+      <label style="font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center"><input type="checkbox" id="cpVoix" checked> Il me répond à voix haute</label>
+    </div>
+  </div>
+  <details id="cpCallsBloc"><summary>Parler d'un de mes calls</summary>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:8px">Il lira la transcription et la grille de ce call, et te répondra sur ce qui s'est vraiment dit.</p>
+    <select id="cpCall"></select>
+    <div class="row" style="margin-top:8px"><button class="pill" id="cpJoindre">Lui donner ce call</button><button class="pill" id="cpDetacher">Ne plus en parler</button></div>
+  </details>
+  <details><summary>Réglages du coach</summary>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:10px">Sa voix (celle de ton studio voix, dans le Sparring) :</p>
+    <select id="cpVoixId"></select>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:12px">Sa photo. Ensuite, clique sur « Placer la bouche » puis sur sa bouche dans la photo : c'est ce qui la fait bouger.</p>
+    <div class="row" style="margin-top:6px"><input type="file" id="cpPhoto" accept="image/*" style="color:var(--muted)">
+      <button class="pill" id="cpBouche">Placer la bouche</button><button class="pill" id="cpSansPhoto">Enlever la photo</button></div>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:14px">Ton suivi de calls (pour qu'il lise tes calls et ta grille) :</p>
+    <input type="text" id="cpSuiviUrl" placeholder="https://…ts.net/suivi">
+    <input type="password" id="cpSuiviMdp" placeholder="mot de passe de ton suivi">
+    <div class="row" style="margin-top:8px"><button class="pill" id="cpSuiviOk">Connecter mon suivi</button><button class="pill" id="cpEfface">Effacer la conversation</button></div>
+    <p id="cpReglEtat" style="font-size:12.5px;margin-top:8px"></p>
+  </details>
+</div>`;
+document.body.appendChild(sec);
+const bouton = document.createElement("button");
+bouton.className = "pill"; bouton.id = "btnMonCoach";
+bouton.style.cssText = "border-color:var(--amber);color:var(--amber)";
+bouton.textContent = "Mon coach";
+$("btnSpar").insertAdjacentElement("beforebegin", bouton);
+
+/* --- l'état --- */
+const CP = {conv: [], devoirs: [], regl: {}, suivi: {url: "", mdp: ""}, stats: null, calls: [], call: null, qui: "mix", enCours: false, rec: null};
+const sauve = () => { Store.set("coach_perso_conv", CP.conv.slice(-80)); Store.set("coach_perso_devoirs", CP.devoirs.slice(-40)); Store.set("coach_perso_regl", CP.regl); };
+
+/* --- les coachs disponibles --- */
+function coachs(){
+  const l = [{k: "mix", nom: "Ton coach", court: "Ton coach"}];
+  Object.keys(DOCTRINES).sort().forEach(k => {
+    if(!DOCTRINES[k] || !DOCTRINES[k].cerveau) return;
+    const nom = (ECOLES[k] && ECOLES[k].nom) || k;
+    l.push({k, nom, court: nom.split(" ")[0]});
+  });
+  Object.keys(typeof MANIERE_COACH === "object" ? MANIERE_COACH : {}).forEach(k => {
+    if(l.some(x => x.k === k)) return;
+    if(!(FICHES || []).some(f => f.ecole === k)) return;
+    const nom = (ECOLES[k] && ECOLES[k].nom) || MANIERE_COACH[k].nom || k;
+    l.push({k, nom, court: nom.split(" ")[0]});
+  });
+  return l;
+}
+const coachCourant = () => coachs().find(c => c.k === CP.qui) || coachs()[0];
+
+/* --- l'avatar : la photo coupée à la bouche, la mâchoire suit le son --- */
+let AMP = 0;
+function rendAvatar(){
+  const el = $("cpAvatar"), r = CP.regl[CP.qui] || {};
+  if(r.photo){
+    const y = r.bouche || 66;
+    // la photo entière, l'intérieur de la bouche, puis le menton qui descend par-dessus
+    el.innerHTML = `<div class="cp-couche" style="background-image:url('${r.photo}')"></div>
+      <div id="cpTrou" style="position:absolute;left:50%;top:${y}%;width:17%;height:0;transform:translate(-50%,-30%);border-radius:50%;background:#2a1414;box-shadow:inset 0 2px 4px #000"></div>
+      <div class="cp-couche" id="cpBas" style="background-image:url('${r.photo}');clip-path:inset(${y}% 27% 0 27% round 0 0 45% 45%)"></div>`;
+  } else {
+    el.innerHTML = `<svg viewBox="0 0 200 200"><rect width="200" height="200" fill="#1b2229"/>
+      <ellipse cx="100" cy="212" rx="78" ry="52" fill="#2a3540"/>
+      <ellipse cx="100" cy="98" rx="52" ry="62" fill="#c99a78"/>
+      <path d="M48 86 Q52 34 100 34 Q148 34 152 86 Q140 58 100 56 Q62 58 48 86Z" fill="#2b2420"/>
+      <path d="M58 138 Q100 176 142 138 Q132 160 100 164 Q68 160 58 138Z" fill="#3a2e28" opacity=".75"/>
+      <g id="cpYeux"><ellipse cx="80" cy="96" rx="6" ry="6" fill="#1a1512"/><ellipse cx="120" cy="96" rx="6" ry="6" fill="#1a1512"/></g>
+      <path d="M68 82 Q80 76 92 82" stroke="#2b2420" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M108 82 Q120 76 132 82" stroke="#2b2420" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <ellipse id="cpBoucheSvg" cx="100" cy="134" rx="15" ry="2" fill="#5a2c2a"/></svg>`;
+  }
+}
+function bouge(a){
+  AMP = AMP * 0.55 + a * 0.45;
+  const bas = $("cpBas"), b = $("cpBoucheSvg"), av = $("cpAvatar");
+  if(bas) bas.style.transform = "translateY(" + (AMP * 4.5).toFixed(2) + "%)";
+  const trou = $("cpTrou"); if(trou) trou.style.height = (AMP * 5.5).toFixed(2) + "%";
+  if(b) b.setAttribute("ry", (2 + AMP * 11).toFixed(1));
+  if(av) av.style.transform = AMP > 0.05 ? "rotate(" + (Math.sin(Date.now() / 380) * 1.2).toFixed(2) + "deg)" : "";
+}
+// il cligne des yeux, de temps en temps
+setInterval(() => {
+  const y = $("cpYeux"); if(!y) return;
+  y.setAttribute("transform", "translate(0 96) scale(1 0.1) translate(0 -96)");
+  setTimeout(() => y.removeAttribute("transform"), 140);
+}, 3800 + Math.random() * 1800);
+
+/* --- sa voix --- */
+let CTX = null, AUDIO = null, ANIM = null;
+function arreteVoix(){
+  if(AUDIO){ try{ AUDIO.pause(); }catch(_){} AUDIO = null; }
+  try{ speechSynthesis.cancel(); }catch(_){}
+  cancelAnimationFrame(ANIM); bouge(0); bouge(0);
+  $("cpAvatar").classList.remove("parle");
+}
+function joue(url){
+  return new Promise(async fin => {
+    const a = new Audio(url); AUDIO = a;
+    try{
+      CTX = CTX || new (window.AudioContext || window.webkitAudioContext)();
+      await CTX.resume();
+      const src = CTX.createMediaElementSource(a), an = CTX.createAnalyser();
+      an.fftSize = 512; src.connect(an); an.connect(CTX.destination);
+      const d = new Uint8Array(an.fftSize);
+      const tic = () => {
+        an.getByteTimeDomainData(d);
+        let s = 0; for(let i = 0; i < d.length; i++){ const v = (d[i] - 128) / 128; s += v * v; }
+        bouge(Math.min(1, Math.sqrt(s / d.length) * 5.5));
+        ANIM = requestAnimationFrame(tic);
+      };
+      tic();
+    }catch(_){}
+    $("cpAvatar").classList.add("parle");
+    const termine = () => { cancelAnimationFrame(ANIM); bouge(0); bouge(0); $("cpAvatar").classList.remove("parle"); try{ URL.revokeObjectURL(url); }catch(_){} if(AUDIO === a) AUDIO = null; fin(); };
+    a.onended = termine; a.onerror = termine;
+    a.play().catch(termine);
+  });
+}
+async function parle(txt){
+  arreteVoix();
+  const t = String(txt || "").replace(/<<[^>]*>>/g, "").trim();
+  if(!t || !$("cpVoix").checked) return;
+  const cle = (typeof CLE_VOIX !== "undefined" && CLE_VOIX) || ($("cleVoix") ? $("cleVoix").value.trim() : "");
+  const voix = (CP.regl[CP.qui] || {}).voix || ($("voixCoach") ? $("voixCoach").value.trim() : "");
+  if(typeof MOTEUR_VOIX !== "undefined" && MOTEUR_VOIX !== "nav" && cle){
+    try{
+      const r = MOTEUR_VOIX === "eleven"
+        ? await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + encodeURIComponent(voix || VOIX_DEFAUT), {method: "POST",
+            headers: {"xi-api-key": cle, "Content-Type": "application/json", "Accept": "audio/mpeg"},
+            body: JSON.stringify({text: t, model_id: "eleven_multilingual_v2", voice_settings: {stability: 0.45, similarity_boost: 0.8, style: 0.3, use_speaker_boost: true}})})
+        : await fetch("https://api.openai.com/v1/audio/speech", {method: "POST",
+            headers: {"Authorization": "Bearer " + cle, "Content-Type": "application/json"},
+            body: JSON.stringify({model: "gpt-4o-mini-tts", voice: voix || "onyx", input: t, response_format: "mp3"})});
+      if(!r.ok) throw new Error("voix " + r.status);
+      const blob = await r.blob();
+      if(blob.size > 500) return joue(URL.createObjectURL(blob));
+    }catch(e){ $("cpEtat").textContent = "Sa voix n'a pas répondu (" + e.message + "), je passe sur celle du navigateur."; }
+  }
+  // la voix du navigateur : pas de son à mesurer, la bouche suit les mots
+  if(!("speechSynthesis" in window)) return;
+  return new Promise(fin => {
+    const u = new SpeechSynthesisUtterance(t);
+    u.lang = "fr-FR"; u.rate = 0.96; u.pitch = 0.9;
+    if(typeof VOIX_FR !== "undefined" && VOIX_FR.length) u.voice = VOIX_FR[0];
+    let pulse = null;
+    u.onstart = () => { $("cpAvatar").classList.add("parle"); pulse = setInterval(() => bouge(0.25 + Math.random() * 0.6), 90); };
+    u.onboundary = () => bouge(0.9);
+    u.onend = u.onerror = () => { clearInterval(pulse); bouge(0); bouge(0); $("cpAvatar").classList.remove("parle"); fin(); };
+    speechSynthesis.speak(u);
+  });
+}
+
+/* --- ton suivi de calls --- */
+async function suivi(chemin){
+  const s = CP.suivi; if(!s.url || !s.mdp) throw new Error("suivi non connecté");
+  const r = await fetch(s.url.replace(/\/+$/, "") + chemin, {headers: {"x-mot-de-passe": s.mdp}});
+  if(r.status === 401) throw new Error("mot de passe du suivi refusé");
+  if(!r.ok) throw new Error("suivi : erreur " + r.status);
+  return chemin.endsWith("/transcript") ? r.text() : r.json();
+}
+async function chargeSuivi(){
+  if(!CP.suivi.url || !CP.suivi.mdp){ majCalls(); return; }
+  try{
+    const depuis = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
+    const [st, ca] = await Promise.all([suivi("/api/stats?depuis=" + depuis), suivi("/api/calls")]);
+    CP.stats = st; CP.calls = (ca || []).filter(c => c.vente !== false).slice(0, 80);
+    $("cpReglEtat").innerHTML = '<span style="color:var(--sage)">Suivi connecté : ' + CP.calls.length + " calls.</span>";
+  }catch(e){ $("cpReglEtat").innerHTML = '<span style="color:var(--clay)">' + escapeHTML(e.message) + "</span>"; }
+  majCalls();
+}
+function majCalls(){
+  const s = $("cpCall");
+  s.innerHTML = CP.calls.length
+    ? CP.calls.map((c, i) => `<option value="${i}">${escapeHTML((c.date || "").slice(5))} · ${escapeHTML(c.prospect || c.titre || "call")} · ${escapeHTML(c.etape || "")} · ${escapeHTML(c.issue || "?")}</option>`).join("")
+    : '<option value="">Connecte ton suivi dans les réglages, plus bas</option>';
+  $("cpCallJoint").textContent = CP.call ? "On parle du call : " + (CP.call.c.prospect || CP.call.c.titre || "call") + " (" + (CP.call.c.date || "") + ")" : "";
+}
+const NOMS_G = {cadrage:"cadrage", situation:"situation en chiffres", probleme:"problème creusé", impact:"impact chiffré", cause:"cause et tentatives", vise:"objectif et pourquoi", ecart:"écart validé", enjeu:"enjeu personnel", declencheur:"pourquoi maintenant", responsabilite:"sa responsabilité", plan_b:"plan B fermé", decision:"circuit de décision", presentation:"présentation au bon moment", objections:"objections ramenées à son but", engagement:"engagement verrouillé"};
+function texteDuCall(){
+  if(!CP.call) return "";
+  const c = CP.call.c;
+  const g = c.grille ? Object.keys(NOMS_G).filter(k => c.grille[k] && c.grille[k].s !== "na")
+      .map(k => "  - " + NOMS_G[k] + " : " + c.grille[k].s + (c.grille[k].p ? " (« " + c.grille[k].p + " »)" : "")).join("\n") : "";
+  return `\nLE CALL DONT IL VEUT PARLER (${c.date || ""}, ${c.etape || ""}, ${c.offre || ""}, issue : ${c.issue || "?"}) :
+Résumé : ${c.resume || "—"}
+${c.bascule ? "Moment de bascule : " + c.bascule + "\n" : ""}${g ? "Sa grille sur ce call :\n" + g + "\n" : ""}${CP.call.texte ? "LA TRANSCRIPTION :\n" + CP.call.texte.slice(0, 60000) : "(transcription non disponible)"}\n`;
+}
+function texteProfil(){
+  const s = CP.stats; if(!s) return "";
+  const g = s.grille || {};
+  const lignes = (g.lignes || []).filter(l => l.n).map(l => `  - ${l.nom} : ${l.taux} %` + (l.signe_si_fait != null && l.signe_si_rate != null ? ` (signe ${l.signe_si_fait} % quand il le fait, ${l.signe_si_rate} % quand il le rate)` : "")).join("\n");
+  return `\nSES CHIFFRES DES 45 DERNIERS JOURS (depuis son suivi) : ${s.calls} calls, ${s.signes} signés, taux par prospect ${s.taux_prospect ?? "?"} %.
+${lignes ? "Sa grille, point par point :\n" + lignes : ""}
+${(g.faiblesses || []).length ? "Ses points faibles prioritaires : " + g.faiblesses.map(f => f.nom).join(", ") + "." : ""}\n`;
+}
+
+/* --- le cerveau du coach --- */
+function systemeCoach(){
+  const c = coachCourant();
+  const maniere = (typeof MANIERE_COACH === "object" && MANIERE_COACH[c.k]) ? MANIERE_COACH[c.k].ton : "";
+  let cerveau = "";
+  if(c.k === "mix") cerveau = doctrinePour([], "b2b", 45000);
+  else if(DOCTRINES[c.k] && DOCTRINES[c.k].cerveau) cerveau = "### LE CERVEAU DE " + c.nom.toUpperCase() + "\n" + DOCTRINES[c.k].cerveau;
+  else {
+    const f = (FICHES || []).filter(x => x.ecole === c.k).slice(0, 40);
+    cerveau = "### CE QUE " + c.nom.toUpperCase() + " ENSEIGNE (ses principes et ses phrases, à faire passer par ta propre réflexion, jamais à réciter)\n" +
+      f.map(x => "- " + (x.situation ? x.situation + " → " : "") + "« " + x.phrase + " »" + (x.pourquoi ? " (" + x.pourquoi + ")" : "")).join("\n");
+  }
+  return `Tu es ${c.k === "mix" ? "le coach personnel" : c.nom + ", le coach personnel"} de Woidih, un closer francophone qui vend en high ticket, surtout en B2B, et qui perd trop de calls. Il te parle en dehors de ses calls : pour comprendre ce qui s'est passé, et pour progresser.
+
+QUI TU ES
+Tu n'es pas un assistant et tu ne fais pas de fiches. Tu es un coach humain qui le suit depuis des mois, qui connaît son métier et qui tient à ce qu'il réussisse. Tu raisonnes avec le cerveau ci-dessous : tu lis sa situation, tu reconnais ce que tu y vois, tu décides de ce qui l'aidera le plus maintenant. Tu ne récites jamais ce texte, tu ne cites pas de méthode par son nom.
+
+COMMENT TU COACHES
+- D'abord tu comprends. Si tu ne sais pas ce qui s'est vraiment passé dans son call, tu demandes (ce qu'il a dit, ce que le prospect a répondu, à quel moment ça a tourné). Une seule question à la fois.
+- Tu le fais trouver avant de donner la réponse. Tu lui demandes ce qu'il aurait pu faire, puis tu le corriges ou tu complètes. Tu ne donnes la réponse tout de suite que s'il bloque vraiment ou s'il te la demande deux fois.
+- Tu t'appuies sur le réel : ses mots, ceux du prospect, ses chiffres. Si tu as la transcription, tu cites le moment exact.
+- Tu es franc. Tu nommes ce qu'il évite. Dur quand il le faut, jamais méprisant.
+- Pas de phrase magique, pas de raccourci. S'il cherche la facilité (la formule qui marche à tous les coups, sauter l'entraînement, accuser ses leads), tu le lui dis, et tu le ramènes au travail : comprendre, répéter, s'entraîner. Il progresse par le travail, pas par des astuces.
+- Tu finis souvent par lui donner un travail concret et mesurable. Quand il revient, tu lui demandes s'il l'a fait, et ce que ça a donné.
+- Tu tiens compte de son état : s'il est découragé, tu le recadres avec chaleur, sans le plaindre.
+
+COMMENT TU PARLES
+Tu parles, tu n'écris pas : pas de listes, pas de titres, pas de gras, pas d'émojis. Des phrases courtes, à l'oral, en tutoyant. En général 2 à 6 phrases. Plus long seulement s'il te demande d'expliquer quelque chose en détail.
+${maniere ? "\nTA MANIÈRE\n" + maniere + "\n" : ""}
+DEUX REPÈRES, à mettre seulement quand c'est utile, chacun seul sur une ligne à la toute fin :
+<<DEVOIR: le travail précis à faire avant votre prochain échange>>
+<<ROLEPLAY: le prospect à jouer (qui il est, sa situation, son caractère) et l'objectif précis de l'exercice pour Woidih>>
+
+${cerveau}`;
+}
+function promptCoach(question){
+  const c = coachCourant();
+  const hist = CP.conv.slice(-18).map(m => (m.role === "moi" ? "WOIDIH" : (m.nom || "COACH").toUpperCase()) + " : " + m.txt).join("\n");
+  const ouverts = CP.devoirs.filter(d => !d.fait).slice(-5).map(d => "  - (" + d.date + ") " + d.txt).join("\n");
+  let sv = ""; try{ sv = souvenirs(question + " " + (CP.call ? (CP.call.c.resume || "") : ""), [], "b2b", 6); }catch(_){}
+  return `${texteProfil()}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${texteDuCall()}${sv}
+${hist ? "VOTRE CONVERSATION JUSQU'ICI :\n" + hist + "\n" : ""}
+WOIDIH : ${question}
+
+Réponds-lui maintenant, en ${c.court}.`;
+}
+
+/* --- la conversation --- */
+function rendFil(){
+  const f = $("cpFil");
+  f.innerHTML = CP.conv.slice(-40).map(m => `<div class="cp-msg ${m.role}"><small>${escapeHTML(m.role === "moi" ? "Toi" : (m.nom || "Coach"))}</small>${escapeHTML(m.txt)}</div>`).join("");
+  sec.scrollTop = sec.scrollHeight;
+}
+function rendDevoirs(){
+  const ouverts = CP.devoirs.filter(d => !d.fait || Date.now() - (d.faitLe || 0) < 3 * 86400000).slice(-8);
+  $("cpDevoirsBloc").style.display = ouverts.length ? "block" : "none";
+  $("cpDevoirs").innerHTML = ouverts.map(d => `<label class="cp-devoir ${d.fait ? "fait" : ""}"><input type="checkbox" data-dv="${d.id}" ${d.fait ? "checked" : ""}><span>${escapeHTML(d.txt)} <small style="color:var(--muted)">· ${escapeHTML(d.date)}</small></span></label>`).join("");
+  $("cpDevoirs").querySelectorAll("[data-dv]").forEach(x => x.onchange = () => {
+    const d = CP.devoirs.find(y => String(y.id) === x.dataset.dv); if(!d) return;
+    d.fait = x.checked; d.faitLe = Date.now(); sauve(); rendDevoirs();
+  });
+}
+async function envoie(){
+  const q = $("cpMoi").value.trim();
+  if(!q || CP.enCours) return;
+  arreteVoix();
+  const c = coachCourant();
+  CP.conv.push({role: "moi", txt: q, t: Date.now()});
+  $("cpMoi").value = ""; rendFil(); sauve();
+  CP.enCours = true; $("cpEtat").textContent = c.court + " réfléchit…";
+  try{
+    let rep = await appelCerveau(promptCoach(q), {systeme: systemeCoach(), max: 1400, effort: "medium"});
+    const dv = rep.match(/<<\s*DEVOIR\s*:\s*([\s\S]*?)>>/i), rp = rep.match(/<<\s*ROLEPLAY\s*:\s*([\s\S]*?)>>/i);
+    rep = rep.replace(/<<[\s\S]*?>>/g, "").trim();
+    CP.conv.push({role: "coach", nom: c.court, txt: rep, t: Date.now()});
+    if(dv){ CP.devoirs.push({id: Date.now(), txt: dv[1].trim(), date: new Date().toLocaleDateString("fr-FR"), fait: false}); rendDevoirs(); }
+    const ent = $("cpEntrainer");
+    if(rp){
+      ent.style.display = "block";
+      ent.innerHTML = `<button class="pill" style="border-color:var(--steel);color:var(--steel)">M'entraîner là-dessus en roleplay</button><p style="font-size:12.5px;color:var(--muted);margin-top:6px">${escapeHTML(rp[1].trim())}</p>`;
+      ent.querySelector("button").onclick = () => lanceRoleplay(rp[1].trim());
+    } else ent.style.display = "none";
+    sauve(); rendFil();
+    $("cpEtat").textContent = "";
+    await parle(rep);
+  }catch(e){
+    $("cpEtat").innerHTML = '<span style="color:var(--clay)">' + escapeHTML(e.message) + "</span>";
+  }
+  CP.enCours = false;
+}
+function lanceRoleplay(scenario){
+  arreteVoix();
+  sec.classList.remove("on");
+  $("btnSpar").click();
+  setTimeout(() => {
+    const d = $("sparDesc");
+    if(d){ d.value = scenario; d.dispatchEvent(new Event("input", {bubbles: true})); d.scrollIntoView({block: "center"}); }
+    toast("Le prospect est décrit. Règle le reste et lance le roleplay.");
+  }, 400);
+}
+
+/* --- le micro : tu lui parles --- */
+function micro(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR) return toast("Le micro marche dans Chrome.");
+  if(CP.rec){ try{ CP.rec.stop(); }catch(_){} return; }
+  arreteVoix();
+  const r = new SR(); CP.rec = r;
+  r.lang = "fr-FR"; r.continuous = true; r.interimResults = true;
+  const base = $("cpMoi").value ? $("cpMoi").value.trim() + " " : "";
+  let final = "";
+  r.onresult = e => {
+    let prov = "";
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      if(e.results[i].isFinal) final += e.results[i][0].transcript + " ";
+      else prov += e.results[i][0].transcript;
+    }
+    $("cpMoi").value = base + final + prov;
+  };
+  r.onend = () => {
+    CP.rec = null; $("cpMicro").textContent = "Parler au micro";
+    if($("cpMoi").value.trim()) envoie();
+  };
+  r.onerror = () => {};
+  $("cpMicro").textContent = "J'ai fini de parler";
+  try{ r.start(); }catch(_){ CP.rec = null; }
+}
+
+/* --- réglages --- */
+async function majVoixChoix(){
+  const s = $("cpVoixId");
+  if(!MES_VOIX.length && CLE_VOIX){
+    try{
+      if(MOTEUR_VOIX === "eleven"){
+        const r = await fetch("https://api.elevenlabs.io/v1/voices", {headers: {"xi-api-key": CLE_VOIX}});
+        if(r.ok) MES_VOIX = ((await r.json()).voices || []).map(v => ({id: v.voice_id, nom: v.name}));
+      } else if(MOTEUR_VOIX === "openai") MES_VOIX = ["onyx","echo","fable","alloy","nova","shimmer"].map(x => ({id: x, nom: x}));
+    }catch(_){}
+  }
+  const liste = (typeof MES_VOIX !== "undefined" && MES_VOIX.length) ? MES_VOIX : [];
+  const actuelle = (CP.regl[CP.qui] || {}).voix || "";
+  s.innerHTML = '<option value="">La voix du coach réglée dans le Sparring</option>' +
+    liste.map(v => `<option value="${escapeHTML(v.id)}">${escapeHTML(v.nom)}</option>`).join("") +
+    (actuelle && !liste.some(v => v.id === actuelle) ? `<option value="${escapeHTML(actuelle)}">${escapeHTML(actuelle)}</option>` : "");
+  s.value = actuelle;
+}
+function majQui(){
+  const s = $("cpQui");
+  s.innerHTML = coachs().map(c => `<option value="${escapeHTML(c.k)}">${escapeHTML(c.nom)}</option>`).join("");
+  s.value = coachCourant().k;
+}
+$("cpQui").onchange = () => { CP.qui = $("cpQui").value; CP.regl._qui = CP.qui; sauve(); rendAvatar(); majVoixChoix(); };
+$("cpVoixId").onchange = () => { CP.regl[CP.qui] = Object.assign({}, CP.regl[CP.qui], {voix: $("cpVoixId").value}); sauve(); };
+$("cpPhoto").onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  const img = new Image(), url = URL.createObjectURL(f);
+  img.onload = () => {
+    // on réduit la photo : elle est gardée dans ton navigateur
+    const c = document.createElement("canvas"), t = 420, k = Math.max(t / img.width, t / img.height);
+    c.width = t; c.height = t;
+    c.getContext("2d").drawImage(img, (t - img.width * k) / 2, (t - img.height * k) / 2, img.width * k, img.height * k);
+    CP.regl[CP.qui] = Object.assign({}, CP.regl[CP.qui], {photo: c.toDataURL("image/jpeg", 0.86)});
+    URL.revokeObjectURL(url); sauve(); rendAvatar();
+    toast("Photo en place. Clique sur « Placer la bouche ».");
+  };
+  img.src = url;
+};
+$("cpBouche").onclick = () => {
+  if(!(CP.regl[CP.qui] || {}).photo) return toast("Mets d'abord une photo.");
+  const av = $("cpAvatar"); av.classList.add("placer");
+  toast("Clique sur sa bouche, dans la photo.");
+  av.onclick = e => {
+    const r = av.getBoundingClientRect();
+    CP.regl[CP.qui].bouche = Math.round((e.clientY - r.top) / r.height * 100);
+    av.classList.remove("placer"); av.onclick = null; sauve(); rendAvatar();
+    parle("Voilà. Comme ça, tu me vois parler.");
+  };
+};
+$("cpSansPhoto").onclick = () => { if(CP.regl[CP.qui]) delete CP.regl[CP.qui].photo; sauve(); rendAvatar(); };
+$("cpSuiviOk").onclick = async () => {
+  CP.suivi = {url: $("cpSuiviUrl").value.trim(), mdp: $("cpSuiviMdp").value.trim()};
+  await Store.set("coach_perso_suivi", CP.suivi);
+  chargeSuivi();
+};
+$("cpEfface").onclick = () => { if(!confirm("Effacer toute la conversation ? Le travail en cours reste.")) return; CP.conv = []; sauve(); rendFil(); };
+$("cpJoindre").onclick = async () => {
+  const c = CP.calls[+$("cpCall").value]; if(!c) return;
+  CP.call = {c, texte: ""};
+  majCalls();
+  $("cpCallJoint").textContent = "Je récupère la transcription…";
+  try{ CP.call.texte = await suivi("/api/call/" + encodeURIComponent(c.id) + "/transcript"); }catch(e){ toast("Transcription non récupérée : " + e.message); }
+  majCalls();
+  $("cpMoi").focus();
+};
+$("cpDetacher").onclick = () => { CP.call = null; majCalls(); };
+$("cpEnvoi").onclick = envoie;
+$("cpMicro").onclick = micro;
+$("cpStop").onclick = arreteVoix;
+$("cpMoi").addEventListener("keydown", e => { if(e.key === "Enter" && (e.ctrlKey || e.metaKey)) envoie(); });
+$("cpRetour").onclick = () => { arreteVoix(); sec.classList.remove("on"); $("home").style.display = ""; };
+
+bouton.onclick = async () => {
+  $("home").style.display = "none";
+  sec.classList.add("on");
+  try{ if(typeof chargeReglagesVoix === "function" && !CLE_VOIX) await chargeReglagesVoix(); }catch(_){}
+  majQui(); rendAvatar(); majVoixChoix(); rendFil(); rendDevoirs(); majCalls();
+  chargeSuivi();
+  if(!CP.conv.length){
+    const c = coachCourant(), d = CP.devoirs.filter(x => !x.fait).slice(-1)[0];
+    CP.conv.push({role: "coach", nom: c.court, t: Date.now(), txt: d
+      ? "Avant tout : la dernière fois, je t'ai demandé ça. « " + d.txt + " » Tu l'as fait ? Raconte-moi ce que ça a donné."
+      : "Salut. Raconte-moi ton dernier call, ou ce qui te bloque en ce moment. On part de là."});
+    sauve(); rendFil();
+  }
+};
+
+/* --- au démarrage --- */
+(async () => {
+  CP.conv = (await Store.get("coach_perso_conv")) || [];
+  CP.devoirs = (await Store.get("coach_perso_devoirs")) || [];
+  CP.regl = (await Store.get("coach_perso_regl")) || {};
+  CP.qui = CP.regl._qui || "mix";
+  const s = (await Store.get("coach_perso_suivi")) || {};
+  let defaut = "";
+  try{ defaut = srvCopilote().replace(/\/copilot\/?$/, "") + "/suivi"; }catch(_){}
+  CP.suivi = {url: s.url || defaut, mdp: s.mdp || ""};
+  $("cpSuiviUrl").value = CP.suivi.url; $("cpSuiviMdp").value = CP.suivi.mdp;
+})();
+})();
+
 })();
