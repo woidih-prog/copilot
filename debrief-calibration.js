@@ -2172,14 +2172,15 @@ callClaudeStream = async function(prompt, onTexte, fixe, signal){
 })();
 
 /* =====================================================================
-   7. MON COACH — rien que pour toi
-   Un coach à qui parler, avant ou après un call. Il raisonne avec le cerveau
-   de tes coachs, lit tes vrais calls depuis ton suivi, te pose des questions
-   au lieu de te donner la réponse, te donne du travail et te le redemande.
-   Il parle avec les voix de ton studio, et sa bouche bouge avec sa voix.
+   7. TON ESPACE — rien que pour toi
+   Un accueil à deux portes : Tracking (tes vrais calls) et Coaching
+   (analyse de call, roleplay, questions-réponses), reliés entre eux :
+   ce que la grille montre comme raté devient ce que tu travailles.
+   Les séances se mettent en pause et se reprennent un autre jour.
    Visible seulement sur TON navigateur : ouvre une fois l'app avec ?moncoach=1
+   (?moncoach=0 pour revenir à l'app de tes testeurs).
    ===================================================================== */
-(function monCoach(){
+(function monEspace(){
 if(typeof Store === "undefined" || !$("btnSpar") || !$("home")) return;
 const CLE_ACTIF = "woidih_coach_perso", CLE_SOUFFLEUR = "woidih_souffleur";
 try{
@@ -2206,90 +2207,181 @@ const actif = () => { try{ return localStorage.getItem(CLE_ACTIF) === "1"; }catc
 
 if(!actif()) return;
 
-/* --- l'écran --- */
+/* ---------------------------------------------------------------------
+   L'habillage : sobre, neutre, une seule couleur d'accent
+   --------------------------------------------------------------------- */
+document.documentElement.classList.add("perso");
+const police = document.createElement("link");
+police.rel = "stylesheet";
+police.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
+document.head.appendChild(police);
 const style = document.createElement("style");
 style.textContent = `
-#coachPerso{display:none;height:100%;overflow-y:auto;padding:26px 20px 60px}
-#coachPerso.on{display:block}
-#coachPerso .cp-wrap{max-width:760px;margin:0 auto}
-.cp-tete{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-.cp-tete h2{font-family:'Archivo Narrow',sans-serif;font-size:26px;margin:0}
+html.perso{--bg:#121212;--surface:#1A1A19;--line:#2B2A28;--ink:#ECE9E4;--muted:#8F8B85;--amber:#C9B28C;--clay:#C9705F;--sage:#93B59D;--steel:#A3AEB8;--radius:12px}
+html.perso body,html.perso button,html.perso input,html.perso textarea,html.perso select{font-family:'Inter',system-ui,sans-serif}
+html.perso h1,html.perso h2,html.perso h3,html.perso .eyebrow,html.perso [style*="Archivo Narrow"]{font-family:'Inter',system-ui,sans-serif!important;letter-spacing:-.01em}
+html.perso .eyebrow{letter-spacing:.08em}
+html.perso .pill{border-radius:8px;letter-spacing:0;font-weight:500;font-size:12.5px}
+html.perso .pill.on{background:rgba(201,178,140,.10)}
+html.perso .start{border-radius:10px;box-shadow:none}
+html.perso #home{display:flex;padding:0;align-items:stretch;text-align:left;justify-content:flex-start;gap:0}
+#cpAncien{display:none;flex-direction:column;align-items:center;gap:28px;padding:24px;text-align:center}
+#cpAncien.on{display:flex}
+.cp-page{max-width:980px;width:100%;margin:0 auto;padding:34px 22px 70px}
+.cp-ecran{display:none;height:100%;overflow-y:auto}
+.cp-ecran.on{display:block}
+.cp-haut{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:30px}
+.cp-marque{font-size:13px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.cp-lien{background:none;border:0;color:var(--muted);font-size:13.5px;cursor:pointer;padding:6px 0}
+.cp-lien:hover{color:var(--ink)}
+.cp-titre{font-size:clamp(28px,4.4vw,40px);font-weight:600;letter-spacing:-.025em;line-height:1.1;margin:0 0 8px}
+.cp-sous{color:var(--muted);font-size:15px;line-height:1.55;margin:0 0 26px;max-width:620px}
+.cp-portes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:26px}
+.cp-porte{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px;text-align:left;cursor:pointer;transition:border-color .15s,transform .15s;color:var(--ink)}
+.cp-porte:hover{border-color:#4A4844;transform:translateY(-1px)}
+.cp-porte h3{font-size:21px;font-weight:600;margin:12px 0 6px}
+.cp-porte p{color:var(--muted);font-size:14px;line-height:1.5;margin:0}
+.cp-porte .cp-chiffre{font-size:13px;color:var(--amber);margin-top:14px}
+.cp-ico{width:34px;height:34px;border-radius:9px;background:#24231F;display:flex;align-items:center;justify-content:center}
+.cp-ico svg{width:18px;height:18px;stroke:var(--amber);fill:none;stroke-width:1.6}
+.cp-carte{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:14px}
+.cp-carte h4{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 14px}
+.cp-ligne{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+.cp-ligne:first-of-type{border-top:0}
+.cp-ligne .cp-l1{flex:1;min-width:0}
+.cp-ligne b{font-weight:600}
+.cp-ligne small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.cp-btn{background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:8px 13px;font-size:13px;cursor:pointer;white-space:nowrap}
+.cp-btn:hover{border-color:#55524D}
+.cp-btn.plein{background:var(--ink);color:#121212;border-color:var(--ink);font-weight:600}
+.cp-btn.plein:hover{background:#fff}
+.cp-btns{display:flex;gap:8px;flex-wrap:wrap}
+.cp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+.cp-kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.cp-kpi span{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.cp-kpi b{font-size:26px;font-weight:600;letter-spacing:-.02em}
+.cp-barre{height:6px;border-radius:3px;background:#2A2926;overflow:hidden;width:120px;flex:none}
+.cp-barre i{display:block;height:100%;background:var(--amber)}
+.cp-onglets{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
+.cp-onglets button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:8px 14px;font-size:13.5px;cursor:pointer}
+.cp-onglets button.on{color:var(--ink);border-color:#55524D;background:#1F1E1C}
+.cp-coachs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px}
+.cp-coach{display:flex;flex-direction:column;align-items:center;gap:7px;background:none;border:1px solid transparent;border-radius:12px;padding:10px 8px;cursor:pointer;color:var(--muted);font-size:12.5px;width:96px}
+.cp-coach.on{border-color:var(--line);background:var(--surface);color:var(--ink)}
+.cp-mini{width:58px;height:58px;border-radius:50%;overflow:hidden;background:#1d1d1b;border:1px solid var(--line)}
+.cp-mini svg,.cp-mini img{width:100%;height:100%;display:block;object-fit:cover}
+.cp-pastille{font-size:11.5px;padding:3px 8px;border-radius:6px;background:#24231F;color:var(--muted);white-space:nowrap}
+.cp-pastille.ok{color:var(--sage)}.cp-pastille.ko{color:var(--clay)}.cp-pastille.mi{color:var(--amber)}
+.cp-vide{color:var(--muted);font-size:14px;line-height:1.6}
+#coachPerso .cp-wrap{max-width:780px;margin:0 auto;padding:26px 20px 60px}
+.cp-tete{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.cp-tete h2{font-size:22px;font-weight:600;margin:0;flex:1;min-width:200px}
 .cp-scene{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
-.cp-avatar{width:190px;height:190px;border-radius:50%;overflow:hidden;position:relative;flex:none;background:#1b2229;border:2px solid var(--line);transition:transform .25s}
+.cp-avatar{width:170px;height:170px;border-radius:50%;overflow:hidden;position:relative;flex:none;background:#1d1d1b;border:1px solid var(--line);transition:transform .25s,border-color .2s}
 .cp-avatar.parle{border-color:var(--amber)}
 .cp-avatar .cp-couche{position:absolute;inset:0;background-size:cover;background-position:center}
 .cp-avatar svg{width:100%;height:100%;display:block}
 .cp-avatar.placer{cursor:crosshair;outline:2px dashed var(--amber)}
 #cpFil{margin-top:18px;display:flex;flex-direction:column;gap:10px}
-.cp-msg{padding:11px 14px;border-radius:14px;line-height:1.55;font-size:15px;max-width:88%;white-space:pre-wrap}
-.cp-msg.moi{align-self:flex-end;background:rgba(94,155,196,.14);border:1px solid rgba(94,155,196,.3)}
-.cp-msg.coach{align-self:flex-start;background:rgba(232,163,61,.08);border:1px solid rgba(232,163,61,.25)}
-.cp-msg small{display:block;color:var(--muted);font-size:11.5px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.06em}
+.cp-msg{padding:11px 14px;border-radius:12px;line-height:1.55;font-size:15px;max-width:88%;white-space:pre-wrap}
+.cp-msg.moi{align-self:flex-end;background:#22211F;border:1px solid var(--line)}
+.cp-msg.coach{align-self:flex-start;background:var(--surface);border:1px solid var(--line)}
+.cp-msg small{display:block;color:var(--muted);font-size:11px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.06em}
 .cp-saisie{position:sticky;bottom:0;background:var(--bg);padding:12px 0 4px;margin-top:12px}
-.cp-saisie textarea{width:100%;min-height:70px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:11px 13px;color:var(--ink);font-family:inherit;font-size:15px}
-#coachPerso details{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.cp-saisie textarea{width:100%;min-height:70px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 13px;color:var(--ink);font-family:inherit;font-size:15px}
+#coachPerso details{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
 #coachPerso summary{cursor:pointer;color:var(--muted);font-size:13.5px}
-#coachPerso input[type=text],#coachPerso input[type=password],#coachPerso select{width:100%;background:#0E1216;border:1px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--ink);margin-top:6px}
+.cp-champ,#coachPerso select,#cpTracking input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 11px;color:var(--ink);margin-top:6px;font-size:14px}
 .cp-devoir{display:flex;gap:9px;align-items:flex-start;font-size:14px;padding:6px 0;border-top:1px solid var(--line)}
 .cp-devoir:first-child{border-top:0}
 .cp-devoir.fait span{text-decoration:line-through;color:var(--muted)}
+.cp-graph svg{width:100%;height:auto;display:block}
+.cp-legende{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:8px}
+.cp-legende i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+@media(max-width:560px){.cp-barre{width:70px}.cp-avatar{width:130px;height:130px}.cp-ligne{flex-wrap:wrap}}
 `;
 document.head.appendChild(style);
-const sec = document.createElement("section");
-sec.id = "coachPerso";
-sec.innerHTML = `<div class="cp-wrap">
-  <div class="cp-tete"><button class="pill" id="cpRetour">← Retour</button><h2>Mon coach</h2></div>
+
+/* ---------------------------------------------------------------------
+   Les écrans
+   --------------------------------------------------------------------- */
+const ICO = {
+  suivi: '<svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6"/></svg>',
+  coach: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/></svg>',
+  reglages: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>'
+};
+const home = $("home");
+const ancien = document.createElement("div"); ancien.id = "cpAncien";
+while(home.firstChild) ancien.appendChild(home.firstChild);
+const accueilEl = document.createElement("div"); accueilEl.id = "cpAccueil"; accueilEl.style.width = "100%";
+home.appendChild(accueilEl); home.appendChild(ancien);
+ancien.insertAdjacentHTML("afterbegin", '<button class="cp-lien" id="cpAncienRetour" style="align-self:flex-start">← Accueil</button><p class="cp-marque" style="margin:0">Réglages et outils</p>');
+
+function ecran(id, html){
+  const s = document.createElement("section");
+  s.id = id; s.className = "cp-ecran"; s.innerHTML = html;
+  document.body.appendChild(s); return s;
+}
+const ecTracking = ecran("cpTracking", '<div class="cp-page" id="cpTrackingIn"></div>');
+const ecCoaching = ecran("cpCoaching", '<div class="cp-page" id="cpCoachingIn"></div>');
+const sec = ecran("coachPerso", `<div class="cp-wrap">
+  <div class="cp-tete"><button class="cp-lien" id="cpRetour">← Coaching</button><h2 id="cpTitreSeance">Séance</h2>
+    <button class="cp-btn" id="cpPause" title="Tout est gardé : tu reprends quand tu veux">Pause, je reprends plus tard</button>
+    <button class="cp-btn" id="cpTerminer">Terminer la séance</button></div>
   <div class="cp-scene">
     <div class="cp-avatar" id="cpAvatar" title="Ton coach"></div>
     <div style="flex:1;min-width:220px">
-      <label style="font-size:12.5px;color:var(--muted)">Qui te coache aujourd'hui</label>
+      <label style="font-size:12.5px;color:var(--muted)">Qui te coache</label>
       <select id="cpQui"></select>
       <p id="cpEtat" style="font-size:13px;color:var(--muted);margin-top:8px"></p>
     </div>
   </div>
-  <div class="block" id="cpDevoirsBloc" style="margin-top:16px;display:none;border-left:2px solid var(--amber)">
-    <h3 style="margin-bottom:6px">Ton travail en cours</h3><div id="cpDevoirs"></div>
+  <div class="cp-carte" id="cpDevoirsBloc" style="margin-top:16px;display:none">
+    <h4>Ton travail en cours</h4><div id="cpDevoirs"></div>
   </div>
   <div id="cpFil"></div>
   <div id="cpEntrainer" style="display:none;margin-top:10px"></div>
   <div class="cp-saisie">
     <p id="cpCallJoint" style="font-size:12.5px;color:var(--amber);margin-bottom:6px"></p>
-    <textarea id="cpMoi" placeholder="Raconte. Par exemple : « Ce matin j'ai eu un dirigeant d'agence, je n'ai pas réussi à trouver sa douleur. Comment j'aurais dû faire ? »"></textarea>
-    <div class="row" style="margin-top:8px;align-items:center">
-      <button class="pill" id="cpMicro">Parler au micro</button>
-      <button class="pill" id="cpEnvoi" style="border-color:var(--amber);color:var(--amber)">Envoyer</button>
-      <button class="pill" id="cpStop">Le faire taire</button>
+    <textarea id="cpMoi" placeholder="Réponds-lui, ou raconte. Ctrl + Entrée pour envoyer."></textarea>
+    <div class="cp-btns" style="margin-top:8px;align-items:center">
+      <button class="cp-btn" id="cpMicro">Parler au micro</button>
+      <button class="cp-btn plein" id="cpEnvoi">Envoyer</button>
+      <button class="cp-btn" id="cpStop">Le faire taire</button>
       <label style="font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center"><input type="checkbox" id="cpVoix" checked> Il me répond à voix haute</label>
     </div>
   </div>
-  <details id="cpCallsBloc"><summary>Parler d'un de mes calls</summary>
-    <p style="font-size:12.5px;color:var(--muted);margin-top:8px">Il lira la transcription et la grille de ce call, et te répondra sur ce qui s'est vraiment dit.</p>
-    <select id="cpCall"></select>
-    <div class="row" style="margin-top:8px"><button class="pill" id="cpJoindre">Lui donner ce call</button><button class="pill" id="cpDetacher">Ne plus en parler</button></div>
-  </details>
   <details><summary>Réglages du coach</summary>
-    <p style="font-size:12.5px;color:var(--muted);margin-top:10px">Sa voix (celle de ton studio voix, dans le Sparring) :</p>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:10px">Sa voix (celle de ton studio voix, réglée dans le Roleplay) :</p>
     <select id="cpVoixId"></select>
     <p style="font-size:12.5px;color:var(--muted);margin-top:12px">Sa photo. Ensuite, clique sur « Placer la bouche » puis sur sa bouche dans la photo : c'est ce qui la fait bouger.</p>
-    <div class="row" style="margin-top:6px"><input type="file" id="cpPhoto" accept="image/*" style="color:var(--muted)">
-      <button class="pill" id="cpBouche">Placer la bouche</button><button class="pill" id="cpSansPhoto">Enlever la photo</button></div>
-    <p style="font-size:12.5px;color:var(--muted);margin-top:14px">Ton suivi de calls (pour qu'il lise tes calls et ta grille) :</p>
-    <input type="text" id="cpSuiviUrl" placeholder="https://…ts.net/suivi">
-    <input type="password" id="cpSuiviMdp" placeholder="mot de passe de ton suivi">
-    <div class="row" style="margin-top:8px"><button class="pill" id="cpSuiviOk">Connecter mon suivi</button><button class="pill" id="cpEfface">Effacer la conversation</button></div>
-    <p id="cpReglEtat" style="font-size:12.5px;margin-top:8px"></p>
+    <div class="cp-btns" style="margin-top:6px"><input type="file" id="cpPhoto" accept="image/*" style="color:var(--muted)">
+      <button class="cp-btn" id="cpBouche">Placer la bouche</button><button class="cp-btn" id="cpSansPhoto">Enlever la photo</button></div>
   </details>
-</div>`;
-document.body.appendChild(sec);
-const bouton = document.createElement("button");
-bouton.className = "pill"; bouton.id = "btnMonCoach";
-bouton.style.cssText = "border-color:var(--amber);color:var(--amber)";
-bouton.textContent = "Mon coach";
-$("btnSpar").insertAdjacentElement("beforebegin", bouton);
+</div>`);
+const ECRANS = [ecTracking, ecCoaching, sec];
+function montre(el){
+  ECRANS.forEach(e => e.classList.toggle("on", e === el));
+  home.style.display = el ? "none" : "flex";
+  if(el) el.scrollTop = 0;
+}
+function accueil(){ arreteVoix(); ancien.classList.remove("on"); accueilEl.style.display = ""; montre(null); rendAccueil(); }
+$("cpAncienRetour").onclick = () => { ancien.classList.remove("on"); accueilEl.style.display = ""; home.scrollTop = 0; };
 
-/* --- l'état --- */
-const CP = {conv: [], devoirs: [], regl: {}, suivi: {url: "", mdp: ""}, stats: null, calls: [], call: null, qui: "mix", enCours: false, rec: null};
-const sauve = () => { Store.set("coach_perso_conv", CP.conv.slice(-80)); Store.set("coach_perso_devoirs", CP.devoirs.slice(-40)); Store.set("coach_perso_regl", CP.regl); };
+/* ---------------------------------------------------------------------
+   L'état, gardé dans ton navigateur
+   --------------------------------------------------------------------- */
+const CP = {seances: [], actuelle: null, devoirs: [], entrainements: [], regl: {}, suivi: {url: "", mdp: ""},
+            stats: null, statsTout: null, calls: [], suiviErreur: "", charge: null, enCours: false, rec: null, qui: "mix", onglet: "phases"};
+const sauve = () => {
+  Store.set("coach_perso_seances", CP.seances.slice(-60).map(s => Object.assign({}, s, {conv: s.conv.slice(-80)})));
+  Store.set("coach_perso_devoirs", CP.devoirs.slice(-60));
+  Store.set("coach_perso_entrainements", CP.entrainements.slice(-400));
+  Store.set("coach_perso_regl", CP.regl);
+};
+const seance = () => CP.seances.find(s => s.id === CP.actuelle) || null;
+const jour = t => new Date(t).toLocaleDateString("fr-FR", {day: "numeric", month: "short"});
+const aujourdhui = () => new Date().toISOString().slice(0, 10);
 
 /* --- les coachs disponibles --- */
 function coachs(){
@@ -2307,44 +2399,59 @@ function coachs(){
   });
   return l;
 }
-const coachCourant = () => coachs().find(c => c.k === CP.qui) || coachs()[0];
+const coachDe = k => coachs().find(c => c.k === k) || coachs()[0];
+const coachCourant = () => coachDe(CP.qui);
 
-/* --- l'avatar : la photo coupée à la bouche, la mâchoire suit le son --- */
+/* --- un visage par coach, tant que tu n'as pas mis sa photo --- */
+const VISAGES = {
+  "mix":         {peau: "#B98E72", cheveux: "#3A3530", coupe: "court", barbe: false, lunettes: false},
+  "josh lyons":  {peau: "#D1A98A", cheveux: "#2B2420", coupe: "court", barbe: true,  lunettes: false},
+  "keenan":      {peau: "#D4AE93", cheveux: "#6B5B4E", coupe: "rase",  barbe: true,  lunettes: false},
+  "bill walsh":  {peau: "#C99878", cheveux: "#9C9890", coupe: "court", barbe: false, lunettes: true},
+  "ben byrne":   {peau: "#D8B49A", cheveux: "#5A4130", coupe: "haut",  barbe: false, lunettes: false},
+  "sami":        {peau: "#A97B5E", cheveux: "#1E1A18", coupe: "court", barbe: true,  lunettes: false}
+};
+function visage(k, idBouche){
+  const v = VISAGES[k] || Object.assign({}, VISAGES.mix, {peau: ["#C29A7E", "#B0856A", "#D6B092"][String(k).length % 3]});
+  const cheveux = v.coupe === "rase" ? `<path d="M50 84 Q54 40 100 38 Q146 40 150 84 Q140 62 100 60 Q60 62 50 84Z" fill="${v.cheveux}" opacity=".35"/>`
+    : v.coupe === "haut" ? `<path d="M46 88 Q46 26 100 24 Q154 26 154 88 Q142 50 100 50 Q58 50 46 88Z" fill="${v.cheveux}"/>`
+    : `<path d="M48 86 Q52 34 100 34 Q148 34 152 86 Q140 58 100 56 Q62 58 48 86Z" fill="${v.cheveux}"/>`;
+  const barbe = v.barbe ? `<path d="M56 128 Q100 182 144 128 Q138 162 100 168 Q62 162 56 128Z" fill="${v.cheveux}" opacity=".55"/>` : "";
+  const lunettes = v.lunettes ? `<g fill="none" stroke="#1a1a1a" stroke-width="3"><circle cx="80" cy="96" r="12"/><circle cx="120" cy="96" r="12"/><path d="M92 96h16"/></g>` : "";
+  return `<svg viewBox="0 0 200 200"><rect width="200" height="200" fill="#1d1d1b"/>
+    <ellipse cx="100" cy="214" rx="80" ry="54" fill="#2E2D2A"/>
+    <ellipse cx="100" cy="100" rx="52" ry="62" fill="${v.peau}"/>${cheveux}${barbe}
+    <g class="cp-yeux"><ellipse cx="80" cy="96" rx="5.5" ry="5.5" fill="#1a1512"/><ellipse cx="120" cy="96" rx="5.5" ry="5.5" fill="#1a1512"/></g>${lunettes}
+    <path d="M68 82 Q80 77 92 82" stroke="${v.cheveux}" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M108 82 Q120 77 132 82" stroke="${v.cheveux}" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <ellipse ${idBouche ? 'id="cpBoucheSvg"' : ""} cx="100" cy="134" rx="14" ry="2" fill="#5a2c2a"/></svg>`;
+}
+const miniature = k => { const p = (CP.regl[k] || {}).photo; return p ? `<img src="${p}" alt="">` : visage(k, false); };
+
+/* --- l'avatar de la séance : la mâchoire suit le son --- */
 let AMP = 0;
 function rendAvatar(){
   const el = $("cpAvatar"), r = CP.regl[CP.qui] || {};
   if(r.photo){
     const y = r.bouche || 66;
-    // la photo entière, l'intérieur de la bouche, puis le menton qui descend par-dessus
     el.innerHTML = `<div class="cp-couche" style="background-image:url('${r.photo}')"></div>
       <div id="cpTrou" style="position:absolute;left:50%;top:${y}%;width:17%;height:0;transform:translate(-50%,-30%);border-radius:50%;background:#2a1414;box-shadow:inset 0 2px 4px #000"></div>
       <div class="cp-couche" id="cpBas" style="background-image:url('${r.photo}');clip-path:inset(${y}% 27% 0 27% round 0 0 45% 45%)"></div>`;
-  } else {
-    el.innerHTML = `<svg viewBox="0 0 200 200"><rect width="200" height="200" fill="#1b2229"/>
-      <ellipse cx="100" cy="212" rx="78" ry="52" fill="#2a3540"/>
-      <ellipse cx="100" cy="98" rx="52" ry="62" fill="#c99a78"/>
-      <path d="M48 86 Q52 34 100 34 Q148 34 152 86 Q140 58 100 56 Q62 58 48 86Z" fill="#2b2420"/>
-      <path d="M58 138 Q100 176 142 138 Q132 160 100 164 Q68 160 58 138Z" fill="#3a2e28" opacity=".75"/>
-      <g id="cpYeux"><ellipse cx="80" cy="96" rx="6" ry="6" fill="#1a1512"/><ellipse cx="120" cy="96" rx="6" ry="6" fill="#1a1512"/></g>
-      <path d="M68 82 Q80 76 92 82" stroke="#2b2420" stroke-width="4" fill="none" stroke-linecap="round"/>
-      <path d="M108 82 Q120 76 132 82" stroke="#2b2420" stroke-width="4" fill="none" stroke-linecap="round"/>
-      <ellipse id="cpBoucheSvg" cx="100" cy="134" rx="15" ry="2" fill="#5a2c2a"/></svg>`;
-  }
+  } else el.innerHTML = visage(CP.qui, true);
 }
 function bouge(a){
   AMP = AMP * 0.55 + a * 0.45;
-  const bas = $("cpBas"), b = $("cpBoucheSvg"), av = $("cpAvatar");
+  const bas = $("cpBas"), b = $("cpBoucheSvg"), av = $("cpAvatar"), trou = $("cpTrou");
   if(bas) bas.style.transform = "translateY(" + (AMP * 4.5).toFixed(2) + "%)";
-  const trou = $("cpTrou"); if(trou) trou.style.height = (AMP * 5.5).toFixed(2) + "%";
+  if(trou) trou.style.height = (AMP * 5.5).toFixed(2) + "%";
   if(b) b.setAttribute("ry", (2 + AMP * 11).toFixed(1));
   if(av) av.style.transform = AMP > 0.05 ? "rotate(" + (Math.sin(Date.now() / 380) * 1.2).toFixed(2) + "deg)" : "";
 }
-// il cligne des yeux, de temps en temps
 setInterval(() => {
-  const y = $("cpYeux"); if(!y) return;
+  const y = document.querySelector("#cpAvatar .cp-yeux"); if(!y) return;
   y.setAttribute("transform", "translate(0 96) scale(1 0.1) translate(0 -96)");
   setTimeout(() => y.removeAttribute("transform"), 140);
-}, 3800 + Math.random() * 1800);
+}, 4200);
 
 /* --- sa voix --- */
 let CTX = null, AUDIO = null, ANIM = null;
@@ -2352,7 +2459,7 @@ function arreteVoix(){
   if(AUDIO){ try{ AUDIO.pause(); }catch(_){} AUDIO = null; }
   try{ speechSynthesis.cancel(); }catch(_){}
   cancelAnimationFrame(ANIM); bouge(0); bouge(0);
-  $("cpAvatar").classList.remove("parle");
+  if($("cpAvatar")) $("cpAvatar").classList.remove("parle");
 }
 function joue(url){
   return new Promise(async fin => {
@@ -2397,7 +2504,6 @@ async function parle(txt){
       if(blob.size > 500) return joue(URL.createObjectURL(blob));
     }catch(e){ $("cpEtat").textContent = "Sa voix n'a pas répondu (" + e.message + "), je passe sur celle du navigateur."; }
   }
-  // la voix du navigateur : pas de son à mesurer, la bouche suit les mots
   if(!("speechSynthesis" in window)) return;
   return new Promise(fin => {
     const u = new SpeechSynthesisUtterance(t);
@@ -2411,51 +2517,352 @@ async function parle(txt){
   });
 }
 
-/* --- ton suivi de calls --- */
+/* ---------------------------------------------------------------------
+   Ton suivi de calls
+   --------------------------------------------------------------------- */
 async function suivi(chemin){
   const s = CP.suivi; if(!s.url || !s.mdp) throw new Error("suivi non connecté");
   const r = await fetch(s.url.replace(/\/+$/, "") + chemin, {headers: {"x-mot-de-passe": s.mdp}});
   if(r.status === 401) throw new Error("mot de passe du suivi refusé");
-  if(!r.ok) throw new Error("suivi : erreur " + r.status);
+  if(!r.ok){ const d = await r.json().catch(() => ({})); throw new Error(d.erreur || ("suivi : erreur " + r.status)); }
   return chemin.endsWith("/transcript") ? r.text() : r.json();
 }
-async function chargeSuivi(){
-  if(!CP.suivi.url || !CP.suivi.mdp){ majCalls(); return; }
+function chargeSuivi(force){
+  if(CP.charge && !force) return CP.charge;
+  CP.charge = (async () => {
+    if(!CP.suivi.url || !CP.suivi.mdp){ CP.suiviErreur = "non connecté"; return; }
+    try{
+      const depuis = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
+      const [st, tout, ca] = await Promise.all([suivi("/api/stats?depuis=" + depuis), suivi("/api/stats"), suivi("/api/calls")]);
+      CP.stats = st; CP.statsTout = tout;
+      CP.calls = (ca || []).filter(c => c.vente !== false).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+      CP.suiviErreur = "";
+    }catch(e){ CP.suiviErreur = e.message; }
+  })();
+  return CP.charge;
+}
+const valeur = s => s === "fait" ? 1 : s === "partiel" ? 0.5 : s === "non" ? 0 : null;
+const scoreCall = c => { if(!c.grille) return null; const v = Object.values(c.grille).map(x => valeur(x && x.s)).filter(x => x !== null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 100) : null; };
+const lignesGrille = () => (((CP.stats || {}).grille || {}).lignes || []);
+const nomPhase = k => (lignesGrille().find(l => l.k === k) || {}).nom || k;
+const callsRates = k => CP.calls.filter(c => c.grille && c.grille[k] && (c.grille[k].s === "non" || c.grille[k].s === "partiel"));
+const etiquetteIssue = i => { const x = String(i || "?"); return `<span class="cp-pastille ${/sign/i.test(x) ? "ok" : /perd/i.test(x) ? "ko" : "mi"}">${escapeHTML(x)}</span>`; };
+const nomCall = c => (c.prospect || c.titre || "call");
+
+/* le taux d'une phase avant ton premier entraînement dessus, et depuis */
+function avantApres(k){
+  const e = CP.entrainements.filter(x => x.k === k).sort((a, b) => a.t - b.t)[0];
+  if(!e) return null;
+  const date = new Date(e.t).toISOString().slice(0, 10);
+  const avec = CP.calls.filter(c => c.grille && c.grille[k] && valeur(c.grille[k].s) !== null);
+  const moy = l => l.length ? Math.round(l.reduce((a, c) => a + valeur(c.grille[k].s), 0) / l.length * 100) : null;
+  const av = avec.filter(c => String(c.date || "") < date), ap = avec.filter(c => String(c.date || "") >= date);
+  return {date, avant: moy(av), nAvant: av.length, apres: moy(ap), nApres: ap.length, fois: CP.entrainements.filter(x => x.k === k).length};
+}
+
+/* ---------------------------------------------------------------------
+   L'accueil
+   --------------------------------------------------------------------- */
+function rendAccueil(){
+  const st = CP.stats, enCours = CP.seances.filter(s => s.etat !== "terminee").sort((a, b) => b.maj - a.maj);
+  const prio = st && st.grille && st.grille.faiblesses && st.grille.faiblesses[0];
+  const heure = new Date().getHours();
+  accueilEl.innerHTML = `<div class="cp-page">
+    <div class="cp-haut"><span class="cp-marque">Closing Copilot</span>
+      <button class="cp-lien" id="cpVersReglages">Réglages et outils</button></div>
+    <h1 class="cp-titre">${heure < 18 ? "Bonjour" : "Bonsoir"} Woidih.</h1>
+    <p class="cp-sous">${prio ? "En ce moment, ce qui te coûte le plus : <b style='color:var(--ink)'>" + escapeHTML(prio.nom) + "</b>, réussi dans " + prio.taux + " % de tes calls." : "Tes calls d'un côté, ton travail de l'autre. Les deux sont reliés."}</p>
+    <div class="cp-portes">
+      <button class="cp-porte" id="cpPorteTracking"><div class="cp-ico">${ICO.suivi}</div><h3>Tracking</h3>
+        <p>Tes vrais calls, ta grille, ta progression semaine après semaine.</p>
+        <div class="cp-chiffre">${st ? st.calls + " calls sur 45 jours · " + st.signes + " signés" + (st.taux_prospect != null ? " · " + st.taux_prospect + " % par prospect" : "") : (CP.suiviErreur === "non connecté" ? "À connecter" : "&nbsp;")}</div></button>
+      <button class="cp-porte" id="cpPorteCoaching"><div class="cp-ico">${ICO.coach}</div><h3>Coaching</h3>
+        <p>Analyse de call, roleplay, questions-réponses. Sur ce que tes calls montrent.</p>
+        <div class="cp-chiffre">${enCours.length ? enCours.length + " séance" + (enCours.length > 1 ? "s" : "") + " à reprendre" : (prio ? "Phase prioritaire : " + escapeHTML(prio.nom) : "&nbsp;")}</div></button>
+    </div>
+    ${enCours[0] ? `<div class="cp-carte"><h4>À reprendre</h4><div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(enCours[0].titre)}</b><small>${escapeHTML(coachDe(enCours[0].qui).nom)} · commencée le ${jour(enCours[0].debut)} · ${enCours[0].conv.length} échanges</small></div>
+      <button class="cp-btn plein" data-reprendre="${enCours[0].id}">Reprendre</button></div></div>` : ""}
+    ${devoirsOuverts().length ? `<div class="cp-carte"><h4>Ton travail en cours</h4>${devoirsOuverts().slice(-3).map(d => `<div class="cp-ligne"><div class="cp-l1">${escapeHTML(d.txt)}<small>donné le ${escapeHTML(d.date)}</small></div></div>`).join("")}</div>` : ""}
+  </div>`;
+  $("cpPorteTracking").onclick = ouvreTracking;
+  $("cpPorteCoaching").onclick = ouvreCoaching;
+  $("cpVersReglages").onclick = () => { accueilEl.style.display = "none"; ancien.classList.add("on"); home.scrollTop = 0; };
+  accueilEl.querySelectorAll("[data-reprendre]").forEach(b => b.onclick = () => reprend(b.dataset.reprendre));
+}
+const devoirsOuverts = () => CP.devoirs.filter(d => !d.fait);
+
+/* ---------------------------------------------------------------------
+   Tracking
+   --------------------------------------------------------------------- */
+async function ouvreTracking(){
+  montre(ecTracking);
+  const el = $("cpTrackingIn");
+  el.innerHTML = '<button class="cp-lien" id="cpTrRetour">← Accueil</button><p class="cp-vide" style="margin-top:20px">Je récupère tes calls…</p>';
+  $("cpTrRetour").onclick = accueil;
+  await chargeSuivi();
+  rendTracking();
+}
+function formulaireSuivi(){
+  return `<div class="cp-carte"><h4>Connecter ton suivi</h4>
+    <p class="cp-vide">${CP.suiviErreur && CP.suiviErreur !== "non connecté" ? "<span style='color:var(--clay)'>" + escapeHTML(CP.suiviErreur) + "</span><br>" : ""}L'adresse de ton suivi et son mot de passe. Ils restent dans ce navigateur.</p>
+    <input class="cp-champ" id="cpSuiviUrl" placeholder="https://…ts.net/suivi" value="${escapeHTML(CP.suivi.url)}">
+    <input class="cp-champ" id="cpSuiviMdp" type="password" placeholder="mot de passe de ton suivi" value="${escapeHTML(CP.suivi.mdp)}">
+    <div class="cp-btns" style="margin-top:10px"><button class="cp-btn plein" id="cpSuiviOk">Connecter</button></div></div>`;
+}
+function brancheFormulaireSuivi(apres){
+  const b = $("cpSuiviOk"); if(!b) return;
+  b.onclick = async () => {
+    CP.suivi = {url: $("cpSuiviUrl").value.trim(), mdp: $("cpSuiviMdp").value.trim()};
+    await Store.set("coach_perso_suivi", CP.suivi);
+    b.textContent = "Connexion…";
+    await chargeSuivi(true); apres();
+  };
+}
+function rendTracking(){
+  const el = $("cpTrackingIn"), st = CP.stats;
+  let h = `<div class="cp-haut"><button class="cp-lien" id="cpTrRetour">← Accueil</button>
+    <div class="cp-btns"><button class="cp-btn" id="cpTrMaj">Actualiser</button>${CP.suivi.url ? `<a class="cp-btn" style="text-decoration:none" target="_blank" rel="noopener" href="${escapeHTML(CP.suivi.url)}">Page complète du suivi</a>` : ""}</div></div>
+    <h1 class="cp-titre">Tracking</h1><p class="cp-sous">Les 45 derniers jours, analysés avec ta grille. La courbe montre toute ta progression.</p>`;
+  if(!st){ el.innerHTML = h + formulaireSuivi(); branche(); brancheFormulaireSuivi(rendTracking); return; }
+  const scoreMoy = (() => { const v = CP.calls.filter(c => String(c.date || "") >= new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10)).map(scoreCall).filter(x => x !== null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; })();
+  h += `<div class="cp-kpis">
+    <div class="cp-kpi"><span>Calls</span><b>${st.calls}</b></div>
+    <div class="cp-kpi"><span>Signés</span><b>${st.signes}</b></div>
+    <div class="cp-kpi"><span>Taux par prospect</span><b>${st.taux_prospect ?? "–"}${st.taux_prospect != null ? " %" : ""}</b></div>
+    <div class="cp-kpi"><span>Grille respectée</span><b>${scoreMoy ?? "–"}${scoreMoy != null ? " %" : ""}</b></div></div>`;
+  h += `<div class="cp-carte"><h4>Ta progression</h4>${graphique()}</div>`;
+  const trav = [...new Set(CP.entrainements.map(e => e.k).filter(Boolean))].map(k => [k, avantApres(k)]).filter(x => x[1]);
+  if(trav.length) h += `<div class="cp-carte"><h4>Avant et après tes entraînements</h4>${trav.map(([k, a]) => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(nomPhase(k))}</b>
+      <small>${a.fois} entraînement${a.fois > 1 ? "s" : ""} depuis le ${jour(a.date)}</small></div>
+      <span class="cp-pastille">avant ${a.avant ?? "–"}${a.avant != null ? " %" : ""} <small style="display:inline">(${a.nAvant} calls)</small></span>
+      <span class="cp-pastille ${a.apres != null && a.avant != null ? (a.apres > a.avant ? "ok" : a.apres < a.avant ? "ko" : "") : ""}">depuis ${a.nApres >= 1 ? a.apres + " %" : "–"} <small style="display:inline">(${a.nApres} calls)</small></span></div>`).join("")}
+    <p class="cp-vide" style="font-size:12.5px;margin-top:10px">Tant qu'il y a moins de 3 calls « depuis », c'est une tendance, pas une preuve.</p></div>`;
+  const lignes = lignesGrille().filter(l => l.n);
+  h += `<div class="cp-carte"><h4>Ta grille, phase par phase</h4>${lignes.length ? lignes.map(l => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(l.nom)}</b>
+      <small>${l.signe_si_fait != null ? "signé " + l.signe_si_fait + " % quand tu le fais" : ""}${l.signe_si_fait != null && l.signe_si_rate != null ? " · " : ""}${l.signe_si_rate != null ? l.signe_si_rate + " % quand tu le rates" : ""}</small></div>
+      <div class="cp-barre"><i style="width:${l.taux || 0}%"></i></div><span style="width:42px;text-align:right;font-size:14px">${l.taux ?? "–"} %</span>
+      <button class="cp-btn" data-travailler="${l.k}">Travailler</button></div>`).join("") : '<p class="cp-vide">Pas encore de call analysé avec la grille.</p>'}</div>`;
+  h += `<div class="cp-carte"><h4>Tes calls</h4>${CP.calls.slice(0, 40).map(c => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(nomCall(c))}</b>
+      <small>${escapeHTML(c.date || "")} · ${escapeHTML(c.etape || "")}${c.offre ? " · " + escapeHTML(c.offre) : ""}${scoreCall(c) != null ? " · grille " + scoreCall(c) + " %" : ""}</small></div>
+      ${etiquetteIssue(c.issue)}<button class="cp-btn" data-analyser="${escapeHTML(c.id)}">Analyser avec le coach</button></div>`).join("") || '<p class="cp-vide">Aucun call pour l\'instant.</p>'}</div>`;
+  el.innerHTML = h; branche();
+  function branche(){
+    $("cpTrRetour").onclick = accueil;
+    if($("cpTrMaj")) $("cpTrMaj").onclick = async () => { $("cpTrMaj").textContent = "…"; await chargeSuivi(true); rendTracking(); };
+    el.querySelectorAll("[data-analyser]").forEach(b => b.onclick = () => nouvelleAnalyse(CP.calls.find(c => c.id === b.dataset.analyser)));
+    el.querySelectorAll("[data-travailler]").forEach(b => b.onclick = () => { CP.onglet = "phases"; ouvreCoaching(b.dataset.travailler); });
+  }
+}
+/* la courbe : ta grille (calls réels) et ton taux de signature, semaine par semaine, avec tes entraînements */
+function graphique(){
+  const sem = ((CP.statsTout || {}).semaines || []).slice(-16);
+  if(sem.length < 2) return '<p class="cp-vide">La courbe apparaîtra dès qu\'il y aura deux semaines de calls.</p>';
+  const W = 900, H = 230, g = 36, d = 14, hh = 20, bas = 30;
+  const x = i => g + i * (W - g - d) / (sem.length - 1), y = v => hh + (100 - v) * (H - hh - bas) / 100;
+  const chemin = vals => vals.map((v, i) => v == null ? null : [x(i), y(v)]).filter(Boolean).map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  const grille = sem.map(s => s.grille), signes = sem.map(s => s.calls ? Math.round(s.signes / s.calls * 100) : null);
+  const ent = sem.map((s, i) => { const deb = new Date(s.semaine + "T00:00:00").getTime(), fin = deb + 7 * 86400000; return CP.entrainements.filter(e => e.t >= deb && e.t < fin).length; });
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Progression par semaine">`;
+  [0, 25, 50, 75, 100].forEach(v => svg += `<line x1="${g}" x2="${W - d}" y1="${y(v)}" y2="${y(v)}" stroke="#2B2A28" stroke-width="1"/><text x="${g - 8}" y="${y(v) + 4}" fill="#8F8B85" font-size="11" text-anchor="end">${v}</text>`);
+  ent.forEach((n, i) => { if(n) svg += `<rect x="${x(i) - 9}" y="${H - bas - Math.min(60, n * 12)}" width="18" height="${Math.min(60, n * 12)}" rx="3" fill="#3A3833"><title>${n} entraînement(s)</title></rect>`; });
+  svg += `<path d="${chemin(signes)}" fill="none" stroke="#A3AEB8" stroke-width="2" stroke-dasharray="5 5"/>`;
+  svg += `<path d="${chemin(grille)}" fill="none" stroke="#C9B28C" stroke-width="2.5"/>`;
+  grille.forEach((v, i) => { if(v != null) svg += `<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="#C9B28C"><title>Semaine du ${sem[i].semaine} : grille ${v} %, ${sem[i].signes}/${sem[i].calls} signés</title></circle>`; });
+  sem.forEach((s, i) => { if(i % Math.ceil(sem.length / 8) === 0 || i === sem.length - 1) svg += `<text x="${x(i)}" y="${H - 8}" fill="#8F8B85" font-size="11" text-anchor="middle">${jour(s.semaine + "T12:00:00")}</text>`; });
+  svg += "</svg>";
+  return `<div class="cp-graph">${svg}</div><div class="cp-legende"><span><i style="background:#C9B28C"></i>Grille respectée (%)</span>
+    <span><i style="background:#A3AEB8"></i>Calls signés (%)</span><span><i style="background:#3A3833;height:9px"></i>Tes entraînements</span></div>`;
+}
+
+/* ---------------------------------------------------------------------
+   Coaching
+   --------------------------------------------------------------------- */
+async function ouvreCoaching(phaseOuverte){
+  montre(ecCoaching);
+  rendCoaching(phaseOuverte);
+  if(!CP.stats && CP.suiviErreur !== "non connecté"){ await chargeSuivi(); rendCoaching(phaseOuverte); }
+}
+function rendCoaching(phaseOuverte){
+  const el = $("cpCoachingIn"), st = CP.stats;
+  const enCours = CP.seances.filter(s => s.etat !== "terminee").sort((a, b) => b.maj - a.maj);
+  const faibles = st ? (st.grille.faiblesses || []).map(f => f.k) : [];
+  const phases = lignesGrille().filter(l => l.n && l.taux != null).sort((a, b) => { const fa = faibles.indexOf(a.k), fb = faibles.indexOf(b.k);
+    return (fa < 0 ? 99 : fa) - (fb < 0 ? 99 : fb) || (a.taux - b.taux); });
+  let h = `<div class="cp-haut"><button class="cp-lien" id="cpCoRetour">← Accueil</button></div>
+    <h1 class="cp-titre">Coaching</h1><p class="cp-sous">Choisis ton coach, puis ce que tu travailles. Tu peux t'arrêter quand tu veux : la séance t'attend.</p>
+    <div class="cp-coachs">${coachs().map(c => `<button class="cp-coach ${c.k === CP.qui ? "on" : ""}" data-coach="${escapeHTML(c.k)}"><div class="cp-mini">${miniature(c.k)}</div>${escapeHTML(c.nom)}</button>`).join("")}</div>
+    <div class="cp-onglets">
+      <button data-onglet="phases" class="${CP.onglet === "phases" ? "on" : ""}">Phases à travailler</button>
+      <button data-onglet="analyse" class="${CP.onglet === "analyse" ? "on" : ""}">Analyse de call</button>
+      <button data-onglet="roleplay" class="${CP.onglet === "roleplay" ? "on" : ""}">Roleplay</button>
+      <button data-onglet="qr" class="${CP.onglet === "qr" ? "on" : ""}">Questions-réponses</button>
+    </div>`;
+  if(enCours.length) h += `<div class="cp-carte"><h4>À reprendre</h4>${enCours.slice(0, 5).map(s => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(s.titre)}</b>
+      <small>${escapeHTML(coachDe(s.qui).nom)} · ${jour(s.debut)} · ${(n => n + " réponse" + (n > 1 ? "s" : ""))(s.conv.filter(m => m.role === "moi").length)} de ta part</small></div>
+      <button class="cp-btn plein" data-reprendre="${s.id}">Reprendre</button><button class="cp-btn" data-clore="${s.id}" title="La ranger sans bilan">Ranger</button></div>`).join("")}</div>`;
+  if(CP.onglet === "phases"){
+    if(!st) h += formulaireSuivi();
+    else if(!phases.length) h += '<div class="cp-carte"><p class="cp-vide">Pas encore de call analysé avec la grille. Dès qu\'il y en aura, tes phases à travailler apparaîtront ici.</p></div>';
+    else h += `<div class="cp-carte"><h4>Tes phases, de la plus urgente à la plus solide</h4>${phases.map(l => {
+      const a = avantApres(l.k), rates = callsRates(l.k), ouverte = phaseOuverte === l.k;
+      return `<div class="cp-ligne" style="flex-wrap:wrap"><div class="cp-l1"><b>${escapeHTML(l.nom)}</b>${faibles.includes(l.k) ? ' <span class="cp-pastille mi">priorité</span>' : ""}
+          <small>${l.taux} % de tes calls${l.signe_si_rate != null ? " · quand tu le rates, tu signes " + l.signe_si_rate + " %" : ""}${a ? " · " + a.fois + " entraînement" + (a.fois > 1 ? "s" : "") : ""}</small></div>
+        <div class="cp-barre"><i style="width:${l.taux}%"></i></div>
+        <div class="cp-btns"><button class="cp-btn plein" data-entrainer="${l.k}">M'entraîner</button><button class="cp-btn" data-comprendre="${l.k}">Comprendre</button>
+          <button class="cp-btn" data-voir="${l.k}">${rates.length} call${rates.length > 1 ? "s" : ""} raté${rates.length > 1 ? "s" : ""}</button></div>
+        ${ouverte ? `<div style="flex-basis:100%;padding:8px 0 0 14px;border-left:2px solid var(--line);margin-top:8px">${rates.slice(0, 8).map(c => `<div class="cp-ligne"><div class="cp-l1">${escapeHTML(nomCall(c))}
+            <small>${escapeHTML(c.date || "")} · ${escapeHTML(c.grille[l.k].p || c.grille[l.k].s)}</small></div>${etiquetteIssue(c.issue)}<button class="cp-btn" data-analyser="${escapeHTML(c.id)}" data-phase="${l.k}">Analyser</button></div>`).join("") || '<p class="cp-vide">Aucun.</p>'}</div>` : ""}
+      </div>`; }).join("")}</div>`;
+  } else if(CP.onglet === "analyse"){
+    h += st ? `<div class="cp-carte"><h4>Choisis un call : ton coach le lit avec toi</h4>${CP.calls.slice(0, 30).map(c => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(nomCall(c))}</b>
+      <small>${escapeHTML(c.date || "")} · ${escapeHTML(c.etape || "")}${scoreCall(c) != null ? " · grille " + scoreCall(c) + " %" : ""}</small></div>${etiquetteIssue(c.issue)}
+      <button class="cp-btn plein" data-analyser="${escapeHTML(c.id)}">Analyser</button></div>`).join("") || '<p class="cp-vide">Aucun call.</p>'}</div>` : formulaireSuivi();
+  } else if(CP.onglet === "roleplay"){
+    h += `<div class="cp-carte"><h4>Roleplay</h4><p class="cp-vide" style="margin-bottom:14px">Le plus utile : un prospect construit pour la phase que tu rates le plus. Ou un roleplay libre.</p>
+      <div class="cp-btns">${faibles.slice(0, 3).map(k => `<button class="cp-btn plein" data-entrainer="${k}">Sur « ${escapeHTML(nomPhase(k))} »</button>`).join("")}
+      <button class="cp-btn" id="cpRpLibre">Roleplay libre</button></div></div>`;
+  } else {
+    h += `<div class="cp-carte"><h4>Questions-réponses</h4><p class="cp-vide" style="margin-bottom:14px">Raconte un call, une situation, un doute. Il te fera chercher avant de te répondre.</p>
+      <button class="cp-btn plein" id="cpNouvelleQR">Nouvelle séance avec ${escapeHTML(coachCourant().nom)}</button></div>`;
+  }
+  const finies = CP.seances.filter(s => s.etat === "terminee").sort((a, b) => b.maj - a.maj).slice(0, 6);
+  if(finies.length) h += `<div class="cp-carte"><h4>Tes dernières séances</h4>${finies.map(s => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(s.titre)}</b>
+      <small>${jour(s.maj)} · ${escapeHTML(coachDe(s.qui).nom)}${s.bilan ? " · " + escapeHTML(s.bilan.slice(0, 140)) + (s.bilan.length > 140 ? "…" : "") : ""}</small></div>
+      <button class="cp-btn" data-relire="${s.id}">Relire</button></div>`).join("")}</div>`;
+  el.innerHTML = h;
+  $("cpCoRetour").onclick = accueil;
+  brancheFormulaireSuivi(() => rendCoaching());
+  el.querySelectorAll("[data-coach]").forEach(b => b.onclick = () => { CP.qui = b.dataset.coach; CP.regl._qui = CP.qui; sauve(); rendCoaching(phaseOuverte); });
+  el.querySelectorAll("[data-onglet]").forEach(b => b.onclick = () => { CP.onglet = b.dataset.onglet; rendCoaching(); });
+  el.querySelectorAll("[data-reprendre]").forEach(b => b.onclick = () => reprend(b.dataset.reprendre));
+  el.querySelectorAll("[data-relire]").forEach(b => b.onclick = () => reprend(b.dataset.relire));
+  el.querySelectorAll("[data-clore]").forEach(b => b.onclick = () => { const s = CP.seances.find(x => x.id === b.dataset.clore); if(s){ s.etat = "terminee"; s.maj = Date.now(); sauve(); rendCoaching(); } });
+  el.querySelectorAll("[data-entrainer]").forEach(b => b.onclick = () => entrainePhase(b.dataset.entrainer, b));
+  el.querySelectorAll("[data-comprendre]").forEach(b => b.onclick = () => nouvelleSeance({type: "phase", k: b.dataset.comprendre, titre: "Comprendre : " + nomPhase(b.dataset.comprendre),
+      ouverture: "Je veux travailler « " + nomPhase(b.dataset.comprendre) + " ». D'après ma grille, je le réussis dans " + ((lignesGrille().find(l => l.k === b.dataset.comprendre) || {}).taux ?? "?") + " % de mes calls. Aide-moi à comprendre ce que je rate."}));
+  el.querySelectorAll("[data-voir]").forEach(b => b.onclick = () => rendCoaching(phaseOuverte === b.dataset.voir ? null : b.dataset.voir));
+  el.querySelectorAll("[data-analyser]").forEach(b => b.onclick = () => nouvelleAnalyse(CP.calls.find(c => c.id === b.dataset.analyser), b.dataset.phase));
+  if($("cpRpLibre")) $("cpRpLibre").onclick = () => lanceRoleplay("");
+  if($("cpNouvelleQR")) $("cpNouvelleQR").onclick = () => nouvelleSeance({type: "qr", titre: "Questions-réponses"});
+}
+
+/* un prospect construit pour la phase que tu rates, à partir de tes vrais calls */
+async function entrainePhase(k, bouton){
+  const l = lignesGrille().find(x => x.k === k) || {nom: k};
+  const ex = ((CP.stats || {}).grille.faiblesses || []).find(f => f.k === k);
+  const rates = callsRates(k).slice(0, 4).map(c => "- " + (c.etape || "") + " " + (c.offre || "") + " : " + (c.resume || "") + (c.grille[k].p ? " (ce qui s'est passé : " + c.grille[k].p + ")" : "")).join("\n");
+  if(bouton){ bouton.disabled = true; bouton.textContent = "Je prépare ton prospect…"; }
+  let desc = "";
   try{
-    const depuis = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
-    const [st, ca] = await Promise.all([suivi("/api/stats?depuis=" + depuis), suivi("/api/calls")]);
-    CP.stats = st; CP.calls = (ca || []).filter(c => c.vente !== false).slice(0, 80);
-    $("cpReglEtat").innerHTML = '<span style="color:var(--sage)">Suivi connecté : ' + CP.calls.length + " calls.</span>";
-  }catch(e){ $("cpReglEtat").innerHTML = '<span style="color:var(--clay)">' + escapeHTML(e.message) + "</span>"; }
-  majCalls();
+    desc = await appelCerveau(`Woidih, closer high ticket, veut s'entraîner en roleplay sur une phase précise de son call : « ${l.nom} ». Il la réussit dans ${l.taux ?? "?"} % de ses calls.
+${ex && ex.exercice ? "Exercice conseillé : " + ex.exercice + "\n" : ""}${rates ? "Ses vrais calls où il l'a ratée :\n" + rates + "\n" : ""}
+Écris la description du prospect qu'une IA va jouer, en 4 à 6 phrases : qui il est, son activité, sa situation en chiffres, son caractère, ce qu'il cache.
+Il doit ressembler aux prospects réels ci-dessus (même type de marché, même offre), et rendre cette phase difficile à réussir sans la rendre impossible : il ne donne l'information que si Woidih pose la bonne question et creuse.
+Termine par une phrase « Objectif de l'exercice : … » qui dit précisément ce que Woidih doit obtenir. Réponds avec la description seule, sans titre ni liste.`, {max: 600, effort: "low"});
+  }catch(e){ toast("Je n'ai pas pu préparer le prospect : " + e.message); }
+  if(bouton){ bouton.disabled = false; bouton.textContent = "M'entraîner"; }
+  if(!desc) return;
+  CP.entrainements.push({t: Date.now(), k, type: "roleplay"}); sauve();
+  lanceRoleplay(desc.trim());
 }
-function majCalls(){
-  const s = $("cpCall");
-  s.innerHTML = CP.calls.length
-    ? CP.calls.map((c, i) => `<option value="${i}">${escapeHTML((c.date || "").slice(5))} · ${escapeHTML(c.prospect || c.titre || "call")} · ${escapeHTML(c.etape || "")} · ${escapeHTML(c.issue || "?")}</option>`).join("")
-    : '<option value="">Connecte ton suivi dans les réglages, plus bas</option>';
-  $("cpCallJoint").textContent = CP.call ? "On parle du call : " + (CP.call.c.prospect || CP.call.c.titre || "call") + " (" + (CP.call.c.date || "") + ")" : "";
+function lanceRoleplay(scenario){
+  arreteVoix();
+  montre(null); home.style.display = "none";
+  $("btnSpar").click();
+  setTimeout(() => {
+    const d = $("sparDesc");
+    if(d && scenario){ d.value = scenario; d.dispatchEvent(new Event("input", {bubbles: true})); d.scrollIntoView({block: "center"}); }
+    if(scenario) toast("Ton prospect est prêt. Lance le roleplay.");
+  }, 400);
 }
+
+/* ---------------------------------------------------------------------
+   Les séances : on s'arrête, on reprend un autre jour
+   --------------------------------------------------------------------- */
+function nouvelleSeance(o){
+  const s = {id: "s" + Date.now(), titre: o.titre || "Séance", type: o.type || "qr", k: o.k || null, call: o.call || null,
+             qui: CP.qui, conv: [], etat: "en_cours", debut: Date.now(), maj: Date.now(), texte: ""};
+  CP.seances.push(s); CP.actuelle = s.id;
+  if(s.k) CP.entrainements.push({t: Date.now(), k: s.k, type: s.type});
+  sauve(); ouvreSeance();
+  if(o.ouverture){ $("cpMoi").value = o.ouverture; envoie(); }
+  else if(!o.silence){ s.conv.push({role: "coach", nom: coachDe(s.qui).court, t: Date.now(), txt: ouvertureCoach()}); sauve(); rendFil(); }
+}
+function ouvertureCoach(){
+  const d = devoirsOuverts().slice(-1)[0];
+  return d ? "Avant tout : la dernière fois, je t'ai demandé ça. « " + d.txt + " » Tu l'as fait ? Raconte-moi ce que ça a donné."
+           : "Salut. Raconte-moi ton dernier call, ou ce qui te bloque en ce moment. On part de là.";
+}
+async function nouvelleAnalyse(c, k){
+  if(!c) return;
+  nouvelleSeance({type: "analyse", titre: "Analyse : " + nomCall(c) + " (" + (c.date || "") + ")", call: c, k: k || null, silence: true});
+  const s = seance();
+  $("cpCallJoint").textContent = "Je récupère la transcription…";
+  try{ s.texte = await suivi("/api/call/" + encodeURIComponent(c.id) + "/transcript"); }catch(e){ toast("Transcription non récupérée : " + e.message); }
+  majCallJoint();
+  $("cpMoi").value = k ? "Analyse ce call avec moi, surtout « " + nomPhase(k) + " »." : "Analyse ce call avec moi.";
+  envoie();
+}
+async function reprend(id){
+  const s = CP.seances.find(x => x.id === id); if(!s) return;
+  CP.actuelle = id; CP.qui = s.qui || CP.qui;
+  if(s.call && !s.texte){ try{ s.texte = await suivi("/api/call/" + encodeURIComponent(s.call.id) + "/transcript"); }catch(_){} }
+  // après une pause d'au moins quelques heures, il reprend le fil lui-même
+  const dernier = s.conv[s.conv.length - 1];
+  if(s.etat !== "terminee" && dernier && Date.now() - (dernier.t || 0) > 4 * 3600000){
+    const q = [...s.conv].reverse().find(m => m.role === "coach");
+    s.conv.push({role: "coach", nom: coachDe(s.qui).court, t: Date.now(), reprise: true,
+      txt: "On reprend où on s'était arrêtés" + (q ? ". Je t'avais dit : « " + q.txt.slice(0, 260) + (q.txt.length > 260 ? "…" : "") + " » Vas-y." : ". Vas-y.")});
+  }
+  if(s.etat === "terminee") s.etat = "en_cours";
+  sauve(); ouvreSeance();
+}
+function ouvreSeance(){
+  const s = seance(); if(!s) return;
+  montre(sec);
+  $("cpTitreSeance").textContent = s.titre;
+  majQui(); rendAvatar(); majVoixChoix(); rendFil(); rendDevoirs(); majCallJoint();
+  $("cpEntrainer").style.display = "none";
+  setTimeout(() => { sec.scrollTop = sec.scrollHeight; }, 50);
+}
+function majCallJoint(){ const s = seance(); $("cpCallJoint").textContent = s && s.call ? "On parle du call : " + nomCall(s.call) + " (" + (s.call.date || "") + ")" + (s.texte ? "" : " · sans transcription") : ""; }
+$("cpPause").onclick = () => { const s = seance(); if(s){ s.maj = Date.now(); sauve(); } arreteVoix(); toast("Séance gardée. Tu la retrouves dans Coaching, « À reprendre »."); ouvreCoaching(); };
+$("cpRetour").onclick = $("cpPause").onclick;
+$("cpTerminer").onclick = async () => {
+  const s = seance(); if(!s) return;
+  if(s.conv.filter(m => m.role === "moi").length < 2){ s.etat = "terminee"; s.maj = Date.now(); sauve(); return ouvreCoaching(); }
+  $("cpMoi").value = "On s'arrête là pour cette séance. Fais-moi le bilan : ce que j'ai compris, ce qui reste fragile, et ce que je dois travailler d'ici la prochaine fois.";
+  await envoie(true);
+  s.etat = "terminee"; s.maj = Date.now();
+  const der = [...s.conv].reverse().find(m => m.role === "coach"); if(der) s.bilan = der.txt;
+  sauve();
+  $("cpEtat").innerHTML = 'Séance terminée. <a href="#" id="cpVersCoaching" style="color:var(--ink)">Retour au coaching</a>';
+  $("cpVersCoaching").onclick = e => { e.preventDefault(); ouvreCoaching(); };
+};
+
+/* ---------------------------------------------------------------------
+   Le cerveau du coach
+   --------------------------------------------------------------------- */
 const NOMS_G = {cadrage:"cadrage", situation:"situation en chiffres", probleme:"problème creusé", impact:"impact chiffré", cause:"cause et tentatives", vise:"objectif et pourquoi", ecart:"écart validé", enjeu:"enjeu personnel", declencheur:"pourquoi maintenant", responsabilite:"sa responsabilité", plan_b:"plan B fermé", decision:"circuit de décision", presentation:"présentation au bon moment", objections:"objections ramenées à son but", engagement:"engagement verrouillé"};
-function texteDuCall(){
-  if(!CP.call) return "";
-  const c = CP.call.c;
+function texteDuCall(s){
+  if(!s || !s.call) return "";
+  const c = s.call;
   const g = c.grille ? Object.keys(NOMS_G).filter(k => c.grille[k] && c.grille[k].s !== "na")
       .map(k => "  - " + NOMS_G[k] + " : " + c.grille[k].s + (c.grille[k].p ? " (« " + c.grille[k].p + " »)" : "")).join("\n") : "";
   return `\nLE CALL DONT IL VEUT PARLER (${c.date || ""}, ${c.etape || ""}, ${c.offre || ""}, issue : ${c.issue || "?"}) :
 Résumé : ${c.resume || "—"}
-${c.bascule ? "Moment de bascule : " + c.bascule + "\n" : ""}${g ? "Sa grille sur ce call :\n" + g + "\n" : ""}${CP.call.texte ? "LA TRANSCRIPTION :\n" + CP.call.texte.slice(0, 60000) : "(transcription non disponible)"}\n`;
+${c.bascule ? "Moment de bascule : " + c.bascule + "\n" : ""}${g ? "Sa grille sur ce call :\n" + g + "\n" : ""}${s.texte ? "LA TRANSCRIPTION :\n" + s.texte.slice(0, 60000) : "(transcription non disponible)"}\n`;
 }
 function texteProfil(){
   const s = CP.stats; if(!s) return "";
   const g = s.grille || {};
   const lignes = (g.lignes || []).filter(l => l.n).map(l => `  - ${l.nom} : ${l.taux} %` + (l.signe_si_fait != null && l.signe_si_rate != null ? ` (signe ${l.signe_si_fait} % quand il le fait, ${l.signe_si_rate} % quand il le rate)` : "")).join("\n");
+  const trav = [...new Set(CP.entrainements.map(e => e.k).filter(Boolean))].map(k => { const a = avantApres(k); return a ? `  - ${nomPhase(k)} : ${a.fois} entraînements, ${a.avant ?? "?"} % avant, ${a.nApres ? a.apres + " % depuis (" + a.nApres + " calls)" : "pas encore de call depuis"}` : ""; }).filter(Boolean).join("\n");
   return `\nSES CHIFFRES DES 45 DERNIERS JOURS (depuis son suivi) : ${s.calls} calls, ${s.signes} signés, taux par prospect ${s.taux_prospect ?? "?"} %.
 ${lignes ? "Sa grille, point par point :\n" + lignes : ""}
-${(g.faiblesses || []).length ? "Ses points faibles prioritaires : " + g.faiblesses.map(f => f.nom).join(", ") + "." : ""}\n`;
+${(g.faiblesses || []).length ? "Ses points faibles prioritaires : " + g.faiblesses.map(f => f.nom).join(", ") + "." : ""}
+${trav ? "Ce qu'il a déjà travaillé avec toi, et l'effet sur ses vrais calls :\n" + trav : ""}\n`;
 }
-
-/* --- le cerveau du coach --- */
 function systemeCoach(){
   const c = coachCourant();
   const maniere = (typeof MANIERE_COACH === "object" && MANIERE_COACH[c.k]) ? MANIERE_COACH[c.k].ton : "";
@@ -2463,7 +2870,7 @@ function systemeCoach(){
   if(c.k === "mix") cerveau = doctrinePour([], "b2b", 45000);
   else if(DOCTRINES[c.k] && DOCTRINES[c.k].cerveau) cerveau = "### LE CERVEAU DE " + c.nom.toUpperCase() + "\n" + DOCTRINES[c.k].cerveau;
   else {
-    const f = (FICHES || []).filter(x => x.ecole === c.k).slice(0, 40);
+    const f = (FICHES || []).filter(x => x.ecole === c.k).slice(0, 60);
     cerveau = "### CE QUE " + c.nom.toUpperCase() + " ENSEIGNE (ses principes et ses phrases, à faire passer par ta propre réflexion, jamais à réciter)\n" +
       f.map(x => "- " + (x.situation ? x.situation + " → " : "") + "« " + x.phrase + " »" + (x.pourquoi ? " (" + x.pourquoi + ")" : "")).join("\n");
   }
@@ -2475,14 +2882,15 @@ Tu n'es pas un assistant et tu ne fais pas de fiches. Tu es un coach humain qui 
 COMMENT TU COACHES
 - D'abord tu comprends. Si tu ne sais pas ce qui s'est vraiment passé dans son call, tu demandes (ce qu'il a dit, ce que le prospect a répondu, à quel moment ça a tourné). Une seule question à la fois.
 - Tu le fais trouver avant de donner la réponse. Tu lui demandes ce qu'il aurait pu faire, puis tu le corriges ou tu complètes. Tu ne donnes la réponse tout de suite que s'il bloque vraiment ou s'il te la demande deux fois.
+- Quand il te propose une phrase ou une question qu'il dirait en call, tu la lui fais refaire tant qu'elle n'est pas juste : tu dis précisément ce qui cloche, et tu lui demandes une nouvelle version. Tu ne la réécris à sa place qu'après deux essais ratés, puis tu lui fais redire ta version avec ses mots.
 - Tu t'appuies sur le réel : ses mots, ceux du prospect, ses chiffres. Si tu as la transcription, tu cites le moment exact.
 - Tu es franc. Tu nommes ce qu'il évite. Dur quand il le faut, jamais méprisant.
 - Pas de phrase magique, pas de raccourci. S'il cherche la facilité (la formule qui marche à tous les coups, sauter l'entraînement, accuser ses leads), tu le lui dis, et tu le ramènes au travail : comprendre, répéter, s'entraîner. Il progresse par le travail, pas par des astuces.
 - Tu finis souvent par lui donner un travail concret et mesurable. Quand il revient, tu lui demandes s'il l'a fait, et ce que ça a donné.
-- Tu tiens compte de son état : s'il est découragé, tu le recadres avec chaleur, sans le plaindre.
+- Tu tiens compte de son état : s'il est découragé ou fatigué, tu le recadres avec chaleur, sans le plaindre. Il peut mettre la séance en pause et la reprendre plus tard : c'est normal, tu ne le lui reproches pas.
 
 COMMENT TU PARLES
-Tu parles, tu n'écris pas : pas de listes, pas de titres, pas de gras, pas d'émojis. Des phrases courtes, à l'oral, en tutoyant. En général 2 à 6 phrases. Plus long seulement s'il te demande d'expliquer quelque chose en détail.
+Tu parles, tu n'écris pas : pas de listes, pas de titres, pas de gras, pas d'émojis. Des phrases courtes, à l'oral, en tutoyant. En général 2 à 6 phrases. Plus long seulement s'il te demande d'expliquer quelque chose en détail, ou pour un bilan.
 ${maniere ? "\nTA MANIÈRE\n" + maniere + "\n" : ""}
 DEUX REPÈRES, à mettre seulement quand c'est utile, chacun seul sur une ligne à la toute fin :
 <<DEVOIR: le travail précis à faire avant votre prochain échange>>
@@ -2491,12 +2899,15 @@ DEUX REPÈRES, à mettre seulement quand c'est utile, chacun seul sur une ligne 
 ${cerveau}`;
 }
 function promptCoach(question){
-  const c = coachCourant();
-  const hist = CP.conv.slice(-18).map(m => (m.role === "moi" ? "WOIDIH" : (m.nom || "COACH").toUpperCase()) + " : " + m.txt).join("\n");
-  const ouverts = CP.devoirs.filter(d => !d.fait).slice(-5).map(d => "  - (" + d.date + ") " + d.txt).join("\n");
-  let sv = ""; try{ sv = souvenirs(question + " " + (CP.call ? (CP.call.c.resume || "") : ""), [], "b2b", 6); }catch(_){}
-  return `${texteProfil()}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${texteDuCall()}${sv}
-${hist ? "VOTRE CONVERSATION JUSQU'ICI :\n" + hist + "\n" : ""}
+  const c = coachCourant(), s = seance();
+  const hist = (s ? s.conv : []).slice(-24, -1).map(m => (m.role === "moi" ? "WOIDIH" : (m.nom || "COACH").toUpperCase()) + " : " + m.txt).join("\n");
+  const ouverts = devoirsOuverts().slice(-5).map(d => "  - (" + d.date + ") " + d.txt).join("\n");
+  const avant = CP.seances.filter(x => x.etat === "terminee" && x.bilan && x !== s).sort((a, b) => b.maj - a.maj).slice(0, 3)
+    .map(x => "  - " + jour(x.maj) + ", " + x.titre + " : " + x.bilan.slice(0, 500)).join("\n");
+  const objet = s && s.k ? `\nCETTE SÉANCE PORTE SUR UNE PHASE PRÉCISE DE SES CALLS : « ${nomPhase(s.k)} ». Reste dessus.\n` : "";
+  let sv = ""; try{ sv = souvenirs(question + " " + (s && s.call ? (s.call.resume || "") : "") + (s && s.k ? " " + nomPhase(s.k) : ""), [], "b2b", 6); }catch(_){}
+  return `${texteProfil()}${avant ? "\nVOS DERNIÈRES SÉANCES (leur bilan) :\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${sv}
+${hist ? "CETTE SÉANCE JUSQU'ICI :\n" + hist + "\n" : ""}
 WOIDIH : ${question}
 
 Réponds-lui maintenant, en ${c.court}.`;
@@ -2504,38 +2915,38 @@ Réponds-lui maintenant, en ${c.court}.`;
 
 /* --- la conversation --- */
 function rendFil(){
-  const f = $("cpFil");
-  f.innerHTML = CP.conv.slice(-40).map(m => `<div class="cp-msg ${m.role}"><small>${escapeHTML(m.role === "moi" ? "Toi" : (m.nom || "Coach"))}</small>${escapeHTML(m.txt)}</div>`).join("");
+  const s = seance(), f = $("cpFil");
+  f.innerHTML = (s ? s.conv : []).slice(-60).map(m => `<div class="cp-msg ${m.role}"><small>${escapeHTML(m.role === "moi" ? "Toi" : (m.nom || "Coach"))}${m.t ? " · " + jour(m.t) : ""}</small>${escapeHTML(m.txt)}</div>`).join("");
   sec.scrollTop = sec.scrollHeight;
 }
 function rendDevoirs(){
-  const ouverts = CP.devoirs.filter(d => !d.fait || Date.now() - (d.faitLe || 0) < 3 * 86400000).slice(-8);
-  $("cpDevoirsBloc").style.display = ouverts.length ? "block" : "none";
-  $("cpDevoirs").innerHTML = ouverts.map(d => `<label class="cp-devoir ${d.fait ? "fait" : ""}"><input type="checkbox" data-dv="${d.id}" ${d.fait ? "checked" : ""}><span>${escapeHTML(d.txt)} <small style="color:var(--muted)">· ${escapeHTML(d.date)}</small></span></label>`).join("");
+  const l = CP.devoirs.filter(d => !d.fait || Date.now() - (d.faitLe || 0) < 3 * 86400000).slice(-8);
+  $("cpDevoirsBloc").style.display = l.length ? "block" : "none";
+  $("cpDevoirs").innerHTML = l.map(d => `<label class="cp-devoir ${d.fait ? "fait" : ""}"><input type="checkbox" data-dv="${d.id}" ${d.fait ? "checked" : ""}><span>${escapeHTML(d.txt)} <small style="color:var(--muted)">· ${escapeHTML(d.date)}</small></span></label>`).join("");
   $("cpDevoirs").querySelectorAll("[data-dv]").forEach(x => x.onchange = () => {
     const d = CP.devoirs.find(y => String(y.id) === x.dataset.dv); if(!d) return;
     d.fait = x.checked; d.faitLe = Date.now(); sauve(); rendDevoirs();
   });
 }
-async function envoie(){
-  const q = $("cpMoi").value.trim();
-  if(!q || CP.enCours) return;
+async function envoie(silencieux){
+  const q = $("cpMoi").value.trim(), s = seance();
+  if(!q || CP.enCours || !s) return;
   arreteVoix();
   const c = coachCourant();
-  CP.conv.push({role: "moi", txt: q, t: Date.now()});
+  s.conv.push({role: "moi", txt: q, t: Date.now()}); s.maj = Date.now(); s.qui = CP.qui;
   $("cpMoi").value = ""; rendFil(); sauve();
   CP.enCours = true; $("cpEtat").textContent = c.court + " réfléchit…";
   try{
     let rep = await appelCerveau(promptCoach(q), {systeme: systemeCoach(), max: 1400, effort: "medium"});
     const dv = rep.match(/<<\s*DEVOIR\s*:\s*([\s\S]*?)>>/i), rp = rep.match(/<<\s*ROLEPLAY\s*:\s*([\s\S]*?)>>/i);
     rep = rep.replace(/<<[\s\S]*?>>/g, "").trim();
-    CP.conv.push({role: "coach", nom: c.court, txt: rep, t: Date.now()});
-    if(dv){ CP.devoirs.push({id: Date.now(), txt: dv[1].trim(), date: new Date().toLocaleDateString("fr-FR"), fait: false}); rendDevoirs(); }
+    s.conv.push({role: "coach", nom: c.court, txt: rep, t: Date.now()}); s.maj = Date.now();
+    if(dv){ CP.devoirs.push({id: Date.now(), txt: dv[1].trim(), date: new Date().toLocaleDateString("fr-FR"), fait: false, seance: s.id}); rendDevoirs(); }
     const ent = $("cpEntrainer");
     if(rp){
       ent.style.display = "block";
-      ent.innerHTML = `<button class="pill" style="border-color:var(--steel);color:var(--steel)">M'entraîner là-dessus en roleplay</button><p style="font-size:12.5px;color:var(--muted);margin-top:6px">${escapeHTML(rp[1].trim())}</p>`;
-      ent.querySelector("button").onclick = () => lanceRoleplay(rp[1].trim());
+      ent.innerHTML = `<button class="cp-btn plein">M'entraîner là-dessus en roleplay</button><p style="font-size:12.5px;color:var(--muted);margin-top:6px">${escapeHTML(rp[1].trim())}</p>`;
+      ent.querySelector("button").onclick = () => { s.maj = Date.now(); if(s.k) CP.entrainements.push({t: Date.now(), k: s.k, type: "roleplay"}); sauve(); lanceRoleplay(rp[1].trim()); };
     } else ent.style.display = "none";
     sauve(); rendFil();
     $("cpEtat").textContent = "";
@@ -2544,16 +2955,6 @@ async function envoie(){
     $("cpEtat").innerHTML = '<span style="color:var(--clay)">' + escapeHTML(e.message) + "</span>";
   }
   CP.enCours = false;
-}
-function lanceRoleplay(scenario){
-  arreteVoix();
-  sec.classList.remove("on");
-  $("btnSpar").click();
-  setTimeout(() => {
-    const d = $("sparDesc");
-    if(d){ d.value = scenario; d.dispatchEvent(new Event("input", {bubbles: true})); d.scrollIntoView({block: "center"}); }
-    toast("Le prospect est décrit. Règle le reste et lance le roleplay.");
-  }, 400);
 }
 
 /* --- le micro : tu lui parles --- */
@@ -2574,16 +2975,13 @@ function micro(){
     }
     $("cpMoi").value = base + final + prov;
   };
-  r.onend = () => {
-    CP.rec = null; $("cpMicro").textContent = "Parler au micro";
-    if($("cpMoi").value.trim()) envoie();
-  };
+  r.onend = () => { CP.rec = null; $("cpMicro").textContent = "Parler au micro"; if($("cpMoi").value.trim()) envoie(); };
   r.onerror = () => {};
   $("cpMicro").textContent = "J'ai fini de parler";
   try{ r.start(); }catch(_){ CP.rec = null; }
 }
 
-/* --- réglages --- */
+/* --- réglages du coach --- */
 async function majVoixChoix(){
   const s = $("cpVoixId");
   if(!MES_VOIX.length && CLE_VOIX){
@@ -2594,9 +2992,9 @@ async function majVoixChoix(){
       } else if(MOTEUR_VOIX === "openai") MES_VOIX = ["onyx","echo","fable","alloy","nova","shimmer"].map(x => ({id: x, nom: x}));
     }catch(_){}
   }
-  const liste = (typeof MES_VOIX !== "undefined" && MES_VOIX.length) ? MES_VOIX : [];
+  const liste = MES_VOIX.length ? MES_VOIX : [];
   const actuelle = (CP.regl[CP.qui] || {}).voix || "";
-  s.innerHTML = '<option value="">La voix du coach réglée dans le Sparring</option>' +
+  s.innerHTML = '<option value="">La voix du coach réglée dans le Roleplay</option>' +
     liste.map(v => `<option value="${escapeHTML(v.id)}">${escapeHTML(v.nom)}</option>`).join("") +
     (actuelle && !liste.some(v => v.id === actuelle) ? `<option value="${escapeHTML(actuelle)}">${escapeHTML(actuelle)}</option>` : "");
   s.value = actuelle;
@@ -2606,19 +3004,18 @@ function majQui(){
   s.innerHTML = coachs().map(c => `<option value="${escapeHTML(c.k)}">${escapeHTML(c.nom)}</option>`).join("");
   s.value = coachCourant().k;
 }
-$("cpQui").onchange = () => { CP.qui = $("cpQui").value; CP.regl._qui = CP.qui; sauve(); rendAvatar(); majVoixChoix(); };
+$("cpQui").onchange = () => { CP.qui = $("cpQui").value; CP.regl._qui = CP.qui; const s = seance(); if(s) s.qui = CP.qui; sauve(); rendAvatar(); majVoixChoix(); };
 $("cpVoixId").onchange = () => { CP.regl[CP.qui] = Object.assign({}, CP.regl[CP.qui], {voix: $("cpVoixId").value}); sauve(); };
 $("cpPhoto").onchange = e => {
   const f = e.target.files[0]; if(!f) return;
   const img = new Image(), url = URL.createObjectURL(f);
   img.onload = () => {
-    // on réduit la photo : elle est gardée dans ton navigateur
     const c = document.createElement("canvas"), t = 420, k = Math.max(t / img.width, t / img.height);
     c.width = t; c.height = t;
     c.getContext("2d").drawImage(img, (t - img.width * k) / 2, (t - img.height * k) / 2, img.width * k, img.height * k);
     CP.regl[CP.qui] = Object.assign({}, CP.regl[CP.qui], {photo: c.toDataURL("image/jpeg", 0.86)});
     URL.revokeObjectURL(url); sauve(); rendAvatar();
-    toast("Photo en place. Clique sur « Placer la bouche ».");
+    toast("Photo de " + coachCourant().nom + " en place. Clique sur « Placer la bouche ».");
   };
   img.src = url;
 };
@@ -2634,54 +3031,36 @@ $("cpBouche").onclick = () => {
   };
 };
 $("cpSansPhoto").onclick = () => { if(CP.regl[CP.qui]) delete CP.regl[CP.qui].photo; sauve(); rendAvatar(); };
-$("cpSuiviOk").onclick = async () => {
-  CP.suivi = {url: $("cpSuiviUrl").value.trim(), mdp: $("cpSuiviMdp").value.trim()};
-  await Store.set("coach_perso_suivi", CP.suivi);
-  chargeSuivi();
-};
-$("cpEfface").onclick = () => { if(!confirm("Effacer toute la conversation ? Le travail en cours reste.")) return; CP.conv = []; sauve(); rendFil(); };
-$("cpJoindre").onclick = async () => {
-  const c = CP.calls[+$("cpCall").value]; if(!c) return;
-  CP.call = {c, texte: ""};
-  majCalls();
-  $("cpCallJoint").textContent = "Je récupère la transcription…";
-  try{ CP.call.texte = await suivi("/api/call/" + encodeURIComponent(c.id) + "/transcript"); }catch(e){ toast("Transcription non récupérée : " + e.message); }
-  majCalls();
-  $("cpMoi").focus();
-};
-$("cpDetacher").onclick = () => { CP.call = null; majCalls(); };
-$("cpEnvoi").onclick = envoie;
+$("cpEnvoi").onclick = () => envoie();
 $("cpMicro").onclick = micro;
 $("cpStop").onclick = arreteVoix;
 $("cpMoi").addEventListener("keydown", e => { if(e.key === "Enter" && (e.ctrlKey || e.metaKey)) envoie(); });
-$("cpRetour").onclick = () => { arreteVoix(); sec.classList.remove("on"); $("home").style.display = ""; };
 
-bouton.onclick = async () => {
-  $("home").style.display = "none";
-  sec.classList.add("on");
-  try{ if(typeof chargeReglagesVoix === "function" && !CLE_VOIX) await chargeReglagesVoix(); }catch(_){}
-  majQui(); rendAvatar(); majVoixChoix(); rendFil(); rendDevoirs(); majCalls();
-  chargeSuivi();
-  if(!CP.conv.length){
-    const c = coachCourant(), d = CP.devoirs.filter(x => !x.fait).slice(-1)[0];
-    CP.conv.push({role: "coach", nom: c.court, t: Date.now(), txt: d
-      ? "Avant tout : la dernière fois, je t'ai demandé ça. « " + d.txt + " » Tu l'as fait ? Raconte-moi ce que ça a donné."
-      : "Salut. Raconte-moi ton dernier call, ou ce qui te bloque en ce moment. On part de là."});
-    sauve(); rendFil();
-  }
-};
-
-/* --- au démarrage --- */
+/* ---------------------------------------------------------------------
+   Au démarrage
+   --------------------------------------------------------------------- */
+accueilEl.innerHTML = '<div class="cp-page"><span class="cp-marque">Closing Copilot</span></div>';
 (async () => {
-  CP.conv = (await Store.get("coach_perso_conv")) || [];
+  CP.seances = (await Store.get("coach_perso_seances")) || [];
   CP.devoirs = (await Store.get("coach_perso_devoirs")) || [];
+  CP.entrainements = (await Store.get("coach_perso_entrainements")) || [];
   CP.regl = (await Store.get("coach_perso_regl")) || {};
   CP.qui = CP.regl._qui || "mix";
+  // l'ancienne conversation unique devient une séance à reprendre
+  const vieille = await Store.get("coach_perso_conv");
+  if(vieille && vieille.length && !CP.seances.length){
+    CP.seances.push({id: "s" + Date.now(), titre: "Questions-réponses", type: "qr", k: null, call: null, qui: CP.qui, conv: vieille,
+                     etat: "en_cours", debut: vieille[0].t || Date.now(), maj: vieille[vieille.length - 1].t || Date.now(), texte: ""});
+    sauve(); Store.set("coach_perso_conv", []);
+  }
   const s = (await Store.get("coach_perso_suivi")) || {};
   let defaut = "";
   try{ defaut = srvCopilote().replace(/\/copilot\/?$/, "") + "/suivi"; }catch(_){}
   CP.suivi = {url: s.url || defaut, mdp: s.mdp || ""};
-  $("cpSuiviUrl").value = CP.suivi.url; $("cpSuiviMdp").value = CP.suivi.mdp;
+  try{ if(typeof chargeReglagesVoix === "function" && !CLE_VOIX) await chargeReglagesVoix(); }catch(_){}
+  rendAccueil();
+  await chargeSuivi();
+  if(home.style.display !== "none" && accueilEl.style.display !== "none") rendAccueil();
 })();
 })();
 
