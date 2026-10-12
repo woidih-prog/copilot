@@ -2604,12 +2604,34 @@ async function ouvreTracking(){
 }
 function formulaireSuivi(){
   return `<div class="cp-carte"><h4>Connecter ton suivi</h4>
-    <p class="cp-vide">${CP.suiviErreur && CP.suiviErreur !== "non connecté" ? "<span style='color:var(--clay)'>" + escapeHTML(CP.suiviErreur) + "</span><br>" : ""}L'adresse de ton suivi et son mot de passe. Ils restent dans ce navigateur.</p>
+    <p class="cp-vide">${CP.suiviErreur && CP.suiviErreur !== "non connecté" ? "<span style='color:var(--clay)'>" + escapeHTML(CP.suiviErreur) + "</span><br>" : ""}Une seule fois : ta page « Mon suivi » s'ouvre un instant et passe elle-même ton mot de passe. Tu n'as rien à taper.</p>
+    <div class="cp-btns" style="margin-top:12px"><button class="cp-btn plein" id="cpSuiviAuto">Connecter mon suivi</button></div>
+    <details style="margin-top:14px"><summary style="cursor:pointer;color:var(--muted);font-size:13px">Ou le taper à la main</summary>
     <input class="cp-champ" id="cpSuiviUrl" placeholder="https://…ts.net/suivi" value="${escapeHTML(CP.suivi.url)}">
-    <input class="cp-champ" id="cpSuiviMdp" type="password" placeholder="mot de passe de ton suivi" value="${escapeHTML(CP.suivi.mdp)}">
-    <div class="cp-btns" style="margin-top:10px"><button class="cp-btn plein" id="cpSuiviOk">Connecter</button></div></div>`;
+    <input class="cp-champ" id="cpSuiviMdp" type="password" placeholder="le mot de passe de ta page Mon suivi" value="">
+    <div class="cp-btns" style="margin-top:10px"><button class="cp-btn" id="cpSuiviOk">Connecter</button></div></details></div>`;
 }
+/* ta page « Mon suivi » connaît déjà ton mot de passe : on le lui demande */
+let APRES_LIEN = null;
+window.addEventListener("message", async e => {
+  let attendu = ""; try{ attendu = new URL(CP.suivi.url).origin; }catch(_){}
+  if(!e.data || e.data.type !== "suivi-lie" || e.origin !== attendu || !e.data.mdp) return;
+  CP.suivi = {url: String(e.data.url || CP.suivi.url), mdp: String(e.data.mdp)};
+  await Store.set("coach_perso_suivi", CP.suivi);
+  await chargeSuivi(true);
+  toast(CP.suiviErreur ? "Suivi : " + CP.suiviErreur : "Ton suivi est connecté.");
+  if(APRES_LIEN) APRES_LIEN();
+});
 function brancheFormulaireSuivi(apres){
+  const a = $("cpSuiviAuto");
+  if(a) a.onclick = () => {
+    APRES_LIEN = apres;
+    const url = (CP.suivi.url || "").replace(/\/+$/, "");
+    if(!url) return toast("Ouvre « Ou le taper à la main » et mets l'adresse de ton suivi.");
+    const f = window.open(url + "/?lier=" + encodeURIComponent(location.origin), "lierSuivi", "width=520,height=640");
+    if(!f) toast("Ton navigateur a bloqué la fenêtre : autorise les fenêtres pour cette page.");
+    else toast("Si ta page Mon suivi te demande ton mot de passe, entre-le là-bas une dernière fois.");
+  };
   const b = $("cpSuiviOk"); if(!b) return;
   b.onclick = async () => {
     CP.suivi = {url: $("cpSuiviUrl").value.trim(), mdp: $("cpSuiviMdp").value.trim()};
@@ -2781,7 +2803,7 @@ function lanceRoleplay(scenario){
    --------------------------------------------------------------------- */
 function nouvelleSeance(o){
   const s = {id: "s" + Date.now(), titre: o.titre || "Séance", type: o.type || "qr", k: o.k || null, call: o.call || null,
-             qui: CP.qui, conv: [], etat: "en_cours", debut: Date.now(), maj: Date.now(), texte: ""};
+             qui: CP.qui, conv: [], etat: "en_cours", debut: Date.now(), maj: Date.now(), texte: o.texte || ""};
   CP.seances.push(s); CP.actuelle = s.id;
   if(s.k) CP.entrainements.push({t: Date.now(), k: s.k, type: s.type});
   sauve(); ouvreSeance();
@@ -3004,7 +3026,25 @@ function majQui(){
   s.innerHTML = coachs().map(c => `<option value="${escapeHTML(c.k)}">${escapeHTML(c.nom)}</option>`).join("");
   s.value = coachCourant().k;
 }
-$("cpQui").onchange = () => { CP.qui = $("cpQui").value; CP.regl._qui = CP.qui; const s = seance(); if(s) s.qui = CP.qui; sauve(); rendAvatar(); majVoixChoix(); };
+/* changer de coach = une nouvelle conversation ; l'ancienne t'attend dans « À reprendre » */
+$("cpQui").onchange = () => {
+  const avant = seance(), avantQui = avant ? avant.qui : CP.qui;
+  CP.qui = $("cpQui").value; CP.regl._qui = CP.qui;
+  if(!avant || avantQui === CP.qui){ sauve(); rendAvatar(); majVoixChoix(); return; }
+  arreteVoix();
+  if(!avant.conv.some(m => m.role === "moi")){
+    // rien n'a encore été dit : on change simplement de coach
+    avant.qui = CP.qui; avant.conv = [{role: "coach", nom: coachDe(CP.qui).court, t: Date.now(), txt: ouvertureCoach()}];
+    sauve(); ouvreSeance(); return;
+  }
+  avant.maj = Date.now();
+  const base = avant.titre.replace(/ · avec .*$/, "");
+  const o = {type: avant.type, k: avant.k, call: avant.call, texte: avant.texte, titre: base + " · avec " + coachDe(CP.qui).court};
+  if(avant.call){ o.silence = true; nouvelleSeance(o); $("cpMoi").value = avant.k ? "Analyse ce call avec moi, surtout « " + nomPhase(avant.k) + " »." : "Analyse ce call avec moi."; envoie(); }
+  else if(avant.k){ o.ouverture = "Je veux travailler « " + nomPhase(avant.k) + " ». Aide-moi à comprendre ce que je rate."; nouvelleSeance(o); }
+  else nouvelleSeance(o);
+  toast("Nouvelle séance avec " + coachDe(CP.qui).nom + ". L'autre t'attend dans « À reprendre ».");
+};
 $("cpVoixId").onchange = () => { CP.regl[CP.qui] = Object.assign({}, CP.regl[CP.qui], {voix: $("cpVoixId").value}); sauve(); };
 $("cpPhoto").onchange = e => {
   const f = e.target.files[0]; if(!f) return;
