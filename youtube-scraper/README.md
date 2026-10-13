@@ -28,9 +28,20 @@ python yt_scraper.py @MrBeast -n 100 --details -o mrbeast.csv
 python yt_scraper.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --comments 50 -o video.json
 ```
 
+## Pour Closing Copilot : récupérer le texte des vidéos
+
+```bash
+# Le texte de TOUTES les vidéos d'une chaîne, un fichier .txt par vidéo
+python yt_scraper.py @nomdelachaine -n 0 --transcripts
+```
+
+Un dossier `transcriptions-nomdelachaine` est créé. Glisse ses fichiers `.txt` dans la zone
+« Dépose tes fichiers ici » de Closing Copilot. Les vidéos sans sous-titres sont signalées et ignorées.
+
 | Option | Rôle |
 |---|---|
-| `-n 100` | nombre max de vidéos (défaut 50) |
+| `-n 100` | nombre max de vidéos (défaut 50, `0` = toute la chaîne) |
+| `-t` / `--transcripts` | enregistre le texte de chaque vidéo en `.txt` (dossier optionnel : `-t mon-dossier`) |
 | `-d` / `--details` | infos complètes (likes, date, tags, description) — plus lent |
 | `-c 50` / `--comments 50` | les N meilleurs commentaires par vidéo |
 | `-o fichier.csv` / `.json` | enregistre le résultat (sinon affichage dans le terminal) |

@@ -9,10 +9,13 @@ Exemples :
   python yt_scraper.py "recette crêpes" -n 20                        # recherche
   python yt_scraper.py @MrBeast -n 100 --details -o mrbeast.csv      # + vues/likes/date
   python yt_scraper.py "https://youtu.be/xxxx" --comments 50 -o v.json
+  python yt_scraper.py @chaine -n 0 --transcripts                     # texte de TOUTES les vidéos
 """
 import argparse
 import csv
 import json
+import os
+import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -80,15 +83,19 @@ def ydl_opts(**extra):
 
 def list_entries(target, limit):
     """Récupération rapide (mode 'flat') de la liste des vidéos."""
-    query = f"ytsearch{limit}:{target}" if is_search(target) else target
-    opts = ydl_opts(extract_flat="in_playlist", playlistend=limit)
+    if is_search(target):
+        query = f"ytsearch{limit or 100}:{target}"
+    else:
+        query = target
+    opts = ydl_opts(extract_flat="in_playlist", playlistend=limit or None)
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(query, download=False)
     if not info:
         return []
     if "entries" not in info:  # vidéo unique
         return [info]
-    return [e for e in info["entries"] if e][:limit]
+    entries = [e for e in info["entries"] if e]
+    return entries[:limit] if limit else entries
 
 
 def fetch_details(url, comments=0):
@@ -99,6 +106,86 @@ def fetch_details(url, comments=0):
                                                 "comment_sort": ["top"]}}}
     with yt_dlp.YoutubeDL(ydl_opts(**extra)) as ydl:
         return ydl.extract_info(url, download=False)
+
+
+def pick_caption(info, prefs=("fr", "en")):
+    """Choisit la meilleure piste de sous-titres : manuelle d'abord, sinon automatique
+    dans la langue d'origine de la vidéo (Closing Copilot traduit lui-même l'anglais)."""
+    def find(tracks, langs):
+        for lang in langs:
+            for key in (lang, f"{lang}-orig"):
+                for fmt in tracks.get(key) or []:
+                    if fmt.get("ext") == "json3":
+                        return fmt["url"]
+        return None
+    orig = info.get("language")
+    langs = [l for l in (*prefs, orig) if l]
+    manual = info.get("subtitles") or {}
+    auto = info.get("automatic_captions") or {}
+    auto_orig = [k[:-5] for k in auto if k.endswith("-orig")]
+    return (find(manual, langs) or find(manual, list(manual))
+            or find(auto, auto_orig + langs))
+
+
+def json3_to_text(raw):
+    """Sous-titres YouTube (json3) -> texte brut, en paragraphes."""
+    data = json.loads(raw)
+    parts = []
+    for ev in data.get("events", []):
+        txt = "".join(seg.get("utf8", "") for seg in ev.get("segs") or [])
+        txt = txt.replace("\n", " ").strip()
+        if txt:
+            parts.append(txt)
+    text = " ".join(parts)
+    text = re.sub(r"\s+", " ", text)
+    # Un paragraphe toutes les ~5 phrases pour rester lisible
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    return "\n\n".join(" ".join(sentences[i:i + 5]) for i in range(0, len(sentences), 5))
+
+
+def fetch_transcript(url):
+    """Renvoie (infos de la vidéo, texte de la transcription ou None)."""
+    with yt_dlp.YoutubeDL(ydl_opts()) as ydl:
+        info = ydl.extract_info(url, download=False)
+        if not info:
+            return None, None
+        cap = pick_caption(info)
+        if not cap:
+            return info, None
+        try:
+            return info, json3_to_text(ydl.urlopen(cap).read().decode("utf-8"))
+        except Exception:
+            return info, None
+
+
+def safe_name(s, maxlen=80):
+    s = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", s or "").strip(". ")
+    return s[:maxlen] or "video"
+
+
+def save_transcripts(entries, folder, workers=8, log=print):
+    """Un fichier .txt par vidéo, à déposer tel quel dans Closing Copilot."""
+    os.makedirs(folder, exist_ok=True)
+    urls = [clean(e)["url"] for e in entries]
+    log(f"→ Transcriptions de {len(urls)} vidéo(s) ({workers} threads)…")
+    ok = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for i, (info, text) in enumerate(pool.map(fetch_transcript, urls), 1):
+            if not info:
+                continue
+            row = clean(info)
+            if not text:
+                log(f"  ✗ pas de sous-titres : {row['title']}")
+                continue
+            name = f"{row['upload_date'] or '0000-00-00'} - {safe_name(row['title'])} [{safe_name(row['id'], 20)}].txt"
+            with open(os.path.join(folder, name), "w", encoding="utf-8") as f:
+                f.write(f"{row['title']}\n{row['channel'] or ''} — {row['upload_date'] or ''}\n"
+                        f"{row['url']}\n\n{text}\n")
+            ok += 1
+            if ok % 10 == 0:
+                log(f"  {ok} transcription(s)…")
+    log(f"✓ {ok} transcription(s) enregistrée(s) dans le dossier « {folder} »")
+    return ok
 
 
 def scrape(target, limit=50, details=False, comments=0, workers=8, log=print):
@@ -155,16 +242,30 @@ def main():
     p = argparse.ArgumentParser(
         description="Scraper YouTube simple : chaîne, playlist, vidéo ou recherche.")
     p.add_argument("cible", help="URL (chaîne/playlist/vidéo), @handle, ID vidéo ou mots-clés")
-    p.add_argument("-n", "--limit", type=int, default=50, help="nombre max de vidéos (défaut 50)")
+    p.add_argument("-n", "--limit", type=int, default=50,
+                   help="nombre max de vidéos (défaut 50, 0 = toute la chaîne)")
     p.add_argument("-d", "--details", action="store_true",
                    help="récupère toutes les infos (likes, date, tags, description) — plus lent")
     p.add_argument("-c", "--comments", type=int, default=0, metavar="N",
                    help="récupère les N meilleurs commentaires par vidéo")
+    p.add_argument("-t", "--transcripts", nargs="?", const="", metavar="DOSSIER",
+                   help="enregistre le texte de chaque vidéo en .txt (pour Closing Copilot)")
     p.add_argument("-o", "--output", help="fichier de sortie .csv ou .json")
     p.add_argument("-w", "--workers", type=int, default=8, help="threads parallèles (défaut 8)")
     a = p.parse_args()
 
     start = datetime.now()
+    log = lambda m: print(m, file=sys.stderr)
+    if a.transcripts is not None:
+        target = normalize_target(a.cible)
+        log(f"→ Récupération de la liste : {target}")
+        entries = list_entries(target, a.limit)
+        log(f"  {len(entries)} vidéo(s) trouvée(s)")
+        folder = a.transcripts or "transcriptions-" + safe_name(
+            a.cible.split("@")[-1].split("/")[0] if "@" in a.cible else a.cible, 40)
+        save_transcripts(entries, folder, a.workers, log)
+        log(f"  ({(datetime.now() - start).total_seconds():.1f}s)")
+        return
     rows = scrape(a.cible, a.limit, a.details, a.comments, a.workers,
                   log=lambda m: print(m, file=sys.stderr))
     if a.output:
