@@ -17,6 +17,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
@@ -159,6 +160,8 @@ def fetch_transcript(url):
 
 
 def safe_name(s, maxlen=80):
+    # ASCII seulement : le « Dossier compressé » de Windows refuse ’ “ … etc.
+    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode()
     s = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", s or "").strip(". ")
     return s[:maxlen] or "video"
 
