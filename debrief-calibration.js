@@ -2347,6 +2347,7 @@ const sec = ecran("coachPerso", `<div class="cp-wrap">
     <div class="cp-btns" style="margin-top:8px;align-items:center">
       <button class="cp-btn" id="cpMicro">Parler au micro</button>
       <button class="cp-btn plein" id="cpEnvoi">Envoyer</button>
+      <button class="cp-btn" id="cpQuestion" title="Il répond directement à ta question, puis te propose de reprendre l'exercice">Question au coach</button>
       <button class="cp-btn" id="cpStop">Le faire taire</button>
       <label style="font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center"><input type="checkbox" id="cpVoix" checked> Il me répond à voix haute</label>
     </div>
@@ -2920,25 +2921,30 @@ DEUX REPÈRES, à mettre seulement quand c'est utile, chacun seul sur une ligne 
 
 ${cerveau}`;
 }
-function promptCoach(question){
+function promptCoach(question, estQuestion){
   const c = coachCourant(), s = seance();
-  const hist = (s ? s.conv : []).slice(-24, -1).map(m => (m.role === "moi" ? "WOIDIH" : (m.nom || "COACH").toUpperCase()) + " : " + m.txt).join("\n");
+  const hist = (s ? s.conv : []).slice(-24, -1).map(m => (m.role === "moi" ? (m.question ? "WOIDIH (question à côté)" : "WOIDIH") : (m.nom || "COACH").toUpperCase()) + " : " + m.txt).join("\n");
   const ouverts = devoirsOuverts().slice(-5).map(d => "  - (" + d.date + ") " + d.txt).join("\n");
   const avant = CP.seances.filter(x => x.etat === "terminee" && x.bilan && x !== s).sort((a, b) => b.maj - a.maj).slice(0, 3)
     .map(x => "  - " + jour(x.maj) + ", " + x.titre + " : " + x.bilan.slice(0, 500)).join("\n");
-  const objet = s && s.k ? `\nCETTE SÉANCE PORTE SUR UNE PHASE PRÉCISE DE SES CALLS : « ${nomPhase(s.k)} ». Reste dessus.\n` : "";
+  const objet = s && s.k ? `\nCETTE SÉANCE PORTE SUR UNE PHASE PRÉCISE DE SES CALLS : « ${nomPhase(s.k)} ». Reste dessus, sauf quand il te pose une question directe : tu y réponds d'abord.\n` : "";
+  const consigneQuestion = estQuestion ? `
+ATTENTION : CE MESSAGE EST UNE QUESTION DIRECTE qu'il te pose, à côté de l'exercice. Il veut ta réponse, pas une nouvelle question.
+Réponds-y vraiment : clairement, complètement, avec un exemple concret ou la phrase exacte à dire si c'est utile, même si ça sort du sujet de la séance. Ici, tu ne lui retournes pas la question et tu ne le fais pas chercher.
+Pas de DEVOIR ni de ROLEPLAY. Termine par une seule courte phrase qui propose de reprendre l'exercice là où vous en étiez.
+` : "";
   let sv = ""; try{ sv = souvenirs(question + " " + (s && s.call ? (s.call.resume || "") : "") + (s && s.k ? " " + nomPhase(s.k) : ""), [], "b2b", 6); }catch(_){}
   return `${texteProfil()}${avant ? "\nVOS DERNIÈRES SÉANCES (leur bilan) :\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${sv}
 ${hist ? "CETTE SÉANCE JUSQU'ICI :\n" + hist + "\n" : ""}
-WOIDIH : ${question}
-
+WOIDIH${estQuestion ? " (QUESTION DIRECTE)" : ""} : ${question}
+${consigneQuestion}
 Réponds-lui maintenant, en ${c.court}.`;
 }
 
 /* --- la conversation --- */
 function rendFil(){
   const s = seance(), f = $("cpFil");
-  f.innerHTML = (s ? s.conv : []).slice(-60).map(m => `<div class="cp-msg ${m.role}"><small>${escapeHTML(m.role === "moi" ? "Toi" : (m.nom || "Coach"))}${m.t ? " · " + jour(m.t) : ""}</small>${escapeHTML(m.txt)}</div>`).join("");
+  f.innerHTML = (s ? s.conv : []).slice(-60).map(m => `<div class="cp-msg ${m.role}"><small>${escapeHTML(m.role === "moi" ? (m.question ? "Toi · question" : "Toi") : (m.nom || "Coach"))}${m.t ? " · " + jour(m.t) : ""}</small>${escapeHTML(m.txt)}</div>`).join("");
   sec.scrollTop = sec.scrollHeight;
 }
 function rendDevoirs(){
@@ -2950,16 +2956,16 @@ function rendDevoirs(){
     d.fait = x.checked; d.faitLe = Date.now(); sauve(); rendDevoirs();
   });
 }
-async function envoie(silencieux){
+async function envoie(silencieux, estQuestion){
   const q = $("cpMoi").value.trim(), s = seance();
   if(!q || CP.enCours || !s) return;
   arreteVoix();
   const c = coachCourant();
-  s.conv.push({role: "moi", txt: q, t: Date.now()}); s.maj = Date.now(); s.qui = CP.qui;
+  s.conv.push(Object.assign({role: "moi", txt: q, t: Date.now()}, estQuestion ? {question: true} : {})); s.maj = Date.now(); s.qui = CP.qui;
   $("cpMoi").value = ""; rendFil(); sauve();
   CP.enCours = true; $("cpEtat").textContent = c.court + " réfléchit…";
   try{
-    let rep = await appelCerveau(promptCoach(q), {systeme: systemeCoach(), max: 1400, effort: "medium"});
+    let rep = await appelCerveau(promptCoach(q, estQuestion), {systeme: systemeCoach(), max: 1400, effort: "medium"});
     const dv = rep.match(/<<\s*DEVOIR\s*:\s*([\s\S]*?)>>/i), rp = rep.match(/<<\s*ROLEPLAY\s*:\s*([\s\S]*?)>>/i);
     rep = rep.replace(/<<[\s\S]*?>>/g, "").trim();
     s.conv.push({role: "coach", nom: c.court, txt: rep, t: Date.now()}); s.maj = Date.now();
@@ -3072,6 +3078,7 @@ $("cpBouche").onclick = () => {
 };
 $("cpSansPhoto").onclick = () => { if(CP.regl[CP.qui]) delete CP.regl[CP.qui].photo; sauve(); rendAvatar(); };
 $("cpEnvoi").onclick = () => envoie();
+$("cpQuestion").onclick = () => { if(!$("cpMoi").value.trim()) return toast("Écris ta question, puis clique sur « Question au coach »."); envoie(false, true); };
 $("cpMicro").onclick = micro;
 $("cpStop").onclick = arreteVoix;
 $("cpMoi").addEventListener("keydown", e => { if(e.key === "Enter" && (e.ctrlKey || e.metaKey)) envoie(); });
