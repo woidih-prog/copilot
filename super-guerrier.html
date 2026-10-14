@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0B0E13">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Éveil du Guerrier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Bangers&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0E13;
+  --surface:#151A21;
+  --surface2:#1D242D;
+  --line:#28313B;
+  --ink:#ECEAE4;
+  --muted:#8A96A3;
+  --gold:#F5C542;
+  --red:#E0553F;
+  --green:#79BF95;
+  --blue:#5E9BC4;
+  --aura:#8A96A3;
+  --radius:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:'Archivo',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+  padding-bottom:calc(76px + env(safe-area-inset-bottom));
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+input,select{font-family:inherit}
+.manga{font-family:'Bangers',system-ui,sans-serif;letter-spacing:.04em;font-weight:400}
+.muted{color:var(--muted)}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+h2.sec{font-family:'Bangers';font-weight:400;letter-spacing:.05em;font-size:30px;margin:6px 0 12px}
+h3.sub{font-size:12.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:22px 0 10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:12px;font-weight:700;font-size:15px;background:var(--gold);color:#1a1405}
+.btn.ghost{background:var(--surface2);color:var(--ink)}
+.btn.red{background:var(--red);color:#fff}
+.btn.sm{padding:8px 12px;font-size:13px;border-radius:10px}
+.btn.big{width:100%;padding:16px;font-size:18px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;background:var(--surface2);color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{padding:8px 12px;border-radius:99px;background:var(--surface2);font-size:13.5px;font-weight:600;color:var(--muted)}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:14px 0 6px}
+.in{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface2);color:var(--ink);font-size:16px}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.swatches button{width:38px;height:38px;border-radius:50%;box-shadow:0 0 0 2px var(--line)}
+.swatches button[aria-pressed="true"]{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--ink)}
+.toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:90;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.on{opacity:1}
+
+/* ---------- Header ---------- */
+header{position:sticky;top:0;z-index:20;background:rgba(11,14,19,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
+.hd{display:flex;align-items:center;gap:12px;padding:10px 0}
+.hav{width:44px;height:44px;border-radius:50%;flex:none;background:var(--surface2) center/cover;box-shadow:0 0 0 2px var(--aura),0 0 14px var(--aura);display:grid;place-items:center;font-family:'Bangers';font-size:20px}
+.hinfo{flex:1;min-width:0}
+.hname{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hform{font-size:12px;color:var(--aura);font-weight:700}
+.hpow{text-align:right;white-space:nowrap}
+.hpow span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.hpow b{font-family:'Bangers';font-size:24px;letter-spacing:.03em;color:var(--gold);line-height:1}
+.streak{font-size:12px;background:var(--surface2);border-radius:99px;padding:4px 9px;white-space:nowrap}
+
+/* ---------- Nav ---------- */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(21,26,33,.96);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs .wrap{display:flex}
+nav.tabs button{flex:1;padding:9px 0 10px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted)}
+nav.tabs button b{font-size:21px;line-height:1.1;filter:grayscale(.8);opacity:.75}
+nav.tabs button[aria-current="page"]{color:var(--ink)}
+nav.tabs button[aria-current="page"] b{filter:none;opacity:1}
+section.view{display:none;padding:16px 0 24px}
+section.view.on{display:block}
+
+/* ---------- Stage ---------- */
+.stage{position:relative;height:380px;border-radius:24px;overflow:hidden;border:1px solid var(--line);
+  background:radial-gradient(ellipse at 50% 120%,color-mix(in srgb,var(--aura) 45%,transparent),transparent 60%),
+             radial-gradient(circle at 50% 0%,#1b2330,transparent 70%),#0d1117}
+.stage::after{content:"";position:absolute;left:0;right:0;bottom:0;height:52px;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.07));border-top:1px solid rgba(255,255,255,.07)}
+.stage .rigbox{position:absolute;left:50%;bottom:6px;height:330px;width:330px;transform:translateX(-50%);z-index:1}
+.stage.shake{animation:shake .08s linear infinite}
+@keyframes shake{25%{transform:translate(2px,-1px)}50%{transform:translate(-2px,1px)}75%{transform:translate(1px,2px)}}
+.scouter{position:absolute;left:14px;top:12px;z-index:2}
+.scouter .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+.scouter .v{font-family:'Bangers';font-size:38px;line-height:1;color:var(--gold);text-shadow:0 0 18px color-mix(in srgb,var(--gold) 60%,transparent)}
+.formtag{position:absolute;right:14px;top:12px;z-index:2;text-align:right}
+.formtag b{display:block;font-family:'Bangers';font-size:24px;letter-spacing:.04em;line-height:1;color:var(--aura);text-shadow:0 0 14px var(--aura)}
+.formtag span{font-size:11.5px;color:var(--muted)}
+.floatpts{position:absolute;left:50%;top:40%;z-index:3;font-family:'Bangers';font-size:56px;color:var(--gold);text-shadow:0 4px 0 rgba(0,0,0,.4),0 0 24px var(--gold);transform:translateX(-50%);animation:floatup 1.4s ease-out forwards;pointer-events:none}
+@keyframes floatup{0%{opacity:0;transform:translate(-50%,20px) scale(.6)}20%{opacity:1;transform:translate(-50%,0) scale(1.15)}100%{opacity:0;transform:translate(-50%,-90px) scale(1)}}
+.nextf{margin-top:12px}
+.nextf .t{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.nextf .t b{color:var(--aura)}
+.bar{height:12px;border-radius:99px;background:var(--surface2);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--aura),var(--gold));transition:width .8s}
+.addbtn{margin-top:14px;width:100%;padding:18px;border-radius:18px;font-family:'Bangers';font-size:28px;letter-spacing:.05em;color:#1a0d05;background:linear-gradient(90deg,var(--gold),var(--red));box-shadow:0 10px 26px rgba(224,85,63,.3)}
+.quick{display:flex;gap:8px;margin-top:10px;overflow-x:auto;scrollbar-width:none}
+.quick::-webkit-scrollbar{display:none}
+.quick button{flex:none;padding:9px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--line);font-size:13px;font-weight:600}
+
+/* Quêtes & boss */
+.quest{display:flex;gap:12px;align-items:center;padding:12px;border-radius:14px;background:var(--surface);border:1px solid var(--line);margin-top:8px}
+.quest .ic{width:42px;height:42px;border-radius:12px;background:var(--surface2);display:grid;place-items:center;font-size:21px;flex:none}
+.quest .bd{flex:1;min-width:0}
+.quest .nm{font-weight:700;font-size:14.5px}
+.quest .pg{font-size:12px;color:var(--muted);margin:4px 0 5px}
+.quest .bar{height:7px}
+.quest.done{border-color:color-mix(in srgb,var(--green) 60%,transparent)}
+.quest.done .ic{background:color-mix(in srgb,var(--green) 25%,transparent)}
+.quest .rw{font-weight:800;font-size:13px;color:var(--gold);white-space:nowrap}
+.boss{display:flex;gap:14px;align-items:center;padding:14px;border-radius:var(--radius);border:1px solid rgba(224,85,63,.45);background:linear-gradient(120deg,rgba(224,85,63,.16),rgba(21,26,33,1))}
+.boss .be{font-size:50px;animation:bossb 2s ease-in-out infinite}
+@keyframes bossb{50%{transform:translateY(-4px) rotate(-3deg)}}
+.boss .bn{font-family:'Bangers';font-size:22px;letter-spacing:.04em}
+.boss .bd{flex:1;min-width:0}
+.boss .hp{height:12px;border-radius:99px;background:#3a1612;overflow:hidden;margin:6px 0 4px}
+.boss .hp i{display:block;height:100%;background:linear-gradient(90deg,#ff6a4d,#c62828);transition:width .8s}
+.boss.dead{border-color:color-mix(in srgb,var(--green) 60%,transparent);background:linear-gradient(120deg,rgba(121,191,149,.14),rgba(21,26,33,1))}
+.boss.dead .be{filter:grayscale(1);animation:none;opacity:.5}
+.today{display:flex;flex-direction:column;gap:6px}
+.entry{display:flex;gap:10px;align-items:center;font-size:13.5px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:9px 12px}
+.entry .en{flex:1;min-width:0}
+.entry .en small{color:var(--muted)}
+.entry .ep{color:var(--gold);font-weight:800}
+.entry .del{width:28px;height:28px;border-radius:50%;background:var(--surface2);color:var(--muted);font-size:13px;flex:none}
+
+/* ---------- Sheet ---------- */
+.scrim{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center}
+.scrim.on{display:flex}
+.sheet{width:100%;max-width:760px;max-height:92vh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-bottom:none;border-radius:22px 22px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom));animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+.sh{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+.sh .t{flex:1;font-family:'Bangers';font-size:28px;letter-spacing:.04em;line-height:1}
+.sh p{font-size:13px;color:var(--muted);margin-top:4px;font-family:'Archivo';letter-spacing:0}
+.x{width:36px;height:36px;border-radius:50%;background:var(--surface2);font-size:18px;flex:none}
+.acts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.act{display:flex;align-items:center;gap:10px;padding:12px;border-radius:14px;background:var(--surface2);text-align:left;font-size:13.5px;font-weight:600;line-height:1.25}
+.act i{font-style:normal;font-size:24px}
+.act small{display:block;font-weight:500;color:var(--muted);font-size:11.5px}
+.act.off{opacity:.4}
+.qty{display:flex;align-items:center;gap:10px;justify-content:center;margin:18px 0 10px}
+.qty button{width:52px;height:52px;border-radius:50%;background:var(--surface2);font-size:24px;font-weight:700}
+.qty input{width:140px;text-align:center;font-family:'Bangers';font-size:46px;letter-spacing:.03em;background:none;border:none;color:var(--ink);border-bottom:2px solid var(--line)}
+.qty input:focus{outline:none;border-color:var(--gold)}
+.unit{text-align:center;color:var(--muted);font-size:14px}
+.preview{text-align:center;font-family:'Bangers';font-size:34px;color:var(--gold);margin:12px 0}
+.preview small{display:block;font-family:'Archivo';font-size:12px;color:var(--muted);letter-spacing:0}
+
+/* ---------- Journal ---------- */
+.chart{display:flex;align-items:flex-end;gap:5px;height:150px;padding:10px 6px 0}
+.chart div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%}
+.chart i{width:100%;border-radius:6px 6px 2px 2px;background:linear-gradient(180deg,var(--gold),var(--red));min-height:2px}
+.chart span{font-size:10px;color:var(--muted)}
+.chart b{font-size:9.5px;color:var(--muted);font-weight:600}
+.tots{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.tot{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
+.tot b{display:block;font-family:'Bangers';font-size:28px;letter-spacing:.03em;line-height:1.1}
+.tot span{font-size:12px;color:var(--muted)}
+
+/* ---------- Évolutions ---------- */
+.forms{display:flex;flex-direction:column;gap:10px}
+.form{display:flex;gap:14px;align-items:center;padding:10px 14px 10px 10px;border-radius:18px;background:var(--surface);border:1px solid var(--line);position:relative;overflow:hidden}
+.form .fig{width:92px;height:104px;flex:none;border-radius:14px;background:radial-gradient(circle at 50% 100%,color-mix(in srgb,var(--fc) 45%,transparent),transparent 70%)}
+.form.lock .fig svg{filter:brightness(0) drop-shadow(0 0 1px rgba(255,255,255,.35))}
+.form .fn{font-family:'Bangers';font-size:24px;letter-spacing:.04em;line-height:1;color:var(--fc)}
+.form.lock .fn{color:var(--muted)}
+.form .fd{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.35}
+.form .fp{font-size:12px;font-weight:700;margin-top:6px}
+.form.cur{border-color:var(--fc);box-shadow:0 0 0 1px var(--fc),0 0 24px color-mix(in srgb,var(--fc) 25%,transparent)}
+.form .now{position:absolute;right:10px;top:10px}
+
+/* ---------- Guerriers ---------- */
+.lb{display:flex;flex-direction:column;gap:8px}
+.lbr{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.lbr.me{border-color:var(--gold)}
+.lbr .rk{font-family:'Bangers';font-size:26px;width:34px;text-align:center}
+.lbr .av{width:46px;height:46px;border-radius:50%;background:var(--surface2) center/cover;box-shadow:0 0 0 2px var(--c),0 0 12px var(--c);display:grid;place-items:center;font-family:'Bangers';font-size:20px;flex:none}
+.lbr .nm{flex:1;min-width:0}
+.lbr .nm b{display:block;font-size:15px}
+.lbr .nm span{font-size:12px;color:var(--c);font-weight:700}
+.lbr .pw{font-family:'Bangers';font-size:22px;color:var(--gold)}
+
+/* ---------- Onboarding ---------- */
+.ob{min-height:100vh;padding:calc(24px + env(safe-area-inset-top)) 0 40px}
+.ob .hero{text-align:center;margin-bottom:10px}
+.ob .hero h1{font-family:'Bangers';font-weight:400;font-size:46px;letter-spacing:.05em;line-height:1;color:var(--gold);text-shadow:0 0 30px rgba(245,197,66,.4)}
+.ob .hero p{color:var(--muted);margin-top:8px;font-size:15px;line-height:1.45}
+.photo{display:flex;align-items:center;gap:14px}
+.photo .pv{width:84px;height:84px;border-radius:50%;background:var(--surface2) center/cover;display:grid;place-items:center;font-size:30px;box-shadow:0 0 0 2px var(--line);flex:none}
+.priv{font-size:12px;color:var(--muted);margin-top:16px;line-height:1.45}
+
+/* ---------- Transformation ---------- */
+#trans{position:fixed;inset:0;z-index:100;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:24px;background:radial-gradient(circle at 50% 60%,color-mix(in srgb,var(--tc,#fff) 22%,#000),#000 75%)}
+#trans.on{display:flex}
+#trans .tr{width:min(80vw,360px);height:min(80vw,360px)}
+#trans .tt{font-family:'Bangers';font-size:min(12vw,58px);letter-spacing:.05em;line-height:1;color:var(--tc);text-shadow:0 0 30px var(--tc)}
+#trans .ts{color:#ddd;font-size:15px;max-width:420px;line-height:1.45;min-height:44px}
+#trans .yell{font-family:'Bangers';font-size:min(14vw,72px);color:#fff;text-shadow:0 0 30px var(--tc);animation:yell .4s ease-in-out infinite alternate}
+@keyframes yell{from{transform:scale(1)}to{transform:scale(1.12)}}
+#trans.shake .tr{animation:shake .06s linear infinite}
+#flash{position:fixed;inset:0;z-index:101;background:#fff;opacity:0;pointer-events:none;transition:opacity .5s}
+#flash.on{opacity:1;transition:none}
+
+/* ---------- Rig ---------- */
+.rig{display:block;width:100%;height:100%;overflow:visible}
+.rig .blink{animation:blink 3.6s infinite;transform-box:fill-box;transform-origin:center}
+@keyframes blink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
+.rig .fl{transform-box:fill-box;transform-origin:50% 100%;animation:flick .18s ease-in-out infinite alternate}
+.rig .fl2{animation-duration:.13s;animation-delay:-.05s}
+@keyframes flick{from{transform:scale(.96,.94) skewX(-2deg)}to{transform:scale(1.03,1.06) skewX(2deg)}}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:400px){.stage{height:340px}.stage .rigbox{height:290px;width:290px}}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div class="scrim" id="scrim"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div id="trans" role="dialog" aria-modal="true"></div>
+<div id="flash"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* =========================================================
+   LES ÉVEILS — transformations (univers original)
+   ========================================================= */
+const FORMS = [
+  {n:'Humain',              pts:0,     aura:null,      hc:'#1C1C1C', hair:'spiky', c:'#8A96A3', d:'Tout commence ici. Chaque action compte.'},
+  {n:'Apprenti',            pts:150,   aura:'#DDE7F3', hc:'#1C1C1C', hair:'spiky', c:'#DDE7F3', d:'Une première étincelle. Ton énergie commence à se voir.'},
+  {n:'Combattant',          pts:400,   aura:'#5EA8F2', hc:'#1C1C1C', hair:'spiky', c:'#5EA8F2', d:'Une aura bleue t\'entoure. Tu n\'es plus un débutant.'},
+  {n:'Guerrier d\'Élite',   pts:900,   aura:'#EF5350', hc:'#1C1C1C', hair:'spiky', c:'#EF5350', d:'L\'aura rouge des guerriers d\'élite. Ta puissance double.'},
+  {n:'Super Guerrier',      pts:1800,  aura:'#FFD54F', hc:'#FFD23F', hair:'tall',  c:'#FFD54F', d:'Tes cheveux s\'embrasent d\'or. La légende commence.'},
+  {n:'Super Guerrier II',   pts:3500,  aura:'#FFE066', hc:'#FFD23F', hair:'tall',  c:'#FFE066', d:'Des éclairs crépitent autour de toi.', bolt:true},
+  {n:'Super Guerrier III',  pts:6000,  aura:'#FFC107', hc:'#FFC93C', hair:'long',  c:'#FFC107', d:'Une crinière dorée et une énergie presque incontrôlable.', bolt:true},
+  {n:'Forme Divine',        pts:9000,  aura:'#FF4F81', hc:'#E53950', hair:'slim',  c:'#FF4F81', d:'Plus de 9 000 ! Une puissance calme et divine.'},
+  {n:'Forme Céleste',       pts:14000, aura:'#40C4FF', hc:'#29B6F6', hair:'tall',  c:'#40C4FF', d:'L\'énergie des étoiles. Seuls les plus réguliers arrivent ici.', bolt:true},
+  {n:'Éveil Ultime',        pts:21000, aura:'#E3E8FF', hc:'#D3DAE6', hair:'slim',  c:'#E3E8FF', d:'Le corps agit seul. Tu as atteint le sommet.', bolt:true, spark:true},
+];
+const formIdx = pts => { let i = 0; FORMS.forEach((f,k) => { if(pts >= f.pts) i = k; }); return i; };
+
+/* =========================================================
+   ACTIONS RÉELLES — barème de points
+   ========================================================= */
+const ACTS = [
+  {id:'course',    n:'Course à pied',       e:'🏃', cat:'sport',  u:'km',        p:12,   step:.5,  pre:[2,5,10]},
+  {id:'marche',    n:'Marche',              e:'🚶', cat:'sport',  u:'pas',       p:.002, step:500, pre:[5000,8000,10000]},
+  {id:'velo',      n:'Vélo',                e:'🚴', cat:'sport',  u:'km',        p:4,    step:1,   pre:[10,20,40]},
+  {id:'natation',  n:'Natation',            e:'🏊', cat:'sport',  u:'min',       p:1.6,  step:5,   pre:[20,30,45]},
+  {id:'muscu',     n:'Musculation',         e:'🏋️', cat:'sport',  u:'min',       p:1.3,  step:5,   pre:[30,45,60]},
+  {id:'combat',    n:'Boxe, arts martiaux', e:'🥊', cat:'sport',  u:'min',       p:1.7,  step:5,   pre:[30,60,90]},
+  {id:'collectif', n:'Sport collectif',     e:'⚽', cat:'sport',  u:'min',       p:1.2,  step:5,   pre:[30,60,90]},
+  {id:'corde',     n:'Corde à sauter',      e:'🪢', cat:'sport',  u:'min',       p:2.2,  step:1,   pre:[5,10,15]},
+  {id:'yoga',      n:'Yoga, étirements',    e:'🧘', cat:'sport',  u:'min',       p:.9,   step:5,   pre:[10,20,45]},
+  {id:'pompes',    n:'Pompes',              e:'💪', cat:'force',  u:'pompes',    p:.6,   step:5,   pre:[10,20,50]},
+  {id:'squats',    n:'Squats',              e:'🦵', cat:'force',  u:'squats',    p:.35,  step:5,   pre:[20,50,100]},
+  {id:'abdos',     n:'Abdos',               e:'🔥', cat:'force',  u:'abdos',     p:.3,   step:5,   pre:[20,50,100]},
+  {id:'tractions', n:'Tractions',           e:'🧗', cat:'force',  u:'tractions', p:1.8,  step:1,   pre:[5,10,20]},
+  {id:'burpees',   n:'Burpees',             e:'⚡', cat:'force',  u:'burpees',   p:1.2,  step:5,   pre:[10,20,50]},
+  {id:'gainage',   n:'Gainage',             e:'🧱', cat:'force',  u:'min',       p:7,    step:.5,  pre:[1,2,5]},
+  {id:'eau',       n:'2 L d\'eau bus',      e:'💧', cat:'sante',  u:'jour',      p:10,   once:true},
+  {id:'sommeil',   n:'Nuit de 8 h',         e:'😴', cat:'sante',  u:'nuit',      p:15,   once:true},
+  {id:'legumes',   n:'5 fruits et légumes', e:'🥦', cat:'sante',  u:'jour',      p:10,   once:true},
+  {id:'sanssucre', n:'Zéro sucre, zéro fast-food', e:'🚫', cat:'sante', u:'jour', p:15, once:true},
+  {id:'meditation',n:'Méditation',          e:'🧠', cat:'mental', u:'min',       p:1.2,  step:5,   pre:[5,10,20]},
+  {id:'lecture',   n:'Lecture',             e:'📚', cat:'mental', u:'min',       p:.5,   step:10,  pre:[15,30,60]},
+  {id:'apprendre', n:'Apprendre un truc',   e:'🎓', cat:'mental', u:'session',   p:10,   step:1,   pre:[1,2]},
+  {id:'perso',     n:'Action perso',        e:'✨', cat:'perso',  custom:true},
+];
+const CATS = {sport:'🏃 Sport', force:'💪 Force', sante:'🍏 Santé', mental:'🧠 Mental', perso:'✨ Perso'};
+const actById = id => ACTS.find(a => a.id === id);
+const GOALS = ['Perdre du poids','Prendre du muscle','Être endurant','Être en forme','Me sentir mieux'];
+const LEVELS = [['debutant','Débutant',.6],['inter','Intermédiaire',1],['avance','Avancé',1.6]];
+const GI = ['#2F6FDE','#E8762B','#2E9E4F','#C62828','#6A3FB5','#1E1E1E','#F2F2F2'];
+const SKIN = ['#F6D3B3','#E9BE93','#C98F65','#9A6440','#6B4429'];
+
+/* Quêtes du jour (objectifs adaptés au niveau) */
+const QUESTS = [
+  {id:'q-pompes', a:['pompes'], base:40, n:v => `${v} pompes dans la journée`, e:'💪', k:'force'},
+  {id:'q-squats', a:['squats'], base:60, n:v => `${v} squats`, e:'🦵', k:'force'},
+  {id:'q-abdos',  a:['abdos'],  base:50, n:v => `${v} abdos`, e:'🔥', k:'force'},
+  {id:'q-burpees',a:['burpees'],base:15, n:v => `${v} burpees`, e:'⚡', k:'force'},
+  {id:'q-gain',   a:['gainage'],base:3,  n:v => `${v} min de gainage`, e:'🧱', k:'force'},
+  {id:'q-course', a:['course'], base:3,  n:v => `Courir ${v} km`, e:'🏃', k:'sport'},
+  {id:'q-pas',    a:['marche'], base:8000, n:v => `${fmtN(v)} pas`, e:'🚶', k:'sport', round:500},
+  {id:'q-sport',  a:['natation','muscu','combat','collectif','corde','yoga'], base:30, n:v => `${v} min de sport`, e:'⏱️', k:'sport'},
+  {id:'q-velo',   a:['velo'],   base:15, n:v => `${v} km de vélo`, e:'🚴', k:'sport'},
+  {id:'q-eau',    a:['eau'],    base:1,  n:() => 'Boire 2 L d\'eau', e:'💧', k:'sante', fixed:true},
+  {id:'q-som',    a:['sommeil'],base:1,  n:() => 'Dormir 8 h', e:'😴', k:'sante', fixed:true},
+  {id:'q-leg',    a:['legumes'],base:1,  n:() => '5 fruits et légumes', e:'🥦', k:'sante', fixed:true},
+  {id:'q-sucre',  a:['sanssucre'],base:1,n:() => 'Journée sans sucre', e:'🚫', k:'sante', fixed:true},
+  {id:'q-med',    a:['meditation'],base:10, n:v => `${v} min de méditation`, e:'🧠', k:'sante'},
+  {id:'q-lect',   a:['lecture'],base:20, n:v => `${v} min de lecture`, e:'📚', k:'sante'},
+];
+const QUEST_PTS = 25, COMBO_PTS = 50;
+
+/* Boss de la semaine */
+const BOSSES = [
+  {n:'Le Colosse de Pierre', e:'🗿', goal:20,  u:'km', d:'Course, marche et vélo cumulés', f:L => sumA(L,'course') + sumA(L,'marche')/1300 + sumA(L,'velo')/3},
+  {n:'L\'Hydre aux 500 têtes', e:'🐉', goal:500, u:'répétitions', d:'Pompes, squats, abdos, burpees (×2), tractions (×3)', f:L => sumA(L,'pompes')+sumA(L,'squats')+sumA(L,'abdos')+sumA(L,'burpees')*2+sumA(L,'tractions')*3},
+  {n:'Le Titan d\'Acier', e:'🤖', goal:180, u:'min', d:'Minutes d\'effort (1 km de course = 6 min, 1 min de gainage = 5 min)', f:L => ['natation','muscu','combat','collectif','corde','yoga'].reduce((s,a) => s+sumA(L,a),0) + sumA(L,'course')*6 + sumA(L,'velo')*3 + sumA(L,'gainage')*5},
+  {n:'Le Moine Gardien', e:'⛩️', goal:14, u:'bonnes habitudes', d:'Eau, sommeil, légumes, sans sucre, méditation', f:L => L.filter(e => ['eau','sommeil','legumes','sanssucre','meditation'].includes(e.a)).length},
+];
+const BOSS_PTS = 250;
+const sumA = (L, a) => L.filter(e => e.a === a).reduce((s,e) => s + e.q, 0);
+
+/* =========================================================
+   ÉTAT
+   ========================================================= */
+const KEY = 'eveil-guerrier-v1';
+let DB = load();
+function load(){ try{ const r = localStorage.getItem(KEY); if(r) return JSON.parse(r); }catch(e){} return {profiles:[], cur:null}; }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(DB)); }catch(e){ toast('Mémoire pleine : retire la photo ou exporte tes données.'); } }
+const me = () => DB.profiles.find(p => p.id === DB.cur);
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const dkey = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const today = () => dkey(new Date());
+const fmtN = n => Math.round(n).toLocaleString('fr-FR');
+const fmtQ = n => Number.isInteger(n) ? fmtN(n) : String(Math.round(n*10)/10).replace('.', ',');
+function weekKey(d = new Date()){ const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return dkey(x); }
+const total = p => p.log.reduce((s,e) => s + e.pts, 0);
+const power = p => { const t = total(p); return Math.round(5 + t*(1 + formIdx(t)*.35)); };
+const dayLog = (p, d = today()) => p.log.filter(e => e.d === d);
+const weekLog = p => { const w = weekKey(); return p.log.filter(e => e.w === w); };
+const lvlMult = p => (LEVELS.find(l => l[0] === p.level) || LEVELS[1])[2];
+
+function streak(p){
+  const days = new Set(p.log.filter(e => !e.bonus).map(e => e.d)); let n = 0; const d = new Date();
+  if(!days.has(today())) d.setDate(d.getDate()-1);
+  while(days.has(dkey(d))){ n++; d.setDate(d.getDate()-1); }
+  return n;
+}
+const streakMult = p => 1 + Math.min(Math.max(streak(p)-1, 0), 10)*.05;
+
+function hash(s){ let h = 2166136261; for(const c of s){ h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function questsToday(p){
+  const d = today(), h = hash(d + p.id), m = lvlMult(p);
+  const byK = k => QUESTS.filter(q => q.k === k);
+  const pool = [byK('force'), byK('sport'), byK('sante')];
+  return pool.map((arr, i) => {
+    const q = arr[(h >>> (i*5)) % arr.length];
+    let v = q.fixed ? 1 : q.base*m;
+    v = q.round ? Math.round(v/q.round)*q.round : v >= 10 ? Math.round(v/5)*5 : Math.max(1, Math.round(v));
+    const done = dayLog(p).filter(e => q.a.includes(e.a)).reduce((s,e) => s + e.q, 0);
+    return {...q, v, done, ok: done >= v};
+  });
+}
+function bossNow(p){
+  const w = weekKey(), b = BOSSES[hash(w) % BOSSES.length];
+  const goal = Math.round(b.goal*(b.u === 'bonnes habitudes' ? 1 : lvlMult(p)));
+  const val = b.f(weekLog(p).filter(e => !e.bonus));
+  return {...b, goal, val, dead: val >= goal, rewarded: p.log.some(e => e.a === 'boss' && e.w === w)};
+}
+
+/* =========================================================
+   SON & VIBRATION
+   ========================================================= */
+let AC = null;
+const ac = () => { try{ AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if(AC.state === 'suspended') AC.resume(); }catch(e){} return AC; };
+function tone(f, dur = .12, vol = .2, type = 'square'){
+  const a = ac(); if(!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.value = f;
+  g.gain.setValueAtTime(vol, a.currentTime); g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + dur);
+  o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + dur);
+}
+function sweep(from, to, dur, vol = .12){
+  const a = ac(); if(!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(from, a.currentTime); o.frequency.exponentialRampToValueAtTime(to, a.currentTime + dur);
+  g.gain.setValueAtTime(.0001, a.currentTime); g.gain.exponentialRampToValueAtTime(vol, a.currentTime + .1); g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + dur);
+  o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + dur);
+}
+function boom(){
+  const a = ac(); if(!a) return;
+  const n = a.sampleRate*.8, buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for(let i = 0; i < n; i++) d[i] = (Math.random()*2-1)*Math.pow(1 - i/n, 2.5);
+  const s = a.createBufferSource(), g = a.createGain(), f = a.createBiquadFilter();
+  f.type = 'lowpass'; f.frequency.value = 700; g.gain.value = .5;
+  s.buffer = buf; s.connect(f).connect(g).connect(a.destination); s.start();
+}
+const buzz = p => { try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} };
+
+/* =========================================================
+   GUERRIER ANIMÉ — squelette à cinématique inverse
+   angles : 0 = bas, 90 = avant, 180 = haut
+   ========================================================= */
+const LEN = {torso:48, ua:25, fa:24, th:32, sh:32};
+const dirv = a => [Math.sin(a*Math.PI/180), Math.cos(a*Math.PI/180)];
+function ik(a, b, l1, l2, bend){
+  let dx = b[0]-a[0], dy = b[1]-a[1], d = Math.hypot(dx, dy) || .001;
+  const max = l1 + l2 - .5;
+  if(d > max){ const k = max/d; dx *= k; dy *= k; d = max; }
+  const c = (l1*l1 + d*d - l2*l2)/(2*l1*d);
+  const t = Math.atan2(dy, dx) + bend*Math.acos(Math.max(-1, Math.min(1, c)));
+  return [[a[0]+Math.cos(t)*l1, a[1]+Math.sin(t)*l1], [a[0]+dx, a[1]+dy]];
+}
+const POSES = {
+  stand:  {hip:[100,136], t:180, hd:0,   fN:[106,198], fF:[94,198],  hN:[105,133], hF:[95,133]},
+  guard:  {hip:[100,139], t:176, hd:4,   fN:[116,198], fF:[84,198],  hN:[128,104], hF:[118,98]},
+  charge: {hip:[100,148], t:180, hd:-16, fN:[128,198], fF:[72,198],  hN:[132,150], hF:[70,150]},
+  victory:{hip:[100,134], t:180, hd:-12, fN:[106,196], fF:[94,197],  hN:[122,26],  hF:[80,30]},
+  punch:  {hip:[96,140],  t:172, hd:6,   fN:[122,198], fF:[78,198],  hN:[170,96],  hF:[112,104]},
+};
+function lerpPose(a, b, f){ const o = {}; for(const k in a){ const va = a[k], vb = b[k]; o[k] = Array.isArray(va) ? [va[0]+(vb[0]-va[0])*f, va[1]+(vb[1]-va[1])*f] : va+(vb-va)*f; } return o; }
+const shiftPose = (p, dx, dy) => { const o = Object.assign({}, p); for(const k of ['hip','fN','fF','hN','hF']) o[k] = [p[k][0]+dx, p[k][1]+dy]; return o; };
+function shade(hex, amt){
+  const n = parseInt(hex.slice(1), 16), f = v => Math.max(0, Math.min(255, Math.round(v + (amt < 0 ? v : 255 - v)*amt)));
+  return '#' + [f(n >> 16), f(n >> 8 & 255), f(n & 255)].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+const HAIR = {
+  spiky: 'M-21,6 L-33,-4 L-24,-10 L-38,-22 L-21,-23 L-27,-41 L-10,-30 L-5,-48 L5,-31 L16,-42 L15,-25 L28,-27 L20,-14 L26,-6 L13,-12 L10,-3 L3,-13 L-3,-5 L-9,-12 L-13,-2 Z',
+  tall:  'M-21,4 L-30,-12 L-22,-20 L-30,-40 L-14,-34 L-14,-58 L-2,-40 L6,-66 L12,-40 L22,-54 L20,-30 L30,-26 L22,-14 L26,-6 L14,-12 L9,-3 L3,-13 L-3,-5 L-9,-12 L-13,-2 Z',
+  slim:  'M-21,4 L-28,-6 L-22,-14 Q-12,-31 6,-29 Q22,-25 23,-10 L15,-13 L11,-4 L5,-13 L-2,-4 L-8,-12 L-13,-2 Z',
+  long:  'M-21,4 L-30,-12 L-22,-20 L-30,-40 L-14,-34 L-12,-54 L0,-38 L8,-58 L12,-36 L24,-44 L20,-24 L28,-14 L18,-12 L12,-3 L4,-12 L-4,-4 L-10,-12 L-13,-2 Z',
+};
+const MANE = 'M-20,-16 Q-50,6 -44,84 L-34,72 L-30,94 L-20,70 L-12,86 Q-8,40 -2,14 Z';
+
+let rigUid = 0;
+class Warrior{
+  /* p : profil (photo, tenue, peau) ; fi : index de forme */
+  constructor(p, fi, opt = {}){
+    const F = FORMS[fi], u = 'w' + (++rigUid), dk = c => shade(c, -.25);
+    const skin = p.skin || SKIN[0], gi = p.gi || GI[0], belt = gi === '#C62828' ? '#1E1E1E' : '#C62828';
+    const L = this.L = {skin, top:gi, arm:skin, fore:skin, hand:skin, belt, pants:gi, shin:gi, shoe:'#1E2A44', hc:F.hc, aura:F.aura, bolt:F.bolt, spark:F.spark};
+    this.F = F;
+    const line = (k, col, w, cap = 'round') => `<line data-k="${k}" stroke="${col}" stroke-width="${w}" stroke-linecap="${cap}"/>`;
+    const hairBack = (F.hair === 'long' ? `<path d="${MANE}" fill="${F.hc}"/>` : '');
+    const ink = '#1A1A1A';
+    const face = `<g class="fN"><g class="blink"><ellipse cx="9" cy="-1" rx="3.2" ry="4.8" fill="${ink}"/><circle cx="10" cy="-3" r="1.4" fill="#fff"/></g><path d="M11,10.5 Q15,13 18.5,9.5" fill="none" stroke="${ink}" stroke-width="1.8" stroke-linecap="round"/></g>
+      <g class="fE" style="display:none"><path d="M5,-5 L12,-1.5 L5,2" fill="none" stroke="${ink}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="15" cy="11" rx="3.6" ry="3.2" fill="#7A1F1F"/></g>
+      ${F.hair === 'long' ? '' : `<path d="M3,-9.5 L14,-7.5" stroke="${F.hc === '#1C1C1C' ? F.hc : shade(F.hc,-.2)}" stroke-width="2.6" stroke-linecap="round"/>`}`;
+    const glowEye = fi >= 7 ? `<circle cx="9" cy="-1" r="2" fill="${F.aura}" opacity=".85"/>` : '';
+    const head = p.photo
+      ? `${hairBack}<g transform="scale(1.14) translate(-1 -3)"><path d="${HAIR[F.hair]}" fill="${F.hc}"/></g>
+         <clipPath id="${u}c"><circle r="24"/></clipPath>
+         <circle r="25.5" fill="${F.aura || '#fff'}"/>
+         <image href="${esc(p.photo)}" x="-24" y="-24" width="48" height="48" preserveAspectRatio="xMidYMid slice" clip-path="url(#${u}c)"/>`
+      : `${hairBack}<circle r="21" fill="${skin}"/><circle cx="-4" cy="2" r="5" fill="${shade(skin,-.1)}"/><path d="${HAIR[F.hair]}" fill="${F.hc}"/>${face}${glowEye}`;
+    const flame = 'M100,-6 C120,30 150,34 146,96 C170,128 168,190 140,206 L60,206 C32,190 30,128 54,96 C50,34 80,30 100,-6 Z';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', opt.view || '-10 -20 220 230');
+    svg.setAttribute('class', 'rig');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = `
+      <defs>
+        <filter id="${u}g" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+        <radialGradient id="${u}r"><stop offset="0" stop-color="${F.aura || '#fff'}" stop-opacity=".9"/><stop offset="1" stop-color="${F.aura || '#fff'}" stop-opacity="0"/></radialGradient>
+      </defs>
+      ${F.aura ? `<g data-k="aura" opacity="${fi === 1 ? .45 : .9}">
+        <ellipse cx="100" cy="203" rx="80" ry="12" fill="url(#${u}r)"/>
+        <path class="fl" d="${flame}" fill="${F.aura}" opacity=".45" filter="url(#${u}g)"/>
+        <path class="fl fl2" d="${flame}" fill="${shade(F.aura,.5)}" opacity=".55" transform="translate(100 206) scale(.78 .84) translate(-100 -206)" filter="url(#${u}g)"/>
+      </g>` : ''}
+      <ellipse data-k="shadow" cy="201" rx="36" ry="5" fill="rgba(0,0,0,.35)"/>
+      ${line('uaF', dk(L.arm), 10)}${line('faF', dk(L.fore), 9)}<circle data-k="hF" r="6" fill="${dk(L.hand)}"/>
+      ${line('thF', dk(L.pants), 13)}${line('shF', dk(L.shin), 11)}${line('ftF', dk(L.shoe), 10)}
+      ${line('torso', L.top, 26)}<circle data-k="hip" r="12.5" fill="${L.pants}"/>${line('belt', L.belt, 25, 'butt')}
+      ${line('thN', L.pants, 13)}${line('shN', L.shin, 11)}${line('ftN', L.shoe, 10)}
+      ${line('uaN', L.arm, 10)}${line('faN', L.fore, 9)}<circle data-k="hN" r="6" fill="${L.hand}"/>
+      <g data-k="head">${head}</g>
+      ${F.bolt ? `<polyline data-k="b1" fill="none" stroke="${shade(F.aura,.6)}" stroke-width="2.4" stroke-linejoin="round"/><polyline data-k="b2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>` : ''}
+      ${F.aura ? Array.from({length:8}, (_, i) => `<circle data-k="p${i}" r="${1.5 + (i%3)}" fill="${shade(F.aura,.5)}"/>`).join('') : ''}`;
+    this.svg = svg; this.k = {};
+    svg.querySelectorAll('[data-k]').forEach(n => this.k[n.dataset.k] = n);
+    this.fN = svg.querySelector('.fN'); this.fE = svg.querySelector('.fE'); this.eff = false; this.lastBolt = 0;
+  }
+  ln(k, a, b){ const n = this.k[k]; if(!n) return; n.setAttribute('x1', a[0].toFixed(1)); n.setAttribute('y1', a[1].toFixed(1)); n.setAttribute('x2', b[0].toFixed(1)); n.setAttribute('y2', b[1].toFixed(1)); }
+  pose(p, effort = false, time = 0, boost = 0){
+    const k = this.k, H = p.hip, td = dirv(p.t), S = [H[0]+td[0]*LEN.torso, H[1]+td[1]*LEN.torso];
+    const hd = dirv(p.t + p.hd), HC = [S[0]+hd[0]*25, S[1]+hd[1]*25];
+    this.ln('torso', H, S);
+    this.ln('belt', [H[0]+td[0]*4, H[1]+td[1]*4], [H[0]+td[0]*9, H[1]+td[1]*9]);
+    k.hip.setAttribute('cx', H[0]); k.hip.setAttribute('cy', H[1]);
+    const Sa = [S[0]-td[0]*5, S[1]-td[1]*5];
+    for(const s of ['N','F']){
+      const [kn, ft] = ik(H, p['f'+s], LEN.th, LEN.sh, -1);
+      this.ln('th'+s, H, kn); this.ln('sh'+s, kn, ft); this.ln('ft'+s, ft, [ft[0]+8, ft[1]]);
+      const [el, h2] = ik(Sa, p['h'+s], LEN.ua, LEN.fa, 1);
+      this.ln('ua'+s, Sa, el); this.ln('fa'+s, el, h2);
+      k['h'+s].setAttribute('cx', h2[0].toFixed(1)); k['h'+s].setAttribute('cy', h2[1].toFixed(1));
+    }
+    k.head.setAttribute('transform', `translate(${HC[0].toFixed(1)} ${HC[1].toFixed(1)}) rotate(${(180-(p.t+p.hd)).toFixed(1)})`);
+    k.shadow.setAttribute('cx', H[0]);
+    if(k.aura){
+      const sc = 1 + boost*.35;
+      k.aura.setAttribute('transform', `translate(${H[0]-100} 0) translate(100 206) scale(${sc.toFixed(3)}) translate(-100 -206)`);
+      for(let i = 0; i < 8; i++){
+        const c = k['p'+i], ph = (time*(.5 + boost*.8) + i/8) % 1;
+        c.setAttribute('cx', (H[0] + Math.sin(i*7.3)*46*(1+boost*.3) + Math.sin(time*3+i)*4).toFixed(1));
+        c.setAttribute('cy', (204 - ph*210).toFixed(1));
+        c.setAttribute('opacity', ((1-ph)*.9).toFixed(2));
+      }
+    }
+    if(k.b1 && time - this.lastBolt > .07){
+      this.lastBolt = time;
+      const show = Math.random() < .35 + boost*.4;
+      for(const b of ['b1','b2']){
+        if(!show){ k[b].setAttribute('points', ''); continue; }
+        let x = H[0] + (Math.random()-.5)*90, y = 40 + Math.random()*60, pts = [];
+        for(let j = 0; j < 6; j++){ pts.push(x.toFixed(0)+','+y.toFixed(0)); x += (Math.random()-.5)*22; y += 10 + Math.random()*14; }
+        k[b].setAttribute('points', pts.join(' '));
+      }
+    }
+    if(this.fN && effort !== this.eff){ this.eff = effort; this.fN.style.display = effort ? 'none' : ''; this.fE.style.display = effort ? '' : 'none'; }
+  }
+  /* animation « vivante » selon l'état */
+  live(mode, t, boost = 0){
+    if(mode === 'charge') return this.pose(shiftPose(POSES.charge, Math.sin(t*55)*1.2, Math.sin(t*40)*.8), true, t, boost);
+    if(mode === 'victory') return this.pose(shiftPose(lerpPose(POSES.victory, POSES.stand, (Math.sin(t*10)+1)/6), 0, -Math.abs(Math.sin(t*5))*14), false, t, boost);
+    if(mode === 'punch'){ const f = (Math.sin(t*9)+1)/2; return this.pose(lerpPose(POSES.guard, POSES.punch, f*f), f > .7, t, boost); }
+    return this.pose(shiftPose(POSES.guard, 0, Math.sin(t*2.4)*1.4), false, t, boost);
+  }
+}
+
+/* Boucle d'animation unique */
+const ANIM = new Set();
+function animAdd(fn){ ANIM.add(fn); if(ANIM.size === 1) requestAnimationFrame(loop); return () => ANIM.delete(fn); }
+function loop(now){ if(!ANIM.size) return; for(const fn of [...ANIM]) fn(now/1000); requestAnimationFrame(loop); }
+
+/* =========================================================
+   PHOTO — recadrage carré 256 px
+   ========================================================= */
+function readPhoto(file, cb){
+  const rd = new FileReader();
+  rd.onload = () => {
+    const im = new Image();
+    im.onload = () => {
+      const cv = document.createElement('canvas'), sz = 256; cv.width = cv.height = sz;
+      const s = Math.min(im.width, im.height);
+      cv.getContext('2d').drawImage(im, (im.width-s)/2, (im.height-s)/2, s, s, 0, 0, sz, sz);
+      cb(cv.toDataURL('image/jpeg', .82));
+    };
+    im.onerror = () => toast('Image illisible');
+    im.src = rd.result;
+  };
+  rd.readAsDataURL(file);
+}
+
+/* =========================================================
+   CRÉATION DU GUERRIER
+   ========================================================= */
+function onboarding(edit){
+  const p = edit ? Object.assign({}, me()) : {id:'p'+Date.now().toString(36), name:'', age:'', goal:GOALS[3], level:'inter', gi:GI[0], skin:SKIN[0], photo:null, log:[], created:today()};
+  stopViews();
+  const draw = () => {
+    $('#app').innerHTML = `
+      <div class="wrap ob">
+        <div class="hero">
+          <h1>${edit ? 'Mon guerrier' : 'L\'Éveil du Guerrier'}</h1>
+          <p>${edit ? 'Modifie ton profil.' : 'Chaque pompe, chaque kilomètre, chaque verre d\'eau te rend plus fort. Gagne des points dans la vraie vie et transforme-toi jusqu\'à l\'Éveil Ultime.'}</p>
+        </div>
+        <div class="card">
+          <label class="f" for="oName">Ton nom de guerrier *</label>
+          <input class="in" id="oName" maxlength="20" value="${esc(p.name)}" placeholder="Ex. : Kenji, Lina, Le Tigre…" autocomplete="nickname">
+          <label class="f" for="oAge">Âge</label>
+          <input class="in" id="oAge" type="number" inputmode="numeric" min="5" max="110" value="${esc(p.age)}" placeholder="Facultatif">
+          <label class="f">Ta photo (elle devient la tête de ton guerrier)</label>
+          <div class="photo">
+            <div class="pv" id="oPv" style="${p.photo ? `background-image:url('${p.photo}')` : ''}">${p.photo ? '' : '🙂'}</div>
+            <div class="row" style="gap:8px">
+              <label class="btn sm">📷 Prendre / choisir<input type="file" accept="image/*" capture="user" id="oPhoto" hidden></label>
+              ${p.photo ? `<button class="btn ghost sm" id="oNoPhoto">Retirer</button>` : ''}
+            </div>
+          </div>
+          <label class="f">Ton objectif</label>
+          <div class="chips" id="oGoal">${GOALS.map(g => `<button data-v="${esc(g)}" aria-pressed="${g===p.goal}">${esc(g)}</button>`).join('')}</div>
+          <label class="f">Ton niveau (adapte les quêtes et les boss)</label>
+          <div class="chips" id="oLvl">${LEVELS.map(([k,l]) => `<button data-v="${k}" aria-pressed="${k===p.level}">${l}</button>`).join('')}</div>
+          <label class="f">Couleur de ta tenue</label>
+          <div class="swatches" id="oGi">${GI.map(c => `<button data-v="${c}" style="background:${c}" aria-pressed="${c===p.gi}" aria-label="Couleur ${c}"></button>`).join('')}</div>
+          ${p.photo ? '' : `<label class="f">Couleur de peau</label>
+          <div class="swatches" id="oSkin">${SKIN.map(c => `<button data-v="${c}" style="background:${c}" aria-pressed="${c===p.skin}" aria-label="Teinte ${c}"></button>`).join('')}</div>`}
+          <div id="oPrev" style="height:220px;margin-top:14px"></div>
+          <button class="btn big" id="oGo" style="margin-top:12px">${edit ? 'Enregistrer' : '⚡ Éveiller mon guerrier'}</button>
+          ${edit ? `<button class="btn ghost big" id="oCancel" style="margin-top:8px">Annuler</button>` : (DB.profiles.length ? `<button class="btn ghost big" id="oCancel" style="margin-top:8px">Retour</button>` : '')}
+          <p class="priv">🔒 Tes infos et ta photo restent uniquement sur ce téléphone (rien n'est envoyé sur Internet).</p>
+        </div>
+      </div>`;
+    const w = new Warrior(p, edit ? formIdx(total(p)) : 0, {view:'0 -24 200 230'});
+    $('#oPrev').appendChild(w.svg);
+    const stop = animAdd(t => { if(!document.body.contains(w.svg)){ stop(); return; } w.live('idle', t); });
+    $('#oName').oninput = e => p.name = e.target.value;
+    $('#oAge').oninput = e => p.age = e.target.value;
+    const chips = (sel, key) => document.querySelectorAll(sel + ' button').forEach(b => b.onclick = () => { p[key] = b.dataset.v; draw(); });
+    chips('#oGoal', 'goal'); chips('#oLvl', 'level'); chips('#oGi', 'gi'); chips('#oSkin', 'skin');
+    $('#oPhoto').onchange = e => { const f = e.target.files[0]; if(f) readPhoto(f, d => { p.photo = d; draw(); }); };
+    if($('#oNoPhoto')) $('#oNoPhoto').onclick = () => { p.photo = null; draw(); };
+    if($('#oCancel')) $('#oCancel').onclick = () => { renderApp(); };
+    $('#oGo').onclick = () => {
+      p.name = p.name.trim();
+      if(!p.name){ toast('Donne un nom à ton guerrier'); $('#oName').focus(); return; }
+      if(edit){ Object.assign(me(), p); }
+      else { DB.profiles.push(p); DB.cur = p.id; }
+      save(); if(!edit) view = 'home'; renderApp();
+      if(!edit) setTimeout(() => toast(`Bienvenue ${p.name} ! Ajoute ta première action pour gagner des points ⚡`), 300);
+    };
+  };
+  draw();
+}
+
+/* =========================================================
+   APPLICATION
+   ========================================================= */
+let view = 'home', viewStops = [];
+function stopViews(){ viewStops.forEach(f => f()); viewStops = []; }
+function renderApp(){
+  if(!me()){ if(DB.profiles.length){ DB.cur = DB.profiles[0].id; save(); } else return onboarding(); }
+  $('#app').innerHTML = `
+    <header><div class="wrap hd">
+      <div class="hav" id="hAv"></div>
+      <div class="hinfo"><div class="hname" id="hName"></div><div class="hform" id="hForm"></div></div>
+      <div class="streak" id="hStreak"></div>
+      <div class="hpow"><span>Puissance</span><b id="hPow"></b></div>
+    </div></header>
+    <main class="wrap">
+      <section class="view" id="v-home"></section>
+      <section class="view" id="v-log"></section>
+      <section class="view" id="v-evo"></section>
+      <section class="view" id="v-team"></section>
+      <section class="view" id="v-me"></section>
+    </main>
+    <nav class="tabs" aria-label="Navigation"><div class="wrap">
+      <button data-v="home"><b>⚡</b>Guerrier</button>
+      <button data-v="log"><b>📈</b>Journal</button>
+      <button data-v="evo"><b>🌟</b>Éveils</button>
+      <button data-v="team"><b>🏆</b>Classement</button>
+      <button data-v="me"><b>👤</b>Profil</button>
+    </div></nav>`;
+  document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => go(b.dataset.v));
+  go(view);
+}
+function go(v){
+  view = v; stopViews();
+  document.querySelectorAll('nav.tabs button').forEach(b => b.dataset.v === v ? b.setAttribute('aria-current','page') : b.removeAttribute('aria-current'));
+  document.querySelectorAll('section.view').forEach(s => s.classList.toggle('on', s.id === 'v-'+v));
+  renderHeader();
+  ({home:renderHome, log:renderLog, evo:renderEvo, team:renderTeam, me:renderMe})[v]();
+  window.scrollTo(0,0);
+}
+function renderHeader(){
+  const p = me(), t = total(p), F = FORMS[formIdx(t)];
+  document.documentElement.style.setProperty('--aura', F.c);
+  const av = $('#hAv');
+  av.style.backgroundImage = p.photo ? `url('${p.photo}')` : '';
+  av.textContent = p.photo ? '' : p.name.slice(0,1).toUpperCase();
+  $('#hName').textContent = p.name;
+  $('#hForm').textContent = F.n;
+  $('#hPow').textContent = fmtN(power(p));
+  const s = streak(p);
+  $('#hStreak').textContent = '🔥 ' + s;
+  $('#hStreak').title = `${s} jour(s) d'affilée · bonus ×${streakMult(p).toFixed(2).replace('.',',')}`;
+}
+
+/* ---------- Accueil ---------- */
+let heroRig = null, heroMode = 'idle', heroBoost = 0, modeUntil = 0;
+function renderHome(){
+  const p = me(), t = total(p), fi = formIdx(t), F = FORMS[fi], N = FORMS[fi+1];
+  const qs = questsToday(p), boss = bossNow(p), tl = dayLog(p);
+  const recent = [...new Set(p.log.filter(e => !e.bonus && e.a !== 'perso').slice().reverse().map(e => e.a))].slice(0, 5);
+  const v = $('#v-home');
+  v.innerHTML = `
+    <div class="stage" id="stage">
+      <div class="scouter"><div class="k">Niveau de puissance</div><div class="v" id="sPow">${fmtN(power(p))}</div></div>
+      <div class="formtag"><b>${esc(F.n)}</b><span>${fmtN(t)} points</span></div>
+      <div class="rigbox" id="rigbox"></div>
+    </div>
+    <div class="nextf">
+      ${N ? `<div class="t"><span>Prochain éveil : <b>${esc(N.n)}</b></span><span>${fmtN(N.pts - t)} pts</span></div>
+      <div class="bar"><i style="width:${((t - F.pts)/(N.pts - F.pts)*100).toFixed(1)}%"></i></div>`
+      : `<div class="t"><span><b>Tu as atteint l'Éveil Ultime.</b> Continue pour faire grimper ta puissance !</span></div>`}
+    </div>
+    <button class="addbtn" id="addBtn">⚡ J'AI FAIT UNE ACTION</button>
+    ${recent.length ? `<div class="quick">${recent.map(id => { const a = actById(id); const q = a.once ? 1 : a.pre[1] || a.pre[0]; return `<button data-q="${id}" data-n="${q}">${a.e} +${fmtQ(q)} ${esc(a.u)}</button>`; }).join('')}</div>` : ''}
+
+    <h3 class="sub">Quêtes du jour ${qs.every(q => q.ok) ? '· combo réussi ✓' : `· +${COMBO_PTS} si les 3 sont faites`}</h3>
+    ${qs.map(q => `<div class="quest ${q.ok ? 'done' : ''}">
+      <div class="ic">${q.ok ? '✅' : q.e}</div>
+      <div class="bd"><div class="nm">${esc(q.n(q.v))}</div><div class="pg">${fmtQ(Math.min(q.done, q.v))} / ${fmtQ(q.v)}</div><div class="bar"><i style="width:${Math.min(100, q.done/q.v*100)}%"></i></div></div>
+      <div class="rw">+${QUEST_PTS}</div>
+    </div>`).join('')}
+
+    <h3 class="sub">Boss de la semaine</h3>
+    <div class="boss ${boss.dead ? 'dead' : ''}">
+      <div class="be">${boss.e}</div>
+      <div class="bd">
+        <div class="bn">${esc(boss.n)}</div>
+        <div class="muted" style="font-size:12px">${esc(boss.d)}</div>
+        <div class="hp"><i style="width:${Math.max(0, 100 - boss.val/boss.goal*100)}%"></i></div>
+        <div style="font-size:12px">${boss.dead ? `<b style="color:var(--green)">Vaincu ! +${BOSS_PTS} pts</b>` : `PV restants : <b>${fmtQ(Math.max(0, boss.goal - boss.val))} ${esc(boss.u)}</b> · récompense +${BOSS_PTS}`}</div>
+      </div>
+    </div>
+
+    <h3 class="sub">Aujourd'hui · ${fmtN(tl.reduce((s,e) => s+e.pts, 0))} pts</h3>
+    <div class="today">${tl.length ? tl.slice().reverse().map(entryHTML).join('') : '<p class="muted" style="font-size:14px">Rien pour l\'instant. Lance-toi : même 10 pompes comptent !</p>'}</div>`;
+
+  heroRig = new Warrior(p, fi);
+  $('#rigbox').appendChild(heroRig.svg);
+  viewStops.push(animAdd(t => {
+    if(heroMode !== 'idle' && t > modeUntil) heroMode = 'idle';
+    heroBoost = Math.max(0, heroBoost - .012);
+    heroRig.live(heroMode, t, heroBoost);
+  }));
+  $('#stage').onclick = () => { heroMode = 'punch'; modeUntil = performance.now()/1000 + 1.6; tone(180,.06,.15); };
+  $('#addBtn').onclick = () => openAdd();
+  v.querySelectorAll('[data-q]').forEach(b => b.onclick = () => logAction(b.dataset.q, +b.dataset.n));
+  bindDeletes(v);
+}
+function entryHTML(e){
+  const a = actById(e.a), time = new Date(e.ts).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+  const label = e.bonus ? e.label : a ? (a.custom ? e.label : a.n) : e.label;
+  const qty = e.bonus || !a || a.custom || a.once ? '' : ` · ${fmtQ(e.q)} ${a.u}`;
+  return `<div class="entry"><span>${e.bonus ? (e.a === 'boss' ? '👹' : '🎯') : a ? a.e : '✨'}</span><span class="en">${esc(label)}<small>${qty} · ${time}</small></span><span class="ep">+${fmtN(e.pts)}</span>${e.bonus ? '' : `<button class="del" data-del="${e.ts}" aria-label="Supprimer">✕</button>`}</div>`;
+}
+function bindDeletes(root){
+  root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    if(!confirm('Supprimer cette action ?')) return;
+    const p = me(); p.log = p.log.filter(e => String(e.ts) !== b.dataset.del); save(); go(view);
+  });
+}
+
+/* ---------- Ajouter une action ---------- */
+function openAdd(){
+  const p = me(), done = new Set(dayLog(p).map(e => e.a));
+  $('#sheet').innerHTML = `
+    <div class="sh"><div class="t">Qu'as-tu fait ?<p>Choisis ton action. Bonus de régularité actuel : ×${streakMult(p).toFixed(2).replace('.',',')}</p></div><button class="x" data-close aria-label="Fermer">✕</button></div>
+    ${Object.entries(CATS).map(([k,l]) => `<h3 class="sub" style="margin-top:14px">${l}</h3><div class="acts">${ACTS.filter(a => a.cat === k).map(a => {
+      const off = a.once && done.has(a.id);
+      return `<button class="act ${off ? 'off' : ''}" data-a="${a.id}" ${off ? 'disabled' : ''}><i>${a.e}</i><span>${esc(a.n)}<small>${a.custom ? 'tes points' : a.once ? (off ? 'déjà fait aujourd\'hui' : '+'+a.p+' pts') : a.p >= 1 ? '+'+fmtQ(a.p)+' pts / '+a.u : a.id === 'marche' ? '+2 pts / 1 000 pas' : '+'+fmtQ(a.p*10)+' pts / 10 '+a.u}</small></span></button>`;
+    }).join('')}</div>`).join('')}`;
+  openSheet();
+  bindClose();
+  $('#sheet').querySelectorAll('[data-a]').forEach(b => b.onclick = () => { const a = actById(b.dataset.a); a.once ? (closeSheet(), logAction(a.id, 1)) : qtySheet(a); });
+}
+function qtySheet(a){
+  const p = me();
+  let q = a.custom ? 20 : a.pre[0];
+  $('#sheet').innerHTML = `
+    <div class="sh"><div class="t">${a.e} ${esc(a.n)}</div><button class="x" data-close aria-label="Fermer">✕</button></div>
+    ${a.custom ? `<label class="f" for="cName">Qu'as-tu fait ?</label><input class="in" id="cName" maxlength="40" placeholder="Ex. : rando en montagne, ménage, danse…">
+    <label class="f">Combien de points ça vaut ? (1 à 50)</label>` : ''}
+    <div class="qty"><button id="qm" aria-label="Moins">−</button><input id="qv" type="number" inputmode="decimal" value="${q}" aria-label="Quantité"><button id="qp" aria-label="Plus">+</button></div>
+    <div class="unit">${a.custom ? 'points' : esc(a.u)}</div>
+    ${a.custom ? '' : `<div class="chips" style="justify-content:center;margin-top:12px">${a.pre.map(v => `<button data-p="${v}">${fmtQ(v)} ${esc(a.u)}</button>`).join('')}</div>`}
+    <div class="preview" id="qpts"></div>
+    <button class="btn big" id="qok">⚡ Valider</button>`;
+  bindClose();
+  const inp = $('#qv'), step = a.custom ? 5 : a.step;
+  const pts = () => a.custom ? Math.max(1, Math.min(50, Math.round(q))) : Math.max(1, Math.round(q*a.p*streakMult(p)));
+  const upd = () => { $('#qpts').innerHTML = q > 0 ? `+${fmtN(pts())} pts<small>${streakMult(p) > 1 && !a.custom ? 'bonus de régularité inclus' : '&nbsp;'}</small>` : '&nbsp;'; };
+  inp.oninput = () => { q = parseFloat(String(inp.value).replace(',','.')) || 0; upd(); };
+  $('#qm').onclick = () => { q = Math.max(0, +(q - step).toFixed(2)); inp.value = q; upd(); };
+  $('#qp').onclick = () => { q = +(q + step).toFixed(2); inp.value = q; upd(); };
+  $('#sheet').querySelectorAll('[data-p]').forEach(b => b.onclick = () => { q = +b.dataset.p; inp.value = q; upd(); });
+  $('#qok').onclick = () => {
+    if(!(q > 0)){ toast('Entre une quantité'); return; }
+    if(!a.custom && a.u === 'km' && q > 300){ toast('Ça fait beaucoup de km… vérifie ta saisie'); return; }
+    let label;
+    if(a.custom){ label = $('#cName').value.trim(); if(!label){ toast('Dis ce que tu as fait'); return; } }
+    closeSheet(); logAction(a.id, q, label);
+  };
+  upd();
+}
+
+/* ---------- Enregistrer + effets ---------- */
+function logAction(id, q, label){
+  const p = me(), a = actById(id), before = total(p), fb = formIdx(before);
+  const now = Date.now(), d = today(), w = weekKey();
+  const pts = a.custom ? Math.max(1, Math.min(50, Math.round(q))) : Math.max(1, Math.round(q*a.p*streakMult(p)));
+  if(a.once && dayLog(p).some(e => e.a === id)){ toast('Déjà compté aujourd\'hui'); return; }
+  p.log.push({a:id, q: a.custom ? 1 : q, pts, d, w, ts:now, label: a.custom ? label : undefined});
+
+  // Quêtes et combo
+  const bonus = [];
+  const got = new Set(p.log.filter(e => e.d === d && e.a === 'quete').map(e => e.qid));
+  for(const qs of questsToday(p)) if(qs.ok && !got.has(qs.id)){ p.log.push({a:'quete', qid:qs.id, bonus:true, label:'Quête : ' + qs.n(qs.v), pts:QUEST_PTS, q:1, d, w, ts:now+1+bonus.length}); bonus.push(`🎯 Quête réussie : ${qs.n(qs.v)} (+${QUEST_PTS})`); }
+  if(questsToday(p).every(x => x.ok) && !p.log.some(e => e.d === d && e.a === 'combo')){ p.log.push({a:'combo', bonus:true, label:'Combo des 3 quêtes', pts:COMBO_PTS, q:1, d, w, ts:now+10}); bonus.push(`💥 Combo des 3 quêtes ! (+${COMBO_PTS})`); }
+  // Boss
+  const b = bossNow(p);
+  if(b.dead && !b.rewarded){ p.log.push({a:'boss', bonus:true, label:'Boss vaincu : ' + b.n, pts:BOSS_PTS, q:1, d, w, ts:now+20}); bonus.push(`👹 ${b.n} est vaincu ! (+${BOSS_PTS})`); }
+  save();
+
+  const after = total(p), fa = formIdx(after), gain = after - before;
+  if(view !== 'home') go('home'); else renderHome();
+  renderHeader();
+  // effets
+  heroMode = 'charge'; modeUntil = performance.now()/1000 + 1.4; heroBoost = 1;
+  const st = $('#stage');
+  if(st){
+    st.classList.add('shake'); setTimeout(() => st.classList.remove('shake'), 700);
+    const f = document.createElement('div'); f.className = 'floatpts'; f.textContent = '+' + fmtN(gain); st.appendChild(f); setTimeout(() => f.remove(), 1500);
+    rollPower(before, p);
+  }
+  sweep(160, 700, .9, .08); buzz([40,30,80]);
+  bonus.forEach((m, i) => setTimeout(() => toast(m), 900 + i*2200));
+  if(fa > fb) setTimeout(() => transform(p, fb, fa), 1300);
+}
+function rollPower(beforePts, p){
+  const el = $('#sPow'); if(!el) return;
+  const from = Math.round(5 + beforePts*(1 + formIdx(beforePts)*.35)), to = power(p), t0 = performance.now();
+  const stop = animAdd(() => {
+    const f = Math.min(1, (performance.now() - t0)/900);
+    if(!document.body.contains(el)){ stop(); return; }
+    el.textContent = fmtN(from + (to - from)*(1 - Math.pow(1-f, 3)));
+    if(f >= 1) stop();
+  });
+}
+
+/* ---------- Transformation ---------- */
+const TRANS_LINES = ['Quelque chose se réveille en toi…', 'Ton énergie déborde…', 'Le sol se met à trembler…', 'Tes limites se brisent…'];
+function transform(p, from, to){
+  const T = $('#trans'), F = FORMS[to], O = FORMS[from];
+  T.style.setProperty('--tc', O.c);
+  T.innerHTML = `<div class="ts" id="tLine">${TRANS_LINES[0]}</div><div class="tr" id="tRig"></div><div class="yell" id="tYell" hidden>HAAAAAA !</div>`;
+  T.classList.add('on', 'shake');
+  document.body.style.overflow = 'hidden';
+  let w = new Warrior(p, from); $('#tRig').appendChild(w.svg);
+  let boost = 0, mode = 'charge';
+  const stop = animAdd(t => { boost = Math.min(1.6, boost + .01); w.live(mode, t, boost); });
+  sweep(110, 900, 2.6, .14); buzz([100,50,100,50,300]);
+  let i = 1;
+  const li = setInterval(() => { const l = $('#tLine'); if(l && i < TRANS_LINES.length) l.textContent = TRANS_LINES[i++]; }, 650);
+  setTimeout(() => { const y = $('#tYell'); if(y) y.hidden = false; }, 1500);
+  setTimeout(() => {
+    clearInterval(li);
+    const fl = $('#flash'); fl.classList.add('on'); boom(); buzz(400);
+    setTimeout(() => fl.classList.remove('on'), 60);
+    T.classList.remove('shake');
+    T.style.setProperty('--tc', F.c);
+    w.svg.remove(); w = new Warrior(p, to); $('#tRig').appendChild(w.svg);
+    mode = 'victory'; boost = .6;
+    T.innerHTML = '';
+    T.insertAdjacentHTML('beforeend', `<div class="ts">${esc(p.name)} devient…</div>`);
+    T.appendChild(Object.assign(document.createElement('div'), {className:'tr', id:'tRig'}));
+    $('#tRig').appendChild(w.svg);
+    T.insertAdjacentHTML('beforeend', `<div class="tt">${esc(F.n)}</div><div class="ts">${esc(F.d)}</div><button class="btn big" id="tOk" style="max-width:320px">Continuer</button>`);
+    setTimeout(() => [523,659,784,1047].forEach((f,k) => setTimeout(() => tone(f,.2,.18), k*130)), 400);
+    $('#tOk').onclick = () => { stop(); T.classList.remove('on'); document.body.style.overflow = ''; go('home'); };
+  }, 2800);
+}
+
+/* ---------- Journal ---------- */
+function renderLog(){
+  const p = me(), days = [];
+  for(let i = 13; i >= 0; i--){ const d = new Date(); d.setDate(d.getDate()-i); days.push(dkey(d)); }
+  const per = days.map(d => p.log.filter(e => e.d === d).reduce((s,e) => s+e.pts, 0));
+  const max = Math.max(10, ...per);
+  const real = p.log.filter(e => !e.bonus);
+  const tot = [
+    ['Points au total', fmtN(total(p))],
+    ['Actions enregistrées', fmtN(real.length)],
+    ['Km (course + vélo)', fmtQ(sumA(real,'course') + sumA(real,'velo'))],
+    ['Pas', fmtN(sumA(real,'marche'))],
+    ['Pompes', fmtN(sumA(real,'pompes'))],
+    ['Squats', fmtN(sumA(real,'squats'))],
+    ['Abdos', fmtN(sumA(real,'abdos'))],
+    ['Burpees', fmtN(sumA(real,'burpees'))],
+    ['Min de gainage', fmtQ(sumA(real,'gainage'))],
+    ['Min de sport', fmtN(['natation','muscu','combat','collectif','corde','yoga'].reduce((s,a) => s+sumA(real,a), 0))],
+    ['Bonnes habitudes', fmtN(real.filter(e => actById(e.a)?.cat === 'sante').length)],
+    ['Quêtes réussies', fmtN(p.log.filter(e => e.a === 'quete').length)],
+    ['Boss vaincus', fmtN(p.log.filter(e => e.a === 'boss').length)],
+    ['Meilleure série', bestStreak(p) + ' j'],
+  ];
+  const byDay = {};
+  p.log.slice().reverse().forEach(e => (byDay[e.d] = byDay[e.d] || []).push(e));
+  $('#v-log').innerHTML = `
+    <h2 class="sec">Mon journal</h2>
+    <div class="card"><div class="muted" style="font-size:12.5px">Points des 14 derniers jours</div>
+      <div class="chart">${per.map((v,i) => `<div><b>${v ? fmtN(v) : ''}</b><i style="height:${v/max*100}%"></i><span>${days[i].slice(8)}</span></div>`).join('')}</div></div>
+    <h3 class="sub">Mes totaux</h3>
+    <div class="tots">${tot.map(([l,v]) => `<div class="tot"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+    <h3 class="sub">Historique</h3>
+    ${Object.keys(byDay).length ? Object.entries(byDay).slice(0, 30).map(([d, L]) => `<div class="muted" style="font-size:12.5px;margin:14px 0 6px;font-weight:700">${new Date(d+'T12:00').toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'})} · ${fmtN(L.reduce((s,e)=>s+e.pts,0))} pts</div><div class="today">${L.map(entryHTML).join('')}</div>`).join('') : '<p class="muted">Ton historique apparaîtra ici.</p>'}`;
+  bindDeletes($('#v-log'));
+}
+function bestStreak(p){
+  const days = [...new Set(p.log.filter(e => !e.bonus).map(e => e.d))].sort();
+  let best = 0, cur = 0, prev = null;
+  for(const d of days){ const t = new Date(d+'T12:00'); cur = prev && (t - prev)/864e5 < 1.5 ? cur + 1 : 1; best = Math.max(best, cur); prev = t; }
+  return best;
+}
+
+/* ---------- Éveils ---------- */
+function renderEvo(){
+  const p = me(), t = total(p), fi = formIdx(t);
+  const v = $('#v-evo');
+  v.innerHTML = `<h2 class="sec">Les 10 éveils</h2><p class="muted" style="font-size:14px;margin-bottom:12px">Gagne des points dans la vraie vie pour débloquer chaque transformation. Ta photo suit ton guerrier à chaque éveil.</p><div class="forms" id="forms"></div>`;
+  const box = $('#forms'), rigs = [];
+  FORMS.forEach((F, i) => {
+    const lock = i > fi;
+    const d = document.createElement('div');
+    d.className = 'form' + (lock ? ' lock' : '') + (i === fi ? ' cur' : '');
+    d.style.setProperty('--fc', F.c);
+    d.innerHTML = `<div class="fig"></div><div><div class="fn">${esc(F.n)}</div><div class="fd">${lock ? '???' : esc(F.d)}</div><div class="fp">${i === 0 ? 'Départ' : lock ? `🔒 ${fmtN(F.pts)} pts · encore ${fmtN(F.pts - t)}` : `✓ Débloqué à ${fmtN(F.pts)} pts`}</div></div>${i === fi ? '<span class="pill now" style="color:var(--fc)">TOI</span>' : ''}`;
+    const w = new Warrior(p, i, {view:'10 -30 180 240'});
+    d.querySelector('.fig').appendChild(w.svg);
+    rigs.push([w, i === fi]);
+    box.appendChild(d);
+  });
+  viewStops.push(animAdd(tm => rigs.forEach(([w, cur], i) => w.live(cur ? 'charge' : 'idle', tm + i*.7, cur ? .3 : 0))));
+}
+
+/* ---------- Classement (tous les guerriers du téléphone) ---------- */
+function renderTeam(){
+  const list = DB.profiles.slice().sort((a,b) => total(b) - total(a));
+  $('#v-team').innerHTML = `
+    <h2 class="sec">Classement</h2>
+    <p class="muted" style="font-size:14px;margin-bottom:12px">Crée un guerrier pour chaque membre de la famille ou chaque pote sur ce téléphone, et comparez vos puissances.</p>
+    <div class="lb">${list.map((p,i) => { const F = FORMS[formIdx(total(p))]; return `
+      <button class="lbr ${p.id === DB.cur ? 'me' : ''}" data-sw="${p.id}" style="--c:${F.c};text-align:left">
+        <span class="rk">${['🥇','🥈','🥉'][i] || i+1}</span>
+        <span class="av" style="${p.photo ? `background-image:url('${p.photo}')` : ''}">${p.photo ? '' : esc(p.name.slice(0,1).toUpperCase())}</span>
+        <span class="nm"><b>${esc(p.name)}${p.id === DB.cur ? ' (toi)' : ''}</b><span>${esc(F.n)} · 🔥 ${streak(p)} j</span></span>
+        <span class="pw">${fmtN(power(p))}</span>
+      </button>`; }).join('')}</div>
+    <button class="btn ghost big" id="tAdd" style="margin-top:14px">＋ Ajouter un guerrier</button>
+    <p class="muted" style="font-size:12.5px;margin-top:10px">Touche un guerrier pour jouer avec son profil.</p>`;
+  $('#v-team').querySelectorAll('[data-sw]').forEach(b => b.onclick = () => { DB.cur = b.dataset.sw; save(); toast('Profil : ' + me().name); renderApp(); });
+  $('#tAdd').onclick = () => onboarding(false);
+}
+
+/* ---------- Profil ---------- */
+function renderMe(){
+  const p = me(), F = FORMS[formIdx(total(p))];
+  $('#v-me').innerHTML = `
+    <h2 class="sec">Mon profil</h2>
+    <div class="card">
+      <div class="row" style="gap:14px">
+        <div class="hav" style="width:72px;height:72px;font-size:30px;${p.photo ? `background-image:url('${p.photo}')` : ''}">${p.photo ? '' : esc(p.name.slice(0,1).toUpperCase())}</div>
+        <div><div style="font-weight:800;font-size:18px">${esc(p.name)}</div><div style="color:var(--aura);font-weight:700;font-size:13px">${esc(F.n)}</div>
+        <div class="muted" style="font-size:13px">${p.age ? esc(p.age)+' ans · ' : ''}${esc(p.goal)} · ${esc((LEVELS.find(l => l[0] === p.level) || LEVELS[1])[1])}</div>
+        <div class="muted" style="font-size:12px">Guerrier depuis le ${new Date(p.created+'T12:00').toLocaleDateString('fr-FR')}</div></div>
+      </div>
+      <button class="btn ghost big" id="mEdit" style="margin-top:14px">✏️ Modifier mon profil et ma photo</button>
+    </div>
+    <h3 class="sub">Comment gagner des points</h3>
+    <div class="card" style="font-size:13.5px;line-height:1.6">
+      ⚡ <b>Actions</b> : sport, force, santé, mental (voir « J'ai fait une action »).<br>
+      🔥 <b>Régularité</b> : +5 % de points par jour d'affilée (jusqu'à +50 %).<br>
+      🎯 <b>Quêtes du jour</b> : +${QUEST_PTS} chacune, +${COMBO_PTS} si les 3 sont faites.<br>
+      👹 <b>Boss de la semaine</b> : +${BOSS_PTS} quand il est vaincu.
+    </div>
+    <h3 class="sub">Mes données</h3>
+    <div class="row">
+      <button class="btn ghost sm" id="mExp">⬇️ Exporter (sauvegarde)</button>
+      <label class="btn ghost sm">⬆️ Importer<input type="file" accept="application/json" id="mImp" hidden></label>
+    </div>
+    <h3 class="sub">Zone de danger</h3>
+    <button class="btn red sm" id="mDel">Supprimer ce guerrier</button>`;
+  $('#mEdit').onclick = () => onboarding(true);
+  $('#mExp').onclick = () => {
+    const blob = new Blob([JSON.stringify(DB)], {type:'application/json'});
+    const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download:'eveil-guerrier-sauvegarde.json'});
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  $('#mImp').onchange = e => {
+    const f = e.target.files[0]; if(!f) return;
+    f.text().then(txt => {
+      try{ const d = JSON.parse(txt); if(!Array.isArray(d.profiles)) throw 0; if(!confirm('Remplacer toutes les données de ce téléphone par cette sauvegarde ?')) return; DB = d; save(); renderApp(); toast('Sauvegarde importée'); }
+      catch(err){ toast('Fichier de sauvegarde invalide'); }
+    });
+  };
+  $('#mDel').onclick = () => {
+    if(!confirm(`Supprimer ${p.name} et toute sa progression ? C'est définitif.`)) return;
+    DB.profiles = DB.profiles.filter(x => x.id !== p.id); DB.cur = DB.profiles[0] ? DB.profiles[0].id : null; save();
+    view = 'home'; renderApp();
+  };
+}
+
+/* ---------- Divers ---------- */
+function openSheet(){ $('#scrim').classList.add('on'); }
+function closeSheet(){ $('#scrim').classList.remove('on'); }
+function bindClose(){ $('#sheet').querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheet); }
+$('#scrim').addEventListener('click', e => { if(e.target.id === 'scrim') closeSheet(); });
+addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
+let toastT;
+function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2400); }
+
+renderApp();
+</script>
+</body>
+</html>
