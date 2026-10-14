@@ -2374,12 +2374,47 @@ $("cpAncienRetour").onclick = () => { ancien.classList.remove("on"); accueilEl.s
    --------------------------------------------------------------------- */
 const CP = {seances: [], actuelle: null, devoirs: [], entrainements: [], regl: {}, suivi: {url: "", mdp: ""},
             stats: null, statsTout: null, calls: [], suiviErreur: "", charge: null, enCours: false, rec: null, qui: "mix", onglet: "phases"};
+
+/* --- deux espaces : le tien et celui de ta femme. Chacun a ses séances, ses devoirs,
+       ses entraînements et son suivi de calls. Les photos et les voix des coachs sont communes. --- */
+const PROFILS_DEFAUT = [
+  {id: "woidih", nom: "Woidih", feminin: false, desc: "un closer francophone qui vend en high ticket, surtout en B2B, et qui perd trop de calls", coachs: null},
+  {id: "p2", nom: "", feminin: true, desc: "une closeuse francophone qui vend en high ticket", coachs: ["josh lyons", "bill walsh"]}
+];
+let PROFILS = PROFILS_DEFAUT.map(p => Object.assign({}, p));
+let PROFIL = "woidih";
+try{ PROFIL = localStorage.getItem("woidih_profil_actif") || "woidih"; }catch(_){}
+const profil = () => PROFILS.find(p => p.id === PROFIL) || PROFILS[0];
+const nomProfil = () => profil().nom || "Toi";
+const K = base => base + (PROFIL === "woidih" ? "" : "__" + PROFIL);   // tes données gardent leurs anciens noms
 const sauve = () => {
-  Store.set("coach_perso_seances", CP.seances.slice(-60).map(s => Object.assign({}, s, {conv: s.conv.slice(-80)})));
-  Store.set("coach_perso_devoirs", CP.devoirs.slice(-60));
-  Store.set("coach_perso_entrainements", CP.entrainements.slice(-400));
+  Store.set(K("coach_perso_seances"), CP.seances.slice(-60).map(s => Object.assign({}, s, {conv: s.conv.slice(-80)})));
+  Store.set(K("coach_perso_devoirs"), CP.devoirs.slice(-60));
+  Store.set(K("coach_perso_entrainements"), CP.entrainements.slice(-400));
+  Store.set(K("coach_perso_qui"), CP.qui);
   Store.set("coach_perso_regl", CP.regl);
 };
+async function chargeProfil(){
+  CP.seances = (await Store.get(K("coach_perso_seances"))) || [];
+  CP.devoirs = (await Store.get(K("coach_perso_devoirs"))) || [];
+  CP.entrainements = (await Store.get(K("coach_perso_entrainements"))) || [];
+  CP.actuelle = null; CP.stats = null; CP.statsTout = null; CP.calls = []; CP.charge = null; CP.suiviErreur = "";
+  const autorises = profil().coachs;
+  CP.qui = (await Store.get(K("coach_perso_qui"))) || (PROFIL === "woidih" ? (CP.regl._qui || "mix") : autorises[0]);
+  if(autorises && !autorises.includes(CP.qui)) CP.qui = autorises[0];
+  const s = (await Store.get(K("coach_perso_suivi"))) || {};
+  let defaut = "";
+  if(PROFIL === "woidih"){ try{ defaut = srvCopilote().replace(/\/copilot\/?$/, "") + "/suivi"; }catch(_){} }
+  CP.suivi = {url: s.url || defaut, mdp: s.mdp || ""};
+}
+async function changeProfil(id){
+  arreteVoix();
+  PROFIL = id; try{ localStorage.setItem("woidih_profil_actif", id); }catch(_){}
+  await chargeProfil();
+  accueil();
+  await chargeSuivi();
+  if(home.style.display !== "none" && accueilEl.style.display !== "none") rendAccueil();
+}
 const seance = () => CP.seances.find(s => s.id === CP.actuelle) || null;
 const jour = t => new Date(t).toLocaleDateString("fr-FR", {day: "numeric", month: "short"});
 const aujourdhui = () => new Date().toISOString().slice(0, 10);
@@ -2398,6 +2433,11 @@ function coachs(){
     const nom = (ECOLES[k] && ECOLES[k].nom) || MANIERE_COACH[k].nom || k;
     l.push({k, nom, court: nom.split(" ")[0]});
   });
+  const autorises = profil().coachs;
+  if(autorises){
+    // son espace : seulement ses coachs, même si un cerveau n'est pas encore construit
+    return autorises.map(k => l.find(x => x.k === k) || {k, nom: (ECOLES[k] && ECOLES[k].nom) || (typeof MANIERE_COACH === "object" && MANIERE_COACH[k] && MANIERE_COACH[k].nom) || k, court: String(k).split(" ")[0].replace(/^./, c => c.toUpperCase())});
+  }
   return l;
 }
 const coachDe = k => coachs().find(c => c.k === k) || coachs()[0];
@@ -2571,7 +2611,13 @@ function rendAccueil(){
   accueilEl.innerHTML = `<div class="cp-page">
     <div class="cp-haut"><span class="cp-marque">Closing Copilot</span>
       <button class="cp-lien" id="cpVersReglages">Réglages et outils</button></div>
-    <h1 class="cp-titre">${heure < 18 ? "Bonjour" : "Bonsoir"} Woidih.</h1>
+    <div class="cp-onglets" style="margin-bottom:22px">${PROFILS.map(p => `<button data-espace="${p.id}" class="${p.id === PROFIL ? "on" : ""}">${p.nom ? "Espace de " + escapeHTML(p.nom) : "Créer l'espace de ta femme"}</button>`).join("")}</div>
+    <div class="cp-carte" id="cpNouveauProfil" style="display:none"><h4>Son espace</h4>
+      <p class="cp-vide">Son prénom, et en une phrase ce qu'elle vend. Ses coachs : Josh et Bill. Elle aura ses propres séances, devoirs et calls.</p>
+      <input class="cp-champ" id="cpProfilNom" placeholder="Son prénom">
+      <input class="cp-champ" id="cpProfilDesc" placeholder="Ce qu'elle vend (facultatif)">
+      <div class="cp-btns" style="margin-top:10px"><button class="cp-btn plein" id="cpProfilOk">Créer son espace</button></div></div>
+    <h1 class="cp-titre">${heure < 18 ? "Bonjour" : "Bonsoir"} ${escapeHTML(nomProfil())}.</h1>
     <p class="cp-sous">${prio ? "En ce moment, ce qui te coûte le plus : <b style='color:var(--ink)'>" + escapeHTML(prio.nom) + "</b>, réussi dans " + prio.taux + " % de tes calls." : "Tes calls d'un côté, ton travail de l'autre. Les deux sont reliés."}</p>
     <div class="cp-portes">
       <button class="cp-porte" id="cpPorteTracking"><div class="cp-ico">${ICO.suivi}</div><h3>Tracking</h3>
@@ -2589,6 +2635,18 @@ function rendAccueil(){
   $("cpPorteCoaching").onclick = ouvreCoaching;
   $("cpVersReglages").onclick = () => { accueilEl.style.display = "none"; ancien.classList.add("on"); home.scrollTop = 0; };
   accueilEl.querySelectorAll("[data-reprendre]").forEach(b => b.onclick = () => reprend(b.dataset.reprendre));
+  accueilEl.querySelectorAll("[data-espace]").forEach(b => b.onclick = () => {
+    const p = PROFILS.find(x => x.id === b.dataset.espace);
+    if(!p.nom){ $("cpNouveauProfil").style.display = "block"; $("cpProfilNom").focus(); return; }
+    if(p.id !== PROFIL) changeProfil(p.id);
+  });
+  $("cpProfilOk").onclick = async () => {
+    const nom = $("cpProfilNom").value.trim(); if(!nom) return toast("Écris son prénom.");
+    const p = PROFILS.find(x => x.id === "p2");
+    p.nom = nom; const d = $("cpProfilDesc").value.trim(); if(d) p.desc = "une closeuse francophone qui vend " + d.replace(/^(je |elle )?vends? /i, "");
+    await Store.set("coach_perso_profils", PROFILS);
+    changeProfil("p2");
+  };
 }
 const devoirsOuverts = () => CP.devoirs.filter(d => !d.fait);
 
@@ -2618,7 +2676,7 @@ window.addEventListener("message", async e => {
   let attendu = ""; try{ attendu = new URL(CP.suivi.url).origin; }catch(_){}
   if(!e.data || e.data.type !== "suivi-lie" || e.origin !== attendu || !e.data.mdp) return;
   CP.suivi = {url: String(e.data.url || CP.suivi.url), mdp: String(e.data.mdp)};
-  await Store.set("coach_perso_suivi", CP.suivi);
+  await Store.set(K("coach_perso_suivi"), CP.suivi);
   await chargeSuivi(true);
   toast(CP.suiviErreur ? "Suivi : " + CP.suiviErreur : "Ton suivi est connecté.");
   if(APRES_LIEN) APRES_LIEN();
@@ -2636,7 +2694,7 @@ function brancheFormulaireSuivi(apres){
   const b = $("cpSuiviOk"); if(!b) return;
   b.onclick = async () => {
     CP.suivi = {url: $("cpSuiviUrl").value.trim(), mdp: $("cpSuiviMdp").value.trim()};
-    await Store.set("coach_perso_suivi", CP.suivi);
+    await Store.set(K("coach_perso_suivi"), CP.suivi);
     b.textContent = "Connexion…";
     await chargeSuivi(true); apres();
   };
@@ -2755,7 +2813,7 @@ function rendCoaching(phaseOuverte){
   el.innerHTML = h;
   $("cpCoRetour").onclick = accueil;
   brancheFormulaireSuivi(() => rendCoaching());
-  el.querySelectorAll("[data-coach]").forEach(b => b.onclick = () => { CP.qui = b.dataset.coach; CP.regl._qui = CP.qui; sauve(); rendCoaching(phaseOuverte); });
+  el.querySelectorAll("[data-coach]").forEach(b => b.onclick = () => { CP.qui = b.dataset.coach; sauve(); rendCoaching(phaseOuverte); });
   el.querySelectorAll("[data-onglet]").forEach(b => b.onclick = () => { CP.onglet = b.dataset.onglet; rendCoaching(); });
   el.querySelectorAll("[data-reprendre]").forEach(b => b.onclick = () => reprend(b.dataset.reprendre));
   el.querySelectorAll("[data-relire]").forEach(b => b.onclick = () => reprend(b.dataset.relire));
@@ -2777,11 +2835,11 @@ async function entrainePhase(k, bouton){
   if(bouton){ bouton.disabled = true; bouton.textContent = "Je prépare ton prospect…"; }
   let desc = "";
   try{
-    desc = await appelCerveau(`Woidih, closer high ticket, veut s'entraîner en roleplay sur une phase précise de son call : « ${l.nom} ». Il la réussit dans ${l.taux ?? "?"} % de ses calls.
+    desc = await appelCerveau(`${nomProfil()}, ${profil().feminin ? "closeuse" : "closer"} high ticket, veut s'entraîner en roleplay sur une phase précise de son call : « ${l.nom} ». Il la réussit dans ${l.taux ?? "?"} % de ses calls.
 ${ex && ex.exercice ? "Exercice conseillé : " + ex.exercice + "\n" : ""}${rates ? "Ses vrais calls où il l'a ratée :\n" + rates + "\n" : ""}
 Écris la description du prospect qu'une IA va jouer, en 4 à 6 phrases : qui il est, son activité, sa situation en chiffres, son caractère, ce qu'il cache.
-Il doit ressembler aux prospects réels ci-dessus (même type de marché, même offre), et rendre cette phase difficile à réussir sans la rendre impossible : il ne donne l'information que si Woidih pose la bonne question et creuse.
-Termine par une phrase « Objectif de l'exercice : … » qui dit précisément ce que Woidih doit obtenir. Réponds avec la description seule, sans titre ni liste.`, {max: 600, effort: "low"});
+Il doit ressembler aux prospects réels ci-dessus (même type de marché, même offre), et rendre cette phase difficile à réussir sans la rendre impossible : il ne donne l'information que si ${nomProfil()} pose la bonne question et creuse.
+Termine par une phrase « Objectif de l'exercice : … » qui dit précisément ce que ${nomProfil()} doit obtenir. Réponds avec la description seule, sans titre ni liste.`, {max: 600, effort: "low"});
   }catch(e){ toast("Je n'ai pas pu préparer le prospect : " + e.message); }
   if(bouton){ bouton.disabled = false; bouton.textContent = "M'entraîner"; }
   if(!desc) return;
@@ -2897,7 +2955,7 @@ function systemeCoach(){
     cerveau = "### CE QUE " + c.nom.toUpperCase() + " ENSEIGNE (ses principes et ses phrases, à faire passer par ta propre réflexion, jamais à réciter)\n" +
       f.map(x => "- " + (x.situation ? x.situation + " → " : "") + "« " + x.phrase + " »" + (x.pourquoi ? " (" + x.pourquoi + ")" : "")).join("\n");
   }
-  return `Tu es ${c.k === "mix" ? "le coach personnel" : c.nom + ", le coach personnel"} de Woidih, un closer francophone qui vend en high ticket, surtout en B2B, et qui perd trop de calls. Il te parle en dehors de ses calls : pour comprendre ce qui s'est passé, et pour progresser.
+  return `Tu es ${c.k === "mix" ? "le coach personnel" : c.nom + ", le coach personnel"} de ${nomProfil()}, ${profil().desc}. ${profil().feminin ? "Elle" : "Il"} te parle en dehors de ses calls : pour comprendre ce qui s'est passé, et pour progresser.${profil().feminin ? "\nC'est une femme : tu lui parles au féminin. Dans les consignes ci-dessous, « il » désigne " + nomProfil() + "." : ""}
 
 QUI TU ES
 Tu n'es pas un assistant et tu ne fais pas de fiches. Tu es un coach humain qui le suit depuis des mois, qui connaît son métier et qui tient à ce qu'il réussisse. Tu raisonnes avec le cerveau ci-dessous : tu lis sa situation, tu reconnais ce que tu y vois, tu décides de ce qui l'aidera le plus maintenant. Tu ne récites jamais ce texte, tu ne cites pas de méthode par son nom.
@@ -2917,13 +2975,13 @@ Tu parles, tu n'écris pas : pas de listes, pas de titres, pas de gras, pas d'é
 ${maniere ? "\nTA MANIÈRE\n" + maniere + "\n" : ""}
 DEUX REPÈRES, à mettre seulement quand c'est utile, chacun seul sur une ligne à la toute fin :
 <<DEVOIR: le travail précis à faire avant votre prochain échange>>
-<<ROLEPLAY: le prospect à jouer (qui il est, sa situation, son caractère) et l'objectif précis de l'exercice pour Woidih>>
+<<ROLEPLAY: le prospect à jouer (qui il est, sa situation, son caractère) et l'objectif précis de l'exercice pour ${nomProfil()}>>
 
 ${cerveau}`;
 }
 function promptCoach(question, estQuestion){
   const c = coachCourant(), s = seance();
-  const hist = (s ? s.conv : []).slice(-24, -1).map(m => (m.role === "moi" ? (m.question ? "WOIDIH (question à côté)" : "WOIDIH") : (m.nom || "COACH").toUpperCase()) + " : " + m.txt).join("\n");
+  const hist = (s ? s.conv : []).slice(-24, -1).map(m => (m.role === "moi" ? (m.question ? nomProfil().toUpperCase() + " (question à côté)" : nomProfil().toUpperCase()) : (m.nom || "COACH").toUpperCase()) + " : " + m.txt).join("\n");
   const ouverts = devoirsOuverts().slice(-5).map(d => "  - (" + d.date + ") " + d.txt).join("\n");
   const avant = CP.seances.filter(x => x.etat === "terminee" && x.bilan && x !== s).sort((a, b) => b.maj - a.maj).slice(0, 3)
     .map(x => "  - " + jour(x.maj) + ", " + x.titre + " : " + x.bilan.slice(0, 500)).join("\n");
@@ -2936,7 +2994,7 @@ Pas de DEVOIR ni de ROLEPLAY. Termine par une seule courte phrase qui propose de
   let sv = ""; try{ sv = souvenirs(question + " " + (s && s.call ? (s.call.resume || "") : "") + (s && s.k ? " " + nomPhase(s.k) : ""), [], "b2b", 6); }catch(_){}
   return `${texteProfil()}${avant ? "\nVOS DERNIÈRES SÉANCES (leur bilan) :\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${sv}
 ${hist ? "CETTE SÉANCE JUSQU'ICI :\n" + hist + "\n" : ""}
-WOIDIH${estQuestion ? " (QUESTION DIRECTE)" : ""} : ${question}
+${nomProfil().toUpperCase()}${estQuestion ? " (QUESTION DIRECTE)" : ""} : ${question}
 ${consigneQuestion}
 Réponds-lui maintenant, en ${c.court}.`;
 }
@@ -3035,7 +3093,7 @@ function majQui(){
 /* changer de coach = une nouvelle conversation ; l'ancienne t'attend dans « À reprendre » */
 $("cpQui").onchange = () => {
   const avant = seance(), avantQui = avant ? avant.qui : CP.qui;
-  CP.qui = $("cpQui").value; CP.regl._qui = CP.qui;
+  CP.qui = $("cpQui").value;
   if(!avant || avantQui === CP.qui){ sauve(); rendAvatar(); majVoixChoix(); return; }
   arreteVoix();
   if(!avant.conv.some(m => m.role === "moi")){
@@ -3088,22 +3146,18 @@ $("cpMoi").addEventListener("keydown", e => { if(e.key === "Enter" && (e.ctrlKey
    --------------------------------------------------------------------- */
 accueilEl.innerHTML = '<div class="cp-page"><span class="cp-marque">Closing Copilot</span></div>';
 (async () => {
-  CP.seances = (await Store.get("coach_perso_seances")) || [];
-  CP.devoirs = (await Store.get("coach_perso_devoirs")) || [];
-  CP.entrainements = (await Store.get("coach_perso_entrainements")) || [];
   CP.regl = (await Store.get("coach_perso_regl")) || {};
-  CP.qui = CP.regl._qui || "mix";
+  const pf = await Store.get("coach_perso_profils");
+  if(Array.isArray(pf)) PROFILS = PROFILS_DEFAUT.map(d => Object.assign({}, d, pf.find(x => x.id === d.id) || {}, {coachs: d.coachs}));
+  if(!PROFILS.some(p => p.id === PROFIL && p.nom)) PROFIL = "woidih";
+  await chargeProfil();
   // l'ancienne conversation unique devient une séance à reprendre
-  const vieille = await Store.get("coach_perso_conv");
+  const vieille = PROFIL === "woidih" ? await Store.get("coach_perso_conv") : null;
   if(vieille && vieille.length && !CP.seances.length){
     CP.seances.push({id: "s" + Date.now(), titre: "Questions-réponses", type: "qr", k: null, call: null, qui: CP.qui, conv: vieille,
                      etat: "en_cours", debut: vieille[0].t || Date.now(), maj: vieille[vieille.length - 1].t || Date.now(), texte: ""});
     sauve(); Store.set("coach_perso_conv", []);
   }
-  const s = (await Store.get("coach_perso_suivi")) || {};
-  let defaut = "";
-  try{ defaut = srvCopilote().replace(/\/copilot\/?$/, "") + "/suivi"; }catch(_){}
-  CP.suivi = {url: s.url || defaut, mdp: s.mdp || ""};
   try{ if(typeof chargeReglagesVoix === "function" && !CLE_VOIX) await chargeReglagesVoix(); }catch(_){}
   rendAccueil();
   await chargeSuivi();
