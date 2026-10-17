@@ -17,7 +17,7 @@ CRED=BASE/"credentials.json"; ACC=STORE/"gmail_accounts.json"
 WA_JSON=STORE/"whatsapp.json"; LINKS_JSON=STORE/"links.json"; FILES_JSON=STORE/"files.json"
 SCOPES=["https://www.googleapis.com/auth/gmail.readonly"]
 REDIRECT="http://127.0.0.1:8000/auth/gmail/callback"
-VERSION="2.9-classement"
+VERSION="3.0"
 GMAIL_FETCH_LIMIT=50
 FLOWS={}
 
@@ -46,7 +46,29 @@ def load_accounts(): return loadj(ACC,[])
 def save_accounts(x): atomic_json(ACC,x)
 def load_files(): return loadj(FILES_JSON,[])
 def save_files(x): atomic_json(FILES_JSON,x)
-def load_wa(): return loadj(WA_JSON,[])
+def wa_date(d,t=""):
+    # Export WhatsApp FR : jj/mm/aa(aa) hh:mm(:ss) -> ISO, comme Gmail, pour trier et classer
+    try:
+        j,m,a=(int(x) for x in d.split("/")); a+=2000 if a<100 else 0
+        h,mi,*sec=(int(x) for x in (t or "0:0").split(":"))
+        return datetime(a,m,j,h,mi,sec[0] if sec else 0).isoformat()
+    except:return ""
+def wa_file_date(name,msgs):
+    # IMG-20240311-WA0003.jpg -> date dans le nom ; sinon le message qui cite le fichier
+    z=re.search(r"(20\d{2})(\d{2})(\d{2})",name)
+    if z:
+        try:return datetime(*map(int,z.groups())).isoformat()
+        except:pass
+    return next((x["date"] for x in msgs if name in x.get("text","")),"")
+def wa_id(x): return hid("wa",x.get("conversation",""),x.get("date",""),x.get("sender",""),x.get("text",""))
+def load_wa():
+    xs=loadj(WA_JSON,[]); changed=False
+    for x in xs:
+        if x.get("date") and not re.match(r"\d{4}-",x["date"]):
+            d,_,t=x["date"].partition(" "); iso=wa_date(d,t)
+            if iso: x["date"]=iso; changed=True
+    if changed: save_wa(xs)
+    return xs
 def save_wa(x): atomic_json(WA_JSON,x)
 def load_links(): return loadj(LINKS_JSON,[])
 def save_links(x): atomic_json(LINKS_JSON,x)
@@ -107,17 +129,19 @@ def add_link(source,url,text,date,sender,account_id="",account_email=""):
 def extract_links(text,source,date,sender,account_id="",account_email=""):
     for u in re.findall(r'https?://[^\s<>"\]\)]+',text or ""): add_link(source,u.rstrip(".,;:!?)]}>\"'"),text,date,sender,account_id,account_email)
 def parse_wa(text,conv):
-    xs=load_wa(); pat=re.compile(r"^\[?(\d{1,2}/\d{1,2}/\d{2,4}),\s*(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*-\s*([^:]+):\s?(.*)$"); cur=None
+    xs=load_wa(); seen={wa_id(x) for x in xs}; pat=re.compile(r"^\[?(\d{1,2}/\d{1,2}/\d{2,4}),\s*(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*-\s*([^:]+):\s?(.*)$"); cur=None; new=[]
     def add(c):
-        c={**c,"source":"WhatsApp","conversation":conv}; xs.append(c); extract_links(c["text"],"WhatsApp",c["date"],c["sender"])
+        c={**c,"source":"WhatsApp","conversation":conv}; k=wa_id(c)
+        if k in seen: return
+        seen.add(k); xs.append(c); new.append(c); extract_links(c["text"],"WhatsApp",c["date"],c["sender"])
     for line in text.splitlines():
         z=pat.match(line)
         if z:
             if cur:add(cur)
-            d,t,s,b=z.groups(); cur={"date":d+" "+t,"sender":s,"text":b}
+            d,t,s,b=z.groups(); cur={"date":wa_date(d,t) or d+" "+t,"sender":s,"text":b}
         elif cur: cur["text"]+="\n"+line
     if cur:add(cur)
-    save_wa(xs)
+    save_wa(xs); return new
 def fetch_gmail(a,query="",limit=GMAIL_FETCH_LIMIT):
     s=service(a); cache={e["gmail_id"]:e for e in a.setdefault("emails",[])}
     res=s.users().messages().list(userId="me",q=query or None,maxResults=limit).execute(); new=0
@@ -175,11 +199,15 @@ async def import_whatsapp(file:UploadFile=File(...)):
     if zipfile.is_zipfile(p):
         out=d/"export"; out.mkdir()
         with zipfile.ZipFile(p) as z:z.extractall(out)
-        for t in out.rglob("*.txt"):parse_wa(t.read_text(encoding="utf-8-sig",errors="ignore"),p.stem)
+        msgs=[]
+        for t in out.rglob("*.txt"):msgs+=parse_wa(t.read_text(encoding="utf-8-sig",errors="ignore"),p.stem)
+        known=[x for x in load_wa() if x.get("conversation")==p.stem]
         for x in out.rglob("*"):
             if x.is_file() and x.suffix.lower() not in (".txt",".json",".html"):
-                q=organized_path(x.name,"","WhatsApp",conversation=p.stem); shutil.copy2(x,q); add_file(q,"WhatsApp",conversation=p.stem,original_name=x.name)
-    return {"ok":True}
+                d=wa_file_date(x.name,known)
+                q=organized_path(x.name,d,"WhatsApp",conversation=p.stem); shutil.copy2(x,q); add_file(q,"WhatsApp",date=d,conversation=p.stem,original_name=x.name)
+        return {"ok":True,"messages":len(msgs)}
+    return {"ok":True,"messages":0}
 @app.get("/api/search")
 def search(q:str="",source:str="",kind:str="",live:bool=True):
     raw=q.strip(); toks=re.findall(r"[a-z0-9_-]{2,}",norm(raw)); pdf="pdf" in toks; fathom=("fathom" in toks or "fatom" in toks); rest=[t for t in toks if t not in ("pdf","fathom","fatom")]
@@ -188,12 +216,7 @@ def search(q:str="",source:str="",kind:str="",live:bool=True):
         for a in load_accounts():
             try:fetch_gmail(a,gq)
             except:pass
-    pool=[]
-    for a in load_accounts():
-        pool += [{**e,"kind":"mail"} for e in a.get("emails",[])]
-    pool += [{**x,"kind":"message"} for x in load_wa()]
-    pool += [{**x,"kind":"lien"} for x in load_links()]
-    pool += [{**x,"kind":"fichier","file_id":x["id"]} for x in load_files() if Path(x["path"]).exists()]
+    pool=all_items()+[{**x,"kind":"lien"} for x in load_links()]
     if pdf: pool=[x for x in pool if x["kind"]=="fichier" and x.get("filename","").lower().endswith(".pdf")]
     if fathom: pool=[x for x in pool if "fathom" in norm(x.get("url",""))]
     if source: pool=[x for x in pool if norm(x.get("source",""))==norm(source)]
@@ -202,6 +225,34 @@ def search(q:str="",source:str="",kind:str="",live:bool=True):
     out=[x for x in pool if all(t in norm(" ".join(str(x.get(k,"")) for k in keys)) for t in rest)]
     out.sort(key=lambda x:x.get("date",""),reverse=True)
     return {"count":len(out),"results":out[:400]}
+def person_of(x):
+    # Gmail : "Nom <mail>" -> clé = mail ; WhatsApp : nom affiché ; fichier WhatsApp : conversation
+    raw=x.get("sender","") or re.sub(r"^(Discussion WhatsApp avec|WhatsApp Chat with|WhatsApp Chat -)\s*","",x.get("conversation",""),flags=re.I)
+    m=re.match(r'\s*"?([^"<]*?)"?\s*<([^>]+)>',raw)
+    name,key=(m.group(1).strip() or m.group(2),m.group(2).lower()) if m else (raw.strip(),norm(raw).strip())
+    return (key,name) if key else (None,None)
+def all_items():
+    pool=[]
+    for a in load_accounts(): pool += [{**e,"kind":"mail"} for e in a.get("emails",[])]
+    pool += [{**x,"kind":"message"} for x in load_wa()]
+    pool += [{**x,"kind":"fichier","file_id":x["id"]} for x in load_files() if Path(x["path"]).exists()]
+    return pool
+@app.get("/api/people")
+def people(q:str=""):
+    ps={}
+    for x in all_items():
+        k,n=person_of(x)
+        if not k: continue
+        p=ps.setdefault(k,{"key":k,"name":n,"count":0,"last":"","sources":set()})
+        p["count"]+=1; p["sources"].add(x.get("source","")); p["last"]=max(p["last"],x.get("date",""))
+    out=[{**p,"sources":sorted(p["sources"])} for p in ps.values() if all(t in norm(p["name"]+" "+p["key"]) for t in norm(q).split())]
+    out.sort(key=lambda p:(p["count"],p["last"]),reverse=True)
+    return {"count":len(out),"people":out[:300]}
+@app.get("/api/person")
+def person(key:str):
+    xs=[x for x in all_items() if person_of(x)[0]==key]
+    xs.sort(key=lambda x:x.get("date",""),reverse=True)
+    return {"key":key,"name":person_of(xs[0])[1] if xs else key,"count":len(xs),"results":xs[:400]}
 @app.get("/api/file/{file_id}")
 def get_file(file_id:str,download:bool=False):
     x=next((z for z in load_files() if z["id"]==file_id),None)
