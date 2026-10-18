@@ -93,7 +93,7 @@ main{padding-block:16px calc(var(--nav-h) + 28px + env(safe-area-inset-bottom,0p
 /* Barre d'onglets */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);
   padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
-nav.tabs .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);height:var(--nav-h)}
+nav.tabs .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);height:var(--nav-h)}
 nav.tabs button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--muted)}
 nav.tabs button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 nav.tabs button[aria-current=page]{color:var(--leaf)}
@@ -169,6 +169,15 @@ nav.tabs button[aria-current=page]{color:var(--leaf)}
 .alt{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 10px;text-align:left}
 .alt svg{width:52px;height:52px}
 .alt .c{color:var(--squash);font-weight:700;font-variant-numeric:tabular-nums}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 14px;border-top:1px solid var(--line)}
+.srow .nm small{display:block;color:var(--muted);font-size:12px}
+.srow.has .nm{font-weight:600}
+.qty{display:flex;align-items:center;gap:6px}
+.qty button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface);font-size:18px;font-weight:700;line-height:1}
+.qty span{min-width:58px;text-align:center;font-size:13.5px;font-variant-numeric:tabular-nums}
+.srow.has .qty span{color:var(--leaf);font-weight:700}
+.qty button:disabled{opacity:.35;cursor:default}
+.saving{background:var(--leaf-soft);color:var(--leaf);border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600}
 .plate-rim{fill:var(--plate)} .plate-edge{fill:none;stroke:var(--plate-line);stroke-width:1}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + 16px + env(safe-area-inset-bottom,0px));z-index:50;background:var(--ink);color:var(--bg);border-radius:999px;padding:9px 16px;font-size:14px;font-weight:600}
 .foot{font-size:12px;color:var(--muted)}
@@ -436,7 +445,8 @@ const PROFIL_DEFAUT = {prenom:"",region:"fr",magasin:"lidl",marche:false,allergi
 const K = "vc_app_v1";
 function load(){ try{ return JSON.parse(localStorage.getItem(K)||"null"); }catch(e){ return null; } }
 function persist(){ try{ localStorage.setItem(K,JSON.stringify(ST)); }catch(e){} }
-let ST = load() || {profil:null, plan:null, coches:[], onglet:"semaine", jour:null, filtre:"tous"};
+let ST = load() || {profil:null, plan:null, coches:[], onglet:"semaine", jour:null, filtre:"tous", stock:{}};
+if(!ST.stock) ST.stock={};
 
 /* ================= Calculs ================= */
 const $ = id => document.getElementById(id);
@@ -471,10 +481,13 @@ function permis(r,P,I){
 }
 function pools(P){ const I=interdits(P); const f=s=>R.filter(r=>r.slot===s && permis(r,P,I)); return {matin:f("matin"),repas:f("repas"),encas:f("encas")}; }
 const SLOTS=["matin","midi","soir","encas"];
-function ticket(days,P){
+/* Ce qu'on a déjà (onglet Chez moi) est retiré des achats : l'optimiseur préfère donc les plats qui l'utilisent. */
+function ticket(days,P,stock){
+  stock=stock||ST.stock||{};
   const use={};
   days.forEach(d=>SLOTS.forEach(k=>{ const r=RID[d[k]]; if(r) r.ing.forEach(([id,q])=>use[id]=(use[id]||0)+q*P.personnes); }));
-  const rows=Object.keys(use).map(id=>{ const g=ING[id]; const packs=Math.max(1,Math.ceil(use[id]/g.size-1e-9)); return {id,used:use[id],packs,cost:packs*price(id,P)}; });
+  const rows=Object.keys(use).map(id=>{ const g=ING[id], have=stock[id]||0, need=Math.max(0,use[id]-have);
+    const packs=need>1e-9?Math.ceil(need/g.size-1e-9):0; return {id,used:use[id],have,packs,cost:packs*price(id,P)}; });
   return {rows,total:rows.reduce((s,r)=>s+r.cost,0)};
 }
 /* Pas plus de 12 œufs par personne et par semaine : l'optimiseur de prix en mettrait partout. */
@@ -534,7 +547,7 @@ function planValide(){
 const JOURS=["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
 const SLOT_NOM={matin:"Matin",midi:"Midi",soir:"Soir",encas:"En-cas"};
 function qtyTxt(id,q){ const g=ING[id]; const n=Math.round(q*100)/100;
-  if(g.u==="g") return Math.round(q)+" g"; if(g.u==="ml") return Math.round(q)+" ml";
+  if(g.u==="g") return q>=1000?String(Math.round(q/100)/10).replace(".",",")+" kg":Math.round(q)+" g"; if(g.u==="ml") return Math.round(q)+" ml";
   if(g.u==="bt") return n===0.5?"½ boîte":(String(n).replace(".",",")+(n>1?" boîtes":" boîte"));
   if(g.u==="tr") return n+(n>1?" tranches":" tranche"); return String(n).replace(".",","); }
 function toast(t){ const el=$("toast"); el.textContent=t; el.hidden=false; clearTimeout(toast.h); toast.h=setTimeout(()=>el.hidden=true,2200); }
@@ -542,7 +555,8 @@ const ICONES={
   semaine:'<svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>',
   courses:'<svg viewBox="0 0 24 24"><path d="M3 4h2.5l2.2 11h10.6l2-8H7"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg>',
   plats:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></svg>',
-  profil:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4"/><path d="M4 20.5c1.4-3.6 4.4-5.5 8-5.5s6.6 1.9 8 5.5"/></svg>'
+  profil:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4"/><path d="M4 20.5c1.4-3.6 4.4-5.5 8-5.5s6.6 1.9 8 5.5"/></svg>',
+  stock:'<svg viewBox="0 0 24 24"><rect x="5.5" y="2.5" width="13" height="19" rx="2.5"/><path d="M5.5 9.5h13M8.5 5.5v2M8.5 12.5v3"/></svg>'
 };
 
 /* ================= Formulaire de profil (onboarding et onglet Profil) ================= */
@@ -628,10 +642,10 @@ function renderApp(){
       (tk?'<span class="pill num'+(over?" over":"")+'">'+eur(tk.total)+' / '+P.budget+' €</span>':"")+'</div></header>'+
     '<main class="page" id="view"></main>'+
     '<nav class="tabs" aria-label="Sections"><div class="in">'+
-      [["semaine","Semaine"],["courses","Courses"],["plats","Plats"],["profil","Profil"]].map(([v,n])=>
+      [["semaine","Semaine"],["stock","Chez moi"],["courses","Courses"],["plats","Plats"],["profil","Profil"]].map(([v,n])=>
         '<button type="button" data-tab="'+v+'"'+(ST.onglet===v?' aria-current="page"':"")+'>'+ICONES[v]+n+'</button>').join("")+'</div></nav>';
   document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{ST.onglet=b.dataset.tab;persist();renderApp();window.scrollTo(0,0);});
-  ({semaine:vueSemaine,courses:vueCourses,plats:vuePlats,profil:vueProfil})[ST.onglet]($("view"),P,tk);
+  ({semaine:vueSemaine,stock:vueStock,courses:vueCourses,plats:vuePlats,profil:vueProfil})[ST.onglet]($("view"),P,tk);
 }
 
 function carteRepas(k,id,P){
@@ -689,31 +703,84 @@ function vueCourses(v,P,tk){
   if(!tk){ v.innerHTML='<div class="banner">'+esc(ST.plan.err)+'</div>'; return; }
   const se=saison(P.region,MOIS_COURANT);
   const coches=new Set(ST.coches);
-  const parRayon={}; tk.rows.forEach(r=>{(parRayon[RAYON[r.id]]=parRayon[RAYON[r.id]]||[]).push(r);});
+  const achats=tk.rows.filter(r=>r.packs>0), dispo=tk.rows.filter(r=>r.packs===0);
+  const parRayon={}; achats.forEach(r=>{(parRayon[RAYON[r.id]]=parRayon[RAYON[r.id]]||[]).push(r);});
+  const sansStock=ticket(ST.plan.days,P,{}).total, eco=sansStock-tk.total;
   const libelle=r=>{ const g=ING[r.id];
     if(r.id==="fruit") return [Math.ceil(r.used)+" fruits de saison","ex. "+se.fruits.slice(0,3).join(", ")];
     if(r.id==="leg") return [String(r.packs*0.5).replace(".",",")+" kg de légumes de saison","ex. "+se.legs.slice(0,3).join(", ")];
-    const left=r.packs*g.size-r.used;
+    const left=r.packs*g.size+r.have-r.used;
     return [(r.packs>1?r.packs+" × ":"")+g.n+" ("+g.pk+")", left>0.001?"il t'en restera "+(g.u==="g"||g.u==="ml"?Math.round(left)+" "+g.u:String(Math.round(left*10)/10).replace(".",",")):""]; };
-  const reste=tk.rows.filter(r=>!coches.has(r.id)).reduce((s,r)=>s+r.cost,0);
+  const reste=achats.filter(r=>!coches.has(r.id)).reduce((s,r)=>s+r.cost,0);
   const mag=magasin(P)[1];
   v.innerHTML=
     '<div class="totalbar"><div><h2>Courses de la semaine</h2><span class="muted">Chez '+esc(mag)+(P.marche?", fruits et légumes au marché":"")+'</span></div>'+
       '<div style="text-align:right"><b class="num">'+eur(tk.total)+'</b><br><span class="muted num" style="font-size:12.5px">reste à prendre : '+eur(reste)+'</span></div></div>'+
+    (eco>0.01?'<div class="saving">Grâce à ce que tu as déjà, tu économises '+eur(eco)+' cette semaine.</div>':
+      '<p class="hint">Astuce : note ce que tu as déjà dans l\'onglet <b>Chez moi</b>, ça le retire de la liste.</p>')+
+    (achats.length?"":'<div class="saving">Tu as déjà tout ce qu\'il faut pour la semaine. Pas de courses !</div>')+
     RAYONS.filter(n=>parRayon[n]).map(n=>'<div class="group"><h3>'+n+'</h3>'+parRayon[n].map(r=>{ const [a,b]=libelle(r); const on=coches.has(r.id);
       return '<label class="item'+(on?" done":"")+'"><input type="checkbox" data-coche="'+r.id+'"'+(on?" checked":"")+'><span class="nm">'+esc(a)+(b?'<small>'+esc(b)+'</small>':"")+'</span><span class="pr num">'+eur(r.cost)+'</span></label>'; }).join("")+'</div>').join("")+
+    (dispo.length?'<div class="card"><h3>Déjà chez toi</h3><p class="muted">'+dispo.map(r=>esc(r.id==="fruit"?"fruits de saison":r.id==="leg"?"légumes de saison":ING[r.id].n)).join(", ")+'</p></div>':"")+
     '<div class="card"><h3>Au placard (pas compté)</h3><p class="muted">Huile, vinaigre, moutarde, sel, poivre, épices (curry, paprika, cumin, herbes)'+(P.allergies.includes("soja")?"":", sauce soja")+'.</p></div>'+
     '<div class="card"><h3>De saison en '+MOIS[MOIS_COURANT]+'</h3><span class="lbl">Fruits</span><div class="season">'+se.fruits.map(f=>"<span>"+esc(f)+"</span>").join("")+'</div>'+
       '<span class="lbl">Légumes</span><div class="season">'+se.legs.map(f=>"<span>"+esc(f)+"</span>").join("")+'</div></div>'+
-    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn dark" id="copier">Copier la liste</button><button type="button" class="btn ghost" id="decocher">Tout décocher</button></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+(achats.length?'<button type="button" class="btn" id="ranger">J\'ai fait les courses</button>':"")+
+      '<button type="button" class="btn dark" id="copier">Copier la liste</button><button type="button" class="btn ghost" id="decocher">Tout décocher</button></div>'+
+    (achats.length?'<p class="hint">« J\'ai fait les courses » range ce que tu as coché (ou toute la liste si rien n\'est coché) dans Chez moi.</p>':"")+
     '<p class="foot">Prix indicatifs, ajustés à peu près à ton magasin'+(P.region==="re"?" et à La Réunion (produits importés majorés d'environ 30 %)":"")+'. Vérifie en rayon.</p>';
   v.querySelectorAll("[data-coche]").forEach(c=>c.onchange=()=>{ const id=c.dataset.coche; const s=new Set(ST.coches); c.checked?s.add(id):s.delete(id); ST.coches=[...s]; persist(); vueCourses(v,P,tk); });
   $("decocher").onclick=()=>{ST.coches=[];persist();vueCourses(v,P,tk);};
+  if($("ranger")) $("ranger").onclick=()=>{
+    const pris=achats.filter(r=>coches.size?coches.has(r.id):true);
+    pris.forEach(r=>{ ST.stock[r.id]=(ST.stock[r.id]||0)+r.packs*ING[r.id].size; });
+    ST.coches=[]; persist(); renderApp(); toast(pris.length+" produit"+(pris.length>1?"s rangés":" rangé")+" dans Chez moi.");
+  };
   $("copier").onclick=()=>{
     const txt="Courses Vite & Calé, "+MOIS[MOIS_COURANT]+" ("+mag+")\n"+RAYONS.filter(n=>parRayon[n]).map(n=>"\n"+n.toUpperCase()+"\n"+parRayon[n].map(r=>"- "+libelle(r)[0]).join("\n")).join("\n")+"\n\nTotal estimé : "+eur(tk.total);
     navigator.clipboard.writeText(txt).then(()=>toast("Liste copiée."),()=>toast("Copie refusée par l'appareil."));
   };
 }
+
+/* ================= Chez moi : frigo, congélateur, placard ================= */
+const LIEUX=[["Frigo",["oeuf","lait","fb","yaourt","fromage","jambon"]],["Congélateur",["surg","poulet","steak"]],
+  ["Placard",["pates","riz","semoule","avoine","lcorail","lbocal","pchiche","hrouge","tomate","coco","thon","maq","soupe","noix","tortilla","pain"]],
+  ["Fruits et légumes",["banane","pdt","patate","fruit","leg"]]];
+function pas(id){ const g=ING[id]; if(g.u==="g"||g.u==="ml") return g.size>=1000?g.size/4:g.size/2; if(id==="oeuf"||id==="pain") return 2; return 1; }
+function stockTxt(id,q){ const g=ING[id]; if(!q) return "0";
+  if(g.u==="pc") return String(q)+(id==="fruit"?" fruit"+(q>1?"s":""):id==="oeuf"?" œuf"+(q>1?"s":""):"");
+  return qtyTxt(id,q); }
+function manques(r,P){ return r.ing.filter(([id,q])=>q*P.personnes>(ST.stock[id]||0)+1e-9).map(([id])=>id); }
+function nomCourt(id){ return id==="fruit"?"un fruit de saison":id==="leg"?"des crudités":ING[id].n.toLowerCase(); }
+function vueStock(v,P){
+  const I=interdits(P);
+  const nb=Object.keys(ST.stock).filter(k=>ST.stock[k]>0).length;
+  const perm=R.filter(r=>permis(r,P,I));
+  const prets=perm.filter(r=>manques(r,P).length===0), presque=perm.filter(r=>manques(r,P).length===1);
+  const ligneRecette=(r,txt)=>'<button type="button" class="alt" data-open="'+r.id+'">'+plateSVG(r.id)+'<span><b>'+esc(r.n)+'</b><br><span class="muted" style="font-size:12.5px">'+esc(txt)+'</span></span><span class="c">'+eur(mealCost(r,P))+'</span></button>';
+  v.innerHTML='<div><h2>Chez moi</h2><p class="muted" style="font-size:13.5px">Note ce que tu as déjà. La liste de courses le retire, et ta prochaine semaine l\'utilisera en priorité.</p></div>'+
+    (nb?'<div class="card"><h3>Ce que tu peux cuisiner maintenant</h3>'+
+      (prets.length?prets.map(r=>ligneRecette(r,"Tout est là"+(P.personnes>1?" pour "+P.personnes:""))).join(""):'<p class="muted">Pas encore de plat complet avec ce que tu as.</p>')+
+      (presque.length?'<span class="lbl" style="margin-top:6px">Il manque une seule chose</span>'+presque.slice(0,6).map(r=>ligneRecette(r,"Il manque : "+nomCourt(manques(r,P)[0]))).join(""):"")+
+      '</div><button type="button" class="btn dark" id="refaire">Refaire ma semaine avec ce que j\'ai</button>':"")+
+    LIEUX.map(([lieu,ids])=>{ const vis=ids.filter(id=>!I.ing.has(id));
+      return '<div class="group"><h3>'+lieu+'</h3>'+vis.map(id=>{ const q=ST.stock[id]||0; const g=ING[id];
+        const nom=id==="fruit"?"Fruits":id==="leg"?"Légumes à croquer":g.n;
+        return '<div class="srow'+(q?" has":"")+'"><span class="nm">'+esc(nom)+'<small>'+esc(g.kind==="saison"?"de saison":"vendu en "+g.pk)+'</small></span>'+
+          '<span class="qty"><button type="button" data-moins="'+id+'" aria-label="Moins de '+esc(nom)+'"'+(q?"":" disabled")+'>−</button><span>'+esc(stockTxt(id,q))+'</span>'+
+          '<button type="button" data-plus="'+id+'" aria-label="Plus de '+esc(nom)+'">+</button></span></div>'; }).join("")+'</div>'; }).join("")+
+    (nb?'<button type="button" class="btn ghost" id="vider">Vider Chez moi</button>':"")+
+    '<p class="foot">Huile, sel, épices et autres basiques du placard sont considérés comme toujours présents.</p>';
+  v.querySelectorAll("[data-plus]").forEach(b=>b.onclick=()=>{ const id=b.dataset.plus; ST.stock[id]=(ST.stock[id]||0)+pas(id); persist(); vueStock(v,P); majPill(); });
+  v.querySelectorAll("[data-moins]").forEach(b=>b.onclick=()=>{ const id=b.dataset.moins; ST.stock[id]=Math.max(0,(ST.stock[id]||0)-pas(id)); if(!ST.stock[id]) delete ST.stock[id]; persist(); vueStock(v,P); majPill(); });
+  v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>ficheRecette(b.dataset.open,null));
+  if($("refaire")) $("refaire").onclick=()=>{ nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Semaine refaite avec ce que tu as."); };
+  let arm=false;
+  if($("vider")) $("vider").onclick=()=>{ if(!arm){ arm=true; $("vider").textContent="Toucher encore pour tout vider"; return; } ST.stock={}; persist(); vueStock(v,P); majPill(); };
+}
+/* Le total en haut suit le stock sans tout redessiner. */
+function majPill(){ const el=document.querySelector(".top .pill"); if(!el||!ST.plan||!ST.plan.days) return;
+  const t=ticket(ST.plan.days,ST.profil).total; el.textContent=eur(t)+" / "+ST.profil.budget+" €"; el.classList.toggle("over",t>ST.profil.budget); }
 
 function vuePlats(v,P){
   const I=interdits(P);
@@ -744,7 +811,7 @@ function vueProfil(v){
     $("save").onclick=()=>{ ST.profil=draft; nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Profil enregistré, nouvelle semaine prête."); };
     let arm=false;
     $("reset").onclick=()=>{ if(!arm){ arm=true; $("reset").textContent="Toucher encore pour tout effacer"; return; }
-      ST={profil:null,plan:null,coches:[],onglet:"semaine",jour:null,filtre:"tous"}; persist(); demarrer(); };
+      ST={profil:null,plan:null,coches:[],onglet:"semaine",jour:null,filtre:"tous",stock:{}}; persist(); demarrer(); };
   };
   draw();
 }
@@ -776,8 +843,13 @@ function ficheRecette(id,slot){
       '<div><b class="num">'+r.kcal+'</b><span>kcal</span></div><div><b class="num">'+(r.t||0)+' min</b><span>'+esc(r.cook==="aucune"?"sans cuisson":r.cook)+'</span></div></div>'+
     '<div class="card"><h3>Ingrédients'+(P.personnes>1?" pour "+P.personnes:"")+'</h3><ul>'+ing+'</ul></div>'+
     '<div class="card"><h3>Comment faire</h3><ol>'+r.steps.map(s=>"<li>"+esc(s)+"</li>").join("")+'</ol></div>'+
-    (slot?'<button type="button" class="btn dark" id="goSwap">Changer ce plat</button>':""),
-    s=>{ const b=s.querySelector("#goSwap"); if(b) b.onclick=()=>ficheEchange(slot); });
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="cuisine">J\'ai cuisiné ce plat</button>'+
+      (slot?'<button type="button" class="btn dark" id="goSwap">Changer ce plat</button>':"")+'</div>'+
+    '<p class="hint">« J\'ai cuisiné ce plat » retire les ingrédients de Chez moi.</p>',
+    s=>{ const b=s.querySelector("#goSwap"); if(b) b.onclick=()=>ficheEchange(slot);
+      s.querySelector("#cuisine").onclick=()=>{ let n=0;
+        r.ing.forEach(([i,q])=>{ if(ST.stock[i]){ n++; ST.stock[i]=Math.max(0,ST.stock[i]-q*P.personnes); if(ST.stock[i]<1e-6) delete ST.stock[i]; } });
+        persist(); fermerPanneau(); renderApp(); toast(n?"Ingrédients retirés de Chez moi.":"Rien à retirer : ces ingrédients ne sont pas notés dans Chez moi."); }; });
 }
 function ficheEchange(slot){
   const P=ST.profil, d=ST.plan.days[ST.jour], cur=d[slot];
