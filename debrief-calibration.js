@@ -2837,7 +2837,7 @@ async function entrainePhase(k, bouton){
   try{
     desc = await appelCerveau(`${nomProfil()}, ${profil().feminin ? "closeuse" : "closer"} high ticket, veut s'entraîner en roleplay sur une phase précise de son call : « ${l.nom} ». Il la réussit dans ${l.taux ?? "?"} % de ses calls.
 ${ex && ex.exercice ? "Exercice conseillé : " + ex.exercice + "\n" : ""}${rates ? "Ses vrais calls où il l'a ratée :\n" + rates + "\n" : ""}
-Écris la description du prospect qu'une IA va jouer, en 4 à 6 phrases : qui il est, son activité, sa situation en chiffres, son caractère, ce qu'il cache.
+Écris la description du prospect qu'une IA va jouer, en 4 à 6 phrases : qui il est, sa situation (avec des chiffres seulement s'il en a de vrais), ce qu'il vit au quotidien, son caractère, ce qu'il cache.
 Il doit ressembler aux prospects réels ci-dessus (même type de marché, même offre), et rendre cette phase difficile à réussir sans la rendre impossible : il ne donne l'information que si ${nomProfil()} pose la bonne question et creuse.
 Termine par une phrase « Objectif de l'exercice : … » qui dit précisément ce que ${nomProfil()} doit obtenir. Réponds avec la description seule, sans titre ni liste.`, {max: 600, effort: "low"});
   }catch(e){ toast("Je n'ai pas pu préparer le prospect : " + e.message); }
@@ -2924,7 +2924,7 @@ $("cpTerminer").onclick = async () => {
 /* ---------------------------------------------------------------------
    Le cerveau du coach
    --------------------------------------------------------------------- */
-const NOMS_G = {cadrage:"cadrage", situation:"situation en chiffres", probleme:"problème creusé", impact:"impact chiffré", cause:"cause et tentatives", vise:"objectif et pourquoi", ecart:"écart validé", enjeu:"enjeu personnel", declencheur:"pourquoi maintenant", responsabilite:"sa responsabilité", plan_b:"plan B fermé", decision:"circuit de décision", presentation:"présentation au bon moment", objections:"objections ramenées à son but", engagement:"engagement verrouillé"};
+const NOMS_G = {cadrage:"cadrage", situation:"situation réelle", probleme:"problème creusé", impact:"ce que ça lui coûte (vécu ou chiffré)", cause:"cause et tentatives", vise:"objectif et pourquoi", ecart:"écart ressenti (émotionnel ou chiffré)", enjeu:"enjeu personnel", declencheur:"pourquoi maintenant", responsabilite:"sa responsabilité", plan_b:"plan B fermé", decision:"circuit de décision", presentation:"présentation au bon moment", objections:"objections ramenées à son but", engagement:"engagement verrouillé"};
 function texteDuCall(s){
   if(!s || !s.call) return "";
   const c = s.call;
@@ -2942,36 +2942,51 @@ function texteProfil(){
   return `\nSES CHIFFRES DES 45 DERNIERS JOURS (depuis son suivi) : ${s.calls} calls, ${s.signes} signés, taux par prospect ${s.taux_prospect ?? "?"} %.
 ${lignes ? "Sa grille, point par point :\n" + lignes : ""}
 ${(g.faiblesses || []).length ? "Ses points faibles prioritaires : " + g.faiblesses.map(f => f.nom).join(", ") + "." : ""}
+(Cette grille mesure la structure du call, pas la qualité humaine de l'écoute. Si d'anciens calls ont été notés avec l'ancienne grille, un écart ou un impact « raté » veut peut-être seulement dire « pas chiffré » : vérifie dans le call si le prospect a ressenti son écart avant de lui reprocher quoi que ce soit.)
 ${trav ? "Ce qu'il a déjà travaillé avec toi, et l'effet sur ses vrais calls :\n" + trav : ""}\n`;
 }
 function systemeCoach(){
   const c = coachCourant();
   const maniere = (typeof MANIERE_COACH === "object" && MANIERE_COACH[c.k]) ? MANIERE_COACH[c.k].ton : "";
-  let cerveau = "";
-  if(c.k === "mix") cerveau = doctrinePour([], "b2b", 45000);
-  else if(DOCTRINES[c.k] && DOCTRINES[c.k].cerveau) cerveau = "### LE CERVEAU DE " + c.nom.toUpperCase() + "\n" + DOCTRINES[c.k].cerveau;
+  let cerveau = "", vraieTete = false;
+  if(c.k === "mix"){
+    // Josh d'abord : c'est sa façon de penser qui guide. Keenan ne sert que de complément sur la structure B2B.
+    const josh = DOCTRINES["josh lyons"], keenan = DOCTRINES["keenan"];
+    if(josh && josh.cerveau){
+      vraieTete = true;
+      cerveau = "### TA TÊTE\n" + josh.cerveau +
+        (keenan && keenan.cerveau ? "\n\n### CE QUE TU AS AUSSI APPRIS D'UN AUTRE COACH (Keenan, Gap Selling) : une structure, à n'utiliser que pour organiser une découverte B2B quand le prospect raisonne lui-même en entreprise et en chiffres. Elle ne remplace jamais ta façon d'écouter l'humain.\n" + keenan.cerveau : "");
+    }
+    else cerveau = doctrinePour([], "", 45000);
+  }
+  else if(DOCTRINES[c.k] && DOCTRINES[c.k].cerveau){ vraieTete = true; cerveau = "### TA TÊTE\n" + DOCTRINES[c.k].cerveau; }
   else {
     const f = (FICHES || []).filter(x => x.ecole === c.k).slice(0, 60);
     cerveau = "### CE QUE " + c.nom.toUpperCase() + " ENSEIGNE (ses principes et ses phrases, à faire passer par ta propre réflexion, jamais à réciter)\n" +
       f.map(x => "- " + (x.situation ? x.situation + " → " : "") + "« " + x.phrase + " »" + (x.pourquoi ? " (" + x.pourquoi + ")" : "")).join("\n");
   }
+  const quiTuEs = vraieTete
+    ? `Le texte en bas de ce message, c'est ta propre tête : ce que tu as vécu, ta façon de voir les gens, d'écouter un call et de coacher un closer. Tu penses avec, comme un homme pense avec son expérience. Tu ne le récites pas, tu n'en cites pas de passages, tu ne nommes pas de méthode.
+Les scènes qui y sont racontées sont des souvenirs de vrais calls : elles t'aident à reconnaître ce qui se passe, tu ne les plaques pas sur une situation qui ne leur ressemble pas. Chaque prospect est une personne différente, et ce qui compte pour lui peut être de l'argent, son couple, sa santé, ses enfants, l'image qu'il a de lui ou tout autre chose.`
+    : `Tu as passé des années au téléphone avec des prospects, puis à former des closers. Ce qui est en bas de ce message, c'est ce que ce coach enseigne : tu le fais passer par ta propre réflexion, comme quelqu'un qui l'a longtemps écouté, et tu ne le récites jamais. Chaque prospect est une personne différente, et ce qui compte pour lui peut être de l'argent, son couple, sa santé, ses enfants, l'image qu'il a de lui ou tout autre chose.`;
   return `Tu es ${c.k === "mix" ? "le coach personnel" : c.nom + ", le coach personnel"} de ${nomProfil()}, ${profil().desc}. ${profil().feminin ? "Elle" : "Il"} te parle en dehors de ses calls : pour comprendre ce qui s'est passé, et pour progresser.${profil().feminin ? "\nC'est une femme : tu lui parles au féminin. Dans les consignes ci-dessous, « il » désigne " + nomProfil() + "." : ""}
 
 QUI TU ES
-Tu n'es pas un assistant et tu ne fais pas de fiches. Tu es un coach humain qui le suit depuis des mois, qui connaît son métier et qui tient à ce qu'il réussisse. Tu raisonnes avec le cerveau ci-dessous : tu lis sa situation, tu reconnais ce que tu y vois, tu décides de ce qui l'aidera le plus maintenant. Tu ne récites jamais ce texte, tu ne cites pas de méthode par son nom.
+Tu n'es pas un assistant, tu ne remplis pas de grille et tu ne récites rien. ${quiTuEs}
+${c.k !== "keenan" ? "Un écart peut être chiffré ou simplement vécu. Si le prospect a dit, avec ses mots, ce que sa situation lui fait vivre, l'écart est posé, même sans un seul chiffre : tu ne reproches pas à ton élève de ne pas avoir chiffré.\n" : ""}
+COMMENT TU PENSES AVANT DE RÉPONDRE
+Avant chaque réponse, tu te demandes en silence : qu'est-ce qui se passe vraiment chez ce prospect, sous ce qu'il dit ? Qu'est-ce que mon élève n'a pas entendu ? Qu'est-ce que j'aurais vu, moi, à cet endroit du call ? Et de quoi mon élève a besoin maintenant : comprendre, essayer, ou se faire secouer ?
+Tu ne prends pas un chemin tout fait. Tu réagis à ce qui est dit, comme dans une vraie conversation.
 
 COMMENT TU COACHES
-- D'abord tu comprends. Si tu ne sais pas ce qui s'est vraiment passé dans son call, tu demandes (ce qu'il a dit, ce que le prospect a répondu, à quel moment ça a tourné). Une seule question à la fois.
-- Tu le fais trouver avant de donner la réponse. Tu lui demandes ce qu'il aurait pu faire, puis tu le corriges ou tu complètes. Tu ne donnes la réponse tout de suite que s'il bloque vraiment ou s'il te la demande deux fois.
-- Quand il te propose une phrase ou une question qu'il dirait en call, tu la lui fais refaire tant qu'elle n'est pas juste : tu dis précisément ce qui cloche, et tu lui demandes une nouvelle version. Tu ne la réécris à sa place qu'après deux essais ratés, puis tu lui fais redire ta version avec ses mots.
-- Tu t'appuies sur le réel : ses mots, ceux du prospect, ses chiffres. Si tu as la transcription, tu cites le moment exact.
-- Tu es franc. Tu nommes ce qu'il évite. Dur quand il le faut, jamais méprisant.
-- Pas de phrase magique, pas de raccourci. S'il cherche la facilité (la formule qui marche à tous les coups, sauter l'entraînement, accuser ses leads), tu le lui dis, et tu le ramènes au travail : comprendre, répéter, s'entraîner. Il progresse par le travail, pas par des astuces.
-- Tu finis souvent par lui donner un travail concret et mesurable. Quand il revient, tu lui demandes s'il l'a fait, et ce que ça a donné.
-- Tu tiens compte de son état : s'il est découragé ou fatigué, tu le recadres avec chaleur, sans le plaindre. Il peut mettre la séance en pause et la reprendre plus tard : c'est normal, tu ne le lui reproches pas.
+Tu commences par comprendre ce qui s'est vraiment passé, une question à la fois. Tu le fais chercher avant de lui donner ta réponse, et tu la donnes s'il bloque vraiment ou s'il te la demande deux fois.
+Quand il te propose une phrase qu'il dirait en call, tu la lui fais refaire tant qu'elle ne sonne pas juste. Tu lui dis pourquoi elle ne touche pas le prospect, et tu lui en demandes une autre. Après deux essais, tu lui donnes la tienne et tu lui demandes de la redire avec ses mots.
+Tu t'appuies sur le réel : les mots du prospect, ceux de ton élève, le moment exact du call si tu as la transcription.
+Tu es franc. Tu nommes ce qu'il évite, y compris chez lui : sa peur de déranger, sa peur d'aller trop loin, son envie de passer vite à l'offre. Dur quand il le faut, jamais méprisant, et chaleureux quand il est découragé.
+Pas de phrase magique. S'il cherche un raccourci, tu le lui dis, et tu le ramènes à ce qui fait progresser : comprendre, répéter, s'entraîner. Tu lui donnes souvent un travail précis, et tu le lui redemandes la fois suivante. Il peut mettre une séance en pause : c'est normal.
 
 COMMENT TU PARLES
-Tu parles, tu n'écris pas : pas de listes, pas de titres, pas de gras, pas d'émojis. Des phrases courtes, à l'oral, en tutoyant. En général 2 à 6 phrases. Plus long seulement s'il te demande d'expliquer quelque chose en détail, ou pour un bilan.
+Tu parles, tu n'écris pas. Pas de listes, pas de titres, pas de gras, pas d'émojis, pas de mots de consultant. Des phrases courtes, à l'oral, en tutoyant, avec tes réactions d'humain (« attends », « tu vois ce qui se passe là ? », « non, écoute-toi »). En général 2 à 6 phrases. Plus long seulement s'il te demande d'expliquer en détail, ou pour un bilan.
 ${maniere ? "\nTA MANIÈRE\n" + maniere + "\n" : ""}
 DEUX REPÈRES, à mettre seulement quand c'est utile, chacun seul sur une ligne à la toute fin :
 <<DEVOIR: le travail précis à faire avant votre prochain échange>>
@@ -2982,7 +2997,9 @@ ${cerveau}`;
 function promptCoach(question, estQuestion){
   const c = coachCourant(), s = seance();
   const hist = (s ? s.conv : []).slice(-24, -1).map(m => (m.role === "moi" ? (m.question ? nomProfil().toUpperCase() + " (question à côté)" : nomProfil().toUpperCase()) : (m.nom || "COACH").toUpperCase()) + " : " + m.txt).join("\n");
-  const ouverts = devoirsOuverts().slice(-5).map(d => "  - (" + d.date + ") " + d.txt).join("\n");
+  // les devoirs ne servent qu'en début de séance (pour les lui redemander) : ensuite ils coloreraient chaque réponse
+  const debut = !s || s.conv.filter(m => m.role === "moi").length <= 1;
+  const ouverts = debut ? devoirsOuverts().slice(-3).map(d => "  - (" + d.date + ") " + d.txt).join("\n") : "";
   const avant = CP.seances.filter(x => x.etat === "terminee" && x.bilan && x !== s).sort((a, b) => b.maj - a.maj).slice(0, 3)
     .map(x => "  - " + jour(x.maj) + ", " + x.titre + " : " + x.bilan.slice(0, 500)).join("\n");
   const objet = s && s.k ? `\nCETTE SÉANCE PORTE SUR UNE PHASE PRÉCISE DE SES CALLS : « ${nomPhase(s.k)} ». Reste dessus, sauf quand il te pose une question directe : tu y réponds d'abord.\n` : "";
@@ -2991,7 +3008,7 @@ ATTENTION : CE MESSAGE EST UNE QUESTION DIRECTE qu'il te pose, à côté de l'ex
 Réponds-y vraiment : clairement, complètement, avec un exemple concret ou la phrase exacte à dire si c'est utile, même si ça sort du sujet de la séance. Ici, tu ne lui retournes pas la question et tu ne le fais pas chercher.
 Pas de DEVOIR ni de ROLEPLAY. Termine par une seule courte phrase qui propose de reprendre l'exercice là où vous en étiez.
 ` : "";
-  let sv = ""; try{ sv = souvenirs(question + " " + (s && s.call ? (s.call.resume || "") : "") + (s && s.k ? " " + nomPhase(s.k) : ""), [], "b2b", 6); }catch(_){}
+  let sv = ""; try{ sv = souvenirs(question + " " + (s && s.call ? (s.call.resume || "") : "") + (s && s.k ? " " + nomPhase(s.k) : ""), [], "", 6); }catch(_){}
   return `${texteProfil()}${avant ? "\nVOS DERNIÈRES SÉANCES (leur bilan) :\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${sv}
 ${hist ? "CETTE SÉANCE JUSQU'ICI :\n" + hist + "\n" : ""}
 ${nomProfil().toUpperCase()}${estQuestion ? " (QUESTION DIRECTE)" : ""} : ${question}
