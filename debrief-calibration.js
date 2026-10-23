@@ -559,6 +559,7 @@ Si les réglages plus bas (profil, couleur, température) contredisent sa descri
     }
     // Le coach du roleplay raisonne avec le cerveau de tes coachs, sur le modèle 5.5
     if(/Tu observes un entraînement en direct/.test(prompt)){
+      prompt = conduiteJeu(prompt);
       const marche = (SPAR && SPAR.marche) || sparMarche, seg = segmentCourant();
       const sys = doctrinePour([seg.terrain], marche);
       const recent = ((SPAR && SPAR.tours) || []).slice(-4).map(t => t.txt).join(" ");
@@ -596,6 +597,77 @@ $("btnSparGo").onclick = async function(){
   const c = $("coachCarte"), p = $("sparCarte");
   if(c && p && p.parentNode) p.parentNode.insertBefore(c, p);
 })();
+/* ---- le jeu de rôle conduit comme Josh ----
+   Une carte « où on va » au-dessus du prospect : les quatre accords qui font
+   une vente (cochés au fil du jeu par le coach), et le chrono de la découverte.
+   Le coach sait où on en est, et il t'arrête quand tu pars dans un détail
+   avant d'avoir posé le problème. */
+const ACCORDS_JEU = [["probleme", "Un problème qui le brûle"], ["desir", "Un vrai désir de le régler"], ["seul", "Il ne peut pas seul"], ["confiance", "Il croit en l'offre, et pourquoi maintenant"]];
+const minutesDeJeu = () => SPAR && SPAR.debut ? Math.max(0, Math.round((Date.now() - SPAR.debut) / 60000)) : 0;
+function conduiteJeu(prompt){
+  if(!SPAR) return prompt;
+  const acq = SPAR.jrAccords || {};
+  const obtenus = ACCORDS_JEU.filter(([k]) => acq[k] != null).map(([, n]) => n + " (vers la minute " + acq[k] + ")");
+  const bloc = `LA DESTINATION DE CETTE DÉCOUVERTE : les quatre accords qui font une vente. Un problème qui le brûle ; un vrai désir de le régler ; il admet qu'il ne peut pas le régler seul ; il croit que l'offre peut l'aider, et il sait pourquoi maintenant.
+Déjà obtenus d'après l'échange : ${obtenus.length ? obtenus.join(" ; ") : "aucun pour l'instant"}.
+Temps de jeu : ${minutesDeJeu()} minute${minutesDeJeu() > 1 ? "s" : ""}. Une découverte complète tient en général en une vingtaine de minutes : si le closer y passe beaucoup de temps sans avancer vers ces accords, c'est un coût.
+COMME JOSH EN JEU DE RÔLE : quand le closer part dans un détail (le budget, les chiffres du business, le taux de conversion, la technique du métier) avant d'avoir posé le problème et ce qu'il lui coûte, ça coûte vraiment. Il démonte un problème dont on ne sait pas encore s'il est grave, et la conversation perd sa gravité. Quand tu l'arrêtes, ta phrase « quoi » dit ce qu'on cherche à obtenir à cet endroit du call, et « pourquoi » la relie à l'accord qui manque. Le bon coup peut être de revenir quelques questions en arrière.
+
+`;
+  let p = prompt.replace("LE MOMENT TRAVAILLÉ", bloc + "LE MOMENT TRAVAILLÉ");
+  // le premier temps du coach dit aussi quels accords le prospect vient de donner
+  if(/\{"plan":"ou va ce closer/.test(p))
+    p = p.replace('{"plan":"ou va ce closer', '{"accords":{"probleme":true ou false,"desir":true ou false,"seul":true ou false,"confiance":true ou false} (vrai seulement si le prospect l a clairement donne, avec ses mots, a un moment de l echange),\n "plan":"ou va ce closer');
+  return p;
+}
+function majCarteJeu(){
+  const jeu = $("sparJeu"); if(!jeu) return;
+  let el = $("jrCarte");
+  if(!el){
+    el = document.createElement("div"); el.id = "jrCarte"; el.className = "block";
+    el.style.cssText = "border-left:2px solid var(--amber);padding-top:14px;padding-bottom:14px";
+    const rap = $("sparRappel");
+    if(rap && rap.parentNode === jeu) rap.insertAdjacentElement("afterend", el); else jeu.insertBefore(el, jeu.firstChild);
+  }
+  if(!SPAR){ el.style.display = "none"; return; }
+  el.style.display = "block";
+  const acq = SPAR.jrAccords || {}, mn = minutesDeJeu(), coach = typeof sparMode !== "undefined" && sparMode === "coach";
+  const tous = ACCORDS_JEU.every(([k]) => acq[k] != null);
+  const alerte = mn >= 20 && !tous;
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
+      <h3 style="margin:0">Où on va</h3>
+      <span style="font-size:12.5px;color:${alerte ? "var(--clay)" : "var(--muted)"}">${mn} min de jeu · une découverte tient en une vingtaine de minutes${alerte ? " : ça traîne" : ""}</span></div>
+    <p style="font-size:13px;color:var(--muted);margin:8px 0 10px">Obtenir les quatre accords qui font une vente${coach ? ". Le coach les coche quand le prospect te les donne." : ". (En mode Coaching, le coach les coche au fil du jeu.)"}</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${ACCORDS_JEU.map(([k, n]) => {
+      const ok = acq[k] != null;
+      return `<span style="font-size:12.5px;padding:4px 9px;border-radius:7px;border:1px solid ${ok ? "var(--amber)" : "var(--line)"};color:${ok ? "var(--amber)" : "var(--muted)"}">${ok ? "✓" : "○"} ${escapeHTML(n)}${ok ? " · " + acq[k] + " min" : ""}</span>`;
+    }).join("")}</div>
+    ${SPAR.jrPiste ? `<p style="font-size:12.5px;color:var(--muted);margin-top:10px">Là, tu creuses : ${escapeHTML(SPAR.jrPiste)}</p>` : ""}`;
+}
+// on récupère ce que le coach a vu à chaque tour, pour la carte
+const coachAnalyseOrigine = coachAnalyse;
+coachAnalyse = async function(m){
+  const a = await coachAnalyseOrigine(m);
+  try{
+    if(a && SPAR){
+      SPAR.jrAccords = SPAR.jrAccords || {};
+      if(a.accords && typeof a.accords === "object")
+        ACCORDS_JEU.forEach(([k]) => { if(a.accords[k] === true && SPAR.jrAccords[k] == null) SPAR.jrAccords[k] = minutesDeJeu(); });
+      if(a.piste) SPAR.jrPiste = String(a.piste).slice(0, 140);
+      majCarteJeu();
+    }
+  }catch(_){}
+  return a;
+};
+// la carte apparaît dès que le jeu démarre, et le chrono avance tout seul
+setInterval(() => { const j = $("sparJeu"); if(j && j.style.display !== "none" && SPAR) majCarteJeu(); }, 20000);
+const lancerAvecCarte = $("btnSparGo").onclick;
+$("btnSparGo").onclick = async function(){
+  const r = await lancerAvecCarte.apply(this, arguments);
+  majCarteJeu();
+  return r;
+};
+
 const coachParleOrigine = faisParlerCoach;
 faisParlerCoach = function(txt, apres){
   const carte = $("coachCarte");
@@ -2295,6 +2367,14 @@ html.perso #home{display:flex;padding:0;align-items:stretch;text-align:left;just
 .cp-devoir{display:flex;gap:9px;align-items:flex-start;font-size:14px;padding:6px 0;border-top:1px solid var(--line)}
 .cp-devoir:first-child{border-top:0}
 .cp-devoir.fait span{text-decoration:line-through;color:var(--muted)}
+.cp-etape{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--line);font-size:14px}
+.cp-etape:first-child{border-top:0}
+.cp-etape small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.cp-etape .cp-num{flex:none;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)}
+.cp-etape.cours .cp-num{border-color:var(--amber);color:var(--amber)}
+.cp-etape.cours b{color:var(--ink)}
+.cp-etape.fait .cp-num{border-color:var(--sage);color:var(--sage)}
+.cp-etape.fait b{color:var(--muted);font-weight:500}
 .cp-graph svg{width:100%;height:auto;display:block}
 .cp-legende{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:8px}
 .cp-legende i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
@@ -2339,6 +2419,7 @@ const sec = ecran("coachPerso", `<div class="cp-wrap">
   <div class="cp-carte" id="cpDevoirsBloc" style="margin-top:16px;display:none">
     <h4>Ton travail en cours</h4><div id="cpDevoirs"></div>
   </div>
+  <div class="cp-carte" id="cpPlan" style="margin-top:16px;display:none"></div>
   <div id="cpFil"></div>
   <div id="cpEntrainer" style="display:none;margin-top:10px"></div>
   <div class="cp-saisie">
@@ -2881,8 +2962,94 @@ async function nouvelleAnalyse(c, k){
   $("cpCallJoint").textContent = "Je récupère la transcription…";
   try{ s.texte = await suivi("/api/call/" + encodeURIComponent(c.id) + "/transcript"); }catch(e){ toast("Transcription non récupérée : " + e.message); }
   majCallJoint();
+  // comme Josh avant une revue : il lit tout le call, puis il annonce où on va
+  if(await preparePlan(s, k)) return;
   $("cpMoi").value = k ? "Analyse ce call avec moi, surtout « " + nomPhase(k) + " »." : "Analyse ce call avec moi.";
   envoie();
+}
+
+/* ---------------------------------------------------------------------
+   La carte de la séance : d'où on part, où on va, et pourquoi
+   --------------------------------------------------------------------- */
+const ACCORDS = [["probleme", "Un problème qui le brûle"], ["desir", "Un vrai désir de le régler"], ["seul", "Il ne peut pas seul"], ["confiance", "Il croit en l'offre, et pourquoi maintenant"]];
+const minuteOk = v => /^\d{1,3}:\d\d$/.test(String(v || "").trim()) ? String(v).trim() : null;
+function litJsonCoach(txt){
+  let t = String(txt || "").replace(/```json|```/g, "").trim();
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if(a < 0 || b < a) return null;
+  t = t.slice(a, b + 1);
+  try{ return JSON.parse(t); }catch(_){ try{ return JSON.parse(t.replace(/,(\s*[}\]])/g, "$1")); }catch(__){ return null; } }
+}
+function promptPlan(s, k){
+  const dest = coachCourant().k === "keenan"
+    ? "l'écart entre sa situation actuelle et la situation qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant"
+    : "les quatre accords qui font une vente : un problème qui le brûle ; un vrai désir de le régler ; il admet qu'il ne peut pas le régler seul ; il croit que l'offre peut l'aider, et il sait pourquoi maintenant";
+  return `${texteProfil()}${texteDuCall(s)}
+${k ? "Il veut surtout travailler « " + nomPhase(k) + " ».\n" : ""}
+Avant de commencer la séance, tu lis tout ce call comme pour une revue de call, et tu prépares la carte de la séance : d'où il part, où vous allez, et pourquoi.
+1. La destination d'un call de vente, c'est ${dest}. Pour chacun des quatre accords : obtenu ou non dans ce call, et à quelle minute si la transcription a les minutes.
+2. Le temps : en une ou deux phrases, où le temps de ce call est passé. Par exemple : « 15 minutes sur le budget avant d'avoir compris son problème ». Une découverte complète tient en général en une vingtaine de minutes.
+3. Les 2 ou 3 moments qui ont décidé de ce call, dans l'ordre du call : ceux où le travailler changera le plus ses prochains calls. Pour chacun : la minute, un titre court, et ce qu'il doit savoir faire à la fin de ce moment.
+4. Ce qu'il saura faire à la fin de la séance, en une phrase.
+5. Ton premier message, à l'oral, en tutoyant, 5 à 8 phrases sans liste : le call en une phrase, ce que ce call devait obtenir, où ça s'est joué, les moments que vous allez faire dans l'ordre et pourquoi ceux-là, puis ta première question sur le premier moment.
+Réponds uniquement avec ce JSON :
+{"accords":{"probleme":{"ok":true,"minute":"mm:ss ou null"},"desir":{"ok":false,"minute":null},"seul":{"ok":false,"minute":null},"confiance":{"ok":false,"minute":null}},
+ "temps":"où le temps du call est passé","moments":[{"minute":"mm:ss ou null","titre":"titre court","objectif":"ce qu'il saura faire à la fin de ce moment"}],
+ "but":"ce qu'il saura faire à la fin de la séance","ouverture":"ton premier message"}`;
+}
+async function preparePlan(s, k){
+  const c = coachCourant();
+  CP.enCours = true; $("cpEtat").textContent = c.court + " lit tout ton call et prépare la séance…";
+  try{
+    const j = litJsonCoach(await appelCerveau(promptPlan(s, k), {systeme: systemeCoach(), max: 1800, effort: "medium"}));
+    const moments = (j && Array.isArray(j.moments) ? j.moments : []).filter(m => m && m.titre).slice(0, 3)
+      .map(m => ({minute: minuteOk(m.minute), titre: String(m.titre).slice(0, 90), objectif: m.objectif ? String(m.objectif).slice(0, 200) : ""}));
+    if(!moments.length || !j.ouverture) throw new Error("carte illisible");
+    const accords = {};
+    ACCORDS.forEach(([a]) => { const v = j.accords && j.accords[a]; if(v && typeof v.ok === "boolean") accords[a] = {ok: v.ok, minute: minuteOk(v.minute)}; });
+    const ouverture = String(j.ouverture).replace(/<<[\s\S]*?>>/g, "").trim();
+    s.conv.push({role: "coach", nom: c.court, txt: ouverture, t: Date.now()});
+    s.plan = {moments, courant: 0, debut: s.conv.length, but: j.but ? String(j.but).slice(0, 220) : "", temps: j.temps ? String(j.temps).slice(0, 300) : "",
+              accords: Object.keys(accords).length ? accords : null};
+    s.maj = Date.now(); sauve(); rendFil(); rendPlan();
+    $("cpEtat").textContent = "";
+    await parle(ouverture);
+    return true;
+  }catch(e){
+    $("cpEtat").textContent = "";
+    return false;
+  }finally{ CP.enCours = false; }
+}
+function rendPlan(){
+  const s = seance(), el = $("cpPlan");
+  if(!s || !s.plan){ el.style.display = "none"; el.innerHTML = ""; return; }
+  const p = s.plan, fini = p.courant >= p.moments.length;
+  el.style.display = "block";
+  el.innerHTML = `<h4>Où on va</h4>${p.but ? `<p style="font-size:14px;margin-bottom:8px">${escapeHTML(p.but)}</p>` : ""}
+    <div>${p.moments.map((m, i) => `<div class="cp-etape ${i < p.courant ? "fait" : i === p.courant ? "cours" : ""}"><span class="cp-num">${i < p.courant ? "✓" : i + 1}</span>
+      <span><b>${m.minute ? "Minute " + escapeHTML(m.minute) + " · " : ""}${escapeHTML(m.titre)}</b>${m.objectif ? `<small>${escapeHTML(m.objectif)}</small>` : ""}</span></div>`).join("")}
+      <div class="cp-etape ${fini ? "cours" : ""}"><span class="cp-num">${p.moments.length + 1}</span><span><b>Ce que tu retiens</b><small>Puis le bilan et ton travail pour la prochaine fois.</small></span></div></div>
+    ${p.accords ? `<div class="cp-btns" style="margin-top:12px;gap:6px">${ACCORDS.filter(([a]) => p.accords[a]).map(([a, nom]) => { const x = p.accords[a];
+      return `<span class="cp-pastille ${x.ok ? "ok" : "ko"}">${x.ok ? "✓" : "✗"} ${escapeHTML(nom)}${x.ok && x.minute ? " · " + escapeHTML(x.minute) : ""}</span>`; }).join("")}</div>
+      <p style="font-size:12px;color:var(--muted);margin-top:6px">Les quatre accords, dans ton vrai call.</p>` : ""}
+    ${p.temps ? `<p style="font-size:13px;color:var(--muted);margin-top:8px">${escapeHTML(p.temps)}</p>` : ""}`;
+}
+function textePlan(s){
+  if(!s || !s.plan) return "";
+  const p = s.plan, n = p.moments.length;
+  const ech = s.conv.slice(p.debut || 0).filter(m => m.role === "moi" && !m.question).length;
+  const liste = p.moments.map((m, i) => `  ${i + 1}. ${m.minute ? "[" + m.minute + "] " : ""}${m.titre}${m.objectif ? " — à la fin, il sait : " + m.objectif : ""} (${i < p.courant ? "fait" : i === p.courant ? "EN COURS" : "à venir"})`).join("\n");
+  const ou = p.courant >= n
+    ? "Tous les moments sont faits. Demande-lui ce qu'il retient de la séance, une ou deux choses avec ses mots, réagis-y, puis propose-lui de terminer la séance pour avoir son bilan."
+    : `Vous travaillez le moment ${p.courant + 1} sur ${n}. Ça fait ${ech} échange${ech > 1 ? "s" : ""} sur ce moment.` +
+      (ech >= 6 ? " C'est trop long : conclus ce moment maintenant (donne-lui la phrase juste s'il ne l'a pas trouvée) et passe au suivant." : "");
+  return `\nLA CARTE DE CETTE SÉANCE (il la voit à l'écran) :
+Ce qu'il saura faire à la fin : ${p.but || "—"}
+${liste}
+${ou}
+Sur un moment, tu fais comme en revue de call : tu le replaces dans le call (la minute, ce qui s'est dit), tu lui demandes ce qu'il cherchait à obtenir à cet endroit, tu lui montres pourquoi ça n'a pas marché en le reliant à la destination du call, et tu lui fais refaire sa phrase (deux essais, puis tu donnes la tienne et il la redit avec ses mots). Tu ne pars pas dans un détail qui ne sert pas ce moment.
+Quand le moment est réglé (il a compris pourquoi et il a dit une phrase juste), tu fais le point en une phrase (« on a ça, maintenant on va là »), tu ouvres directement le moment suivant dans le même message, et tu écris <<MOMENT_FAIT>> seul sur la dernière ligne.
+`;
 }
 async function reprend(id){
   const s = CP.seances.find(x => x.id === id); if(!s) return;
@@ -2902,7 +3069,7 @@ function ouvreSeance(){
   const s = seance(); if(!s) return;
   montre(sec);
   $("cpTitreSeance").textContent = s.titre;
-  majQui(); rendAvatar(); majVoixChoix(); rendFil(); rendDevoirs(); majCallJoint();
+  majQui(); rendAvatar(); majVoixChoix(); rendFil(); rendDevoirs(); majCallJoint(); rendPlan();
   $("cpEntrainer").style.display = "none";
   setTimeout(() => { sec.scrollTop = sec.scrollHeight; }, 50);
 }
@@ -2930,9 +3097,12 @@ function texteDuCall(s){
   const c = s.call;
   const g = c.grille ? Object.keys(NOMS_G).filter(k => c.grille[k] && c.grille[k].s !== "na")
       .map(k => "  - " + NOMS_G[k] + " : " + c.grille[k].s + (c.grille[k].p ? " (« " + c.grille[k].p + " »)" : "")).join("\n") : "";
-  return `\nLE CALL DONT IL VEUT PARLER (${c.date || ""}, ${c.etape || ""}, ${c.offre || ""}, issue : ${c.issue || "?"}) :
+  const j = c.joue ? `Là où tout s'est joué${c.joue.minute ? " (minute " + c.joue.minute + ")" : ""} : ${c.joue.quoi || ""}${c.joue.pourquoi ? " — " + c.joue.pourquoi : ""}${c.joue.a_dire ? " — il aurait pu dire : « " + c.joue.a_dire + " »" : ""}\n` : "";
+  const d = (c.deroule || []).length ? "Le déroulé" + (c.duree_min ? " (" + c.duree_min + " min)" : "") + " :\n" + c.deroule.map(p => `  - ${p.de || "?"}${p.a ? "–" + p.a : ""} ${p.partie}${p.note ? " : " + p.note : ""}`).join("\n") + "\n" : "";
+  const minutes = /^\[\d+:\d\d\]/m.test(s.texte || "");
+  return `\nLE CALL DONT IL VEUT PARLER (${c.date || ""}, ${c.etape || ""}, ${c.offre || ""}, issue : ${c.issue || "?"}${c.duree_min ? ", " + c.duree_min + " minutes" : ""}) :
 Résumé : ${c.resume || "—"}
-${c.bascule ? "Moment de bascule : " + c.bascule + "\n" : ""}${g ? "Sa grille sur ce call :\n" + g + "\n" : ""}${s.texte ? "LA TRANSCRIPTION :\n" + s.texte.slice(0, 60000) : "(transcription non disponible)"}\n`;
+${j}${!c.joue && c.bascule ? "Moment de bascule : " + c.bascule + "\n" : ""}${d}${g ? "Sa grille sur ce call :\n" + g + "\n" : ""}${s.texte ? "LA TRANSCRIPTION" + (minutes ? " (chaque ligne commence par sa minute [mm:ss] : cite-la quand tu parles d'un moment)" : "") + " :\n" + s.texte.slice(0, 80000) : "(transcription non disponible)"}\n`;
 }
 function texteProfil(){
   const s = CP.stats; if(!s) return "";
@@ -2985,6 +3155,15 @@ Tu t'appuies sur le réel : les mots du prospect, ceux de ton élève, le moment
 Tu es franc. Tu nommes ce qu'il évite, y compris chez lui : sa peur de déranger, sa peur d'aller trop loin, son envie de passer vite à l'offre. Dur quand il le faut, jamais méprisant, et chaleureux quand il est découragé.
 Pas de phrase magique. S'il cherche un raccourci, tu le lui dis, et tu le ramènes à ce qui fait progresser : comprendre, répéter, s'entraîner. Tu lui donnes souvent un travail précis, et tu le lui redemandes la fois suivante. Il peut mettre une séance en pause : c'est normal.
 
+COMMENT TU CONDUIS UNE SÉANCE
+Il doit toujours savoir d'où il part, où vous allez, et pourquoi. Dès ton premier vrai message, tu lui dis ce que vous cherchez à comprendre ou à obtenir dans cette séance.
+La destination d'un call de vente, ${c.k === "keenan" ? "c'est l'écart entre sa situation actuelle et celle qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant" : "ce sont quatre accords : un problème qui le brûle ; un vrai désir de le régler ; il admet qu'il ne peut pas le régler seul ; il croit que l'offre peut l'aider, et il sait pourquoi maintenant"}. Chaque moment que vous travaillez est relié à cette destination, et tu le lui dis.
+Un détail du call (le budget, ses chiffres, son taux de conversion, la technique de son métier) ne mérite du temps que s'il sert cette destination. Sinon tu le dis franchement, « ça, ce n'est pas là que ça s'est joué », et tu ramènes.
+Tu as le chrono du call en tête : une découverte complète tient en général en une vingtaine de minutes. Si la transcription a les minutes, tu les cites, et tu lui dis quand il a passé trop de temps sur quelque chose.
+Un point à la fois. Quand il est acquis, tu le dis, tu fais le point en une phrase (« on a ça, maintenant on va là ») et tu passes au suivant. Tu ne tournes pas plus de cinq ou six échanges sur le même point.
+Quand ce n'est pas évident, ta question dit pourquoi tu la poses.
+Quand vous avez fait le tour, tu lui demandes ce qu'il retient, avec ses mots, avant de conclure.
+
 COMMENT TU PARLES
 Tu parles, tu n'écris pas. Pas de listes, pas de titres, pas de gras, pas d'émojis, pas de mots de consultant. Des phrases courtes, à l'oral, en tutoyant, avec tes réactions d'humain (« attends », « tu vois ce qui se passe là ? », « non, écoute-toi »). En général 2 à 6 phrases. Plus long seulement s'il te demande d'expliquer en détail, ou pour un bilan.
 ${maniere ? "\nTA MANIÈRE\n" + maniere + "\n" : ""}
@@ -2999,8 +3178,10 @@ function promptCoach(question, estQuestion){
   const hist = (s ? s.conv : []).slice(-24, -1).map(m => (m.role === "moi" ? (m.question ? nomProfil().toUpperCase() + " (question à côté)" : nomProfil().toUpperCase()) : (m.nom || "COACH").toUpperCase()) + " : " + m.txt).join("\n");
   // les devoirs ne servent qu'en début de séance (pour les lui redemander) : ensuite ils coloreraient chaque réponse
   const debut = !s || s.conv.filter(m => m.role === "moi").length <= 1;
-  const ouverts = debut ? devoirsOuverts().slice(-3).map(d => "  - (" + d.date + ") " + d.txt).join("\n") : "";
-  const avant = CP.seances.filter(x => x.etat === "terminee" && x.bilan && x !== s).sort((a, b) => b.maj - a.maj).slice(0, 3)
+  // nouveau départ : ce qui a été écrit avant le nouveau cerveau de Josh (19 octobre, ancienne façon de penser) n'est plus relu
+  const depuis = new Date(2026, 9, 19, 11, 0).getTime();
+  const ouverts = debut ? devoirsOuverts().filter(d => (Number(d.id) || 0) > depuis).slice(-3).map(d => "  - (" + d.date + ") " + d.txt).join("\n") : "";
+  const avant = CP.seances.filter(x => x.etat === "terminee" && x.bilan && x !== s && (x.maj || 0) > depuis).sort((a, b) => b.maj - a.maj).slice(0, 3)
     .map(x => "  - " + jour(x.maj) + ", " + x.titre + " : " + x.bilan.slice(0, 500)).join("\n");
   const objet = s && s.k ? `\nCETTE SÉANCE PORTE SUR UNE PHASE PRÉCISE DE SES CALLS : « ${nomPhase(s.k)} ». Reste dessus, sauf quand il te pose une question directe : tu y réponds d'abord.\n` : "";
   const consigneQuestion = estQuestion ? `
@@ -3009,7 +3190,7 @@ Réponds-y vraiment : clairement, complètement, avec un exemple concret ou la p
 Pas de DEVOIR ni de ROLEPLAY. Termine par une seule courte phrase qui propose de reprendre l'exercice là où vous en étiez.
 ` : "";
   let sv = ""; try{ sv = souvenirs(question + " " + (s && s.call ? (s.call.resume || "") : "") + (s && s.k ? " " + nomPhase(s.k) : ""), [], "", 6); }catch(_){}
-  return `${texteProfil()}${avant ? "\nVOS DERNIÈRES SÉANCES (leur bilan) :\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${sv}
+  return `${texteProfil()}${avant ? "\nVOS DERNIÈRES SÉANCES (leur bilan) :\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${textePlan(s)}${sv}
 ${hist ? "CETTE SÉANCE JUSQU'ICI :\n" + hist + "\n" : ""}
 ${nomProfil().toUpperCase()}${estQuestion ? " (QUESTION DIRECTE)" : ""} : ${question}
 ${consigneQuestion}
@@ -3042,8 +3223,11 @@ async function envoie(silencieux, estQuestion){
   try{
     let rep = await appelCerveau(promptCoach(q, estQuestion), {systeme: systemeCoach(), max: 1400, effort: "medium"});
     const dv = rep.match(/<<\s*DEVOIR\s*:\s*([\s\S]*?)>>/i), rp = rep.match(/<<\s*ROLEPLAY\s*:\s*([\s\S]*?)>>/i);
+    const momentFait = /<<\s*MOMENT[_ ]FAIT\s*>>/i.test(rep);
     rep = rep.replace(/<<[\s\S]*?>>/g, "").trim();
     s.conv.push({role: "coach", nom: c.court, txt: rep, t: Date.now()}); s.maj = Date.now();
+    // un moment de la carte est réglé : on coche, et le compteur repart pour le suivant
+    if(momentFait && s.plan && !estQuestion && s.plan.courant < s.plan.moments.length){ s.plan.courant++; s.plan.debut = s.conv.length; rendPlan(); }
     if(dv){ CP.devoirs.push({id: Date.now(), txt: dv[1].trim(), date: new Date().toLocaleDateString("fr-FR"), fait: false, seance: s.id}); rendDevoirs(); }
     const ent = $("cpEntrainer");
     if(rp){
