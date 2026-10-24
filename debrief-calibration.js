@@ -574,6 +574,12 @@ Si les réglages plus bas (profil, couleur, température) contredisent sa descri
   }
   return callClaudeOrigine(prompt, max);
 };
+// un testeur : aucun nom de coach réel dans ce qui part, ni dans ce qui revient
+const callClaudeNomme = callClaude;
+callClaude = async function(prompt, max){
+  if(!modeTesteur()) return callClaudeNomme(prompt, max);
+  return anonymise(await callClaudeNomme(anonymise(prompt), max));
+};
 
 const lancerOrigine = $("btnSparGo").onclick;
 $("btnSparGo").onclick = async function(){
@@ -1239,6 +1245,40 @@ async function rendCalibration(){
    des transcripts, puis donnée en entier au coach à chaque analyse.
    ===================================================================== */
 const MODELE_COACH = "claude-sonnet-5-5";
+
+/* ---- les testeurs ----
+   Un testeur entre avec un code d'accès (ni clé API, ni ton ?moncoach=1). Il a son propre
+   espace, et ses coachs s'appellent Coach Vérité et Coach Objections : la méthode est la même,
+   mais ni le nom ni l'histoire des coachs dont elle vient n'apparaissent. */
+const DOCS_TESTEURS = ["verite"];
+function modeTesteur(){
+  try{
+    const q = new URLSearchParams(location.search).get("moncoach");
+    if(q === "1" || localStorage.getItem("woidih_coach_perso") === "1") return false;
+    return !API_KEY && !!codeAcces();
+  }catch(_){ return false; }
+}
+const docVisible = k => modeTesteur() ? DOCS_TESTEURS.includes(k) : !DOCS_TESTEURS.includes(k);
+// filet de sécurité : aucun nom de coach réel ne passe, ni à l'aller ni au retour
+function anonymise(t){
+  if(typeof t !== "string" || !modeTesteur()) return t;
+  return t.replace(/josh lyons/gi, "Coach Vérité").replace(/\bJosh\b/g, "Coach Vérité")
+          .replace(/bill walsh/gi, "Coach Objections").replace(/\bBill\b/g, "Coach Objections")
+          .replace(/ben byrne/gi, "ton coach").replace(/\bkeenan\b/gi, "ton coach").replace(/gap selling/gi, "ta méthode")
+          .replace(/unicorn closers?( mastermind)?/gi, "le programme");
+}
+function habilleTesteur(){
+  if(!modeTesteur()) return;
+  try{
+    Object.keys(ECOLES).forEach(k => { if(!DOCS_TESTEURS.includes(k) && !["moi", "sami"].includes(k)) delete ECOLES[k]; });
+    ECOLES.verite = {nom: "Coach Vérité", terrains: ["cadrage", "decouverte", "objection", "closing"], marches: ["b2c", "b2b"]};
+    if(typeof MANIERE_COACH === "object"){
+      MANIERE_COACH.verite = {nom: "Coach Vérité", ton: "Tu reprends ton élève avec franchise et chaleur. Tu tutoies. Tu ne fais pas de leçon : tu nommes ce qu'il vient de faire, ce que ça coûte, et ce qu'on cherche à obtenir à cet endroit du call. Tu le ramènes toujours à la vérité de la situation du prospect, jamais à une technique."};
+      const b = MANIERE_COACH["bill walsh"];
+      MANIERE_COACH.objections = {nom: "Coach Objections", ton: b ? anonymise(b.ton).replace(/comme Coach Objections reprend ses élèves/g, "tes élèves") : "Direct, sec, chaleureux quand même. Des phrases très courtes. Tu ramènes tout à la vraie objection."};
+    }
+  }catch(_){}
+}
 let SERVEUR_INFO = null;
 async function infoServeur(){
   if(SERVEUR_INFO) return SERVEUR_INFO;
@@ -1255,6 +1295,12 @@ async function infoServeur(){
 /* Une seule porte vers le cerveau 5.5, avec la doctrine en consignes mises en cache.
    Sur un ancien serveur, on retombe sur l'ancien chemin sans rien casser. */
 async function appelCerveau(prompt, o){
+  if(!modeTesteur()) return appelCerveauBrut(prompt, o);
+  const o2 = Object.assign({}, o || {});
+  if(o2.systeme) o2.systeme = anonymise(o2.systeme);
+  return anonymise(await appelCerveauBrut(anonymise(prompt), o2));
+}
+async function appelCerveauBrut(prompt, o){
   o = o || {};
   const max = o.max || 1500;
   await pretOuTantPis();
@@ -1335,6 +1381,7 @@ async function chargeDoctrines(){
       if(change){ await Store.set(CLE_DOCTRINES, DOCTRINES); await Store.set("ecoles", ECOLES); }
     }
   }catch(e){}
+  habilleTesteur();
   rendDoctrines();
 }
 const sauveDoctrines = () => Store.set(CLE_DOCTRINES, DOCTRINES);
@@ -1344,7 +1391,7 @@ function doctrinePour(terrains, marche, maxChars){
   const t = [].concat(terrains || []);
   const l = Object.keys(DOCTRINES).sort().map(k => {
     const d = DOCTRINES[k], e = ECOLES[k] || {};
-    if(!d || !d.cerveau) return null;
+    if(!d || !d.cerveau || !docVisible(k)) return null;
     if(e.marches && marche && !e.marches.includes(marche)) return null;
     const terrain = !t.length || !e.terrains || e.terrains.some(x => t.includes(x));
     return {k, d, e, sc: terrain ? 2 : 1};
@@ -1377,10 +1424,10 @@ const texteItem = (cat, x) => {
 };
 let INDEX_MEMOIRE = null, CLE_INDEX_MEMOIRE = "";
 function indexMemoire(){
-  const cle = Object.keys(DOCTRINES).sort().map(k => k + ":" + (DOCTRINES[k].maj || 0) + ":" + Object.values(DOCTRINES[k].items || {}).reduce((s,a) => s + a.length, 0)).join("|");
+  const cle = (modeTesteur() ? "t|" : "") + Object.keys(DOCTRINES).sort().map(k => k + ":" + (DOCTRINES[k].maj || 0) + ":" + Object.values(DOCTRINES[k].items || {}).reduce((s,a) => s + a.length, 0)).join("|");
   if(INDEX_MEMOIRE && cle === CLE_INDEX_MEMOIRE) return INDEX_MEMOIRE;
   const docs = [];
-  Object.keys(DOCTRINES).forEach(k => CATS_MEMOIRE.forEach(cat => (DOCTRINES[k].items[cat] || []).forEach(x => {
+  Object.keys(DOCTRINES).filter(docVisible).forEach(k => CATS_MEMOIRE.forEach(cat => (DOCTRINES[k].items[cat] || []).forEach(x => {
     const t = texteItem(cat, x), mots = motsDe(t), tf = {};
     mots.forEach(m => tf[m] = (tf[m] || 0) + 1);
     docs.push({k, cat, x, t, tf, n: mots.length || 1});
@@ -2277,7 +2324,47 @@ const actif = () => { try{ return localStorage.getItem(CLE_ACTIF) === "1"; }catc
   $("reactiveSouffleur").onclick = e => { e.preventDefault(); try{ localStorage.setItem(CLE_SOUFFLEUR, "1"); }catch(_){} location.reload(); };
 })();
 
-if(!actif()) return;
+/* --- un nouveau testeur : la première chose qu'il voit, c'est où taper son code --- */
+(function porteDuCode(){
+  if(actif() || modeTesteur() || API_KEY) return;
+  const h = $("home"); if(!h) return;
+  const d = document.createElement("div");
+  d.className = "block";
+  d.style.cssText = "width:100%;max-width:520px;margin:0 auto 18px;border-left:2px solid var(--amber)";
+  d.innerHTML = `<h3>Ton accès d'essai</h3>
+    <p style="font-size:13.5px;color:var(--muted);margin:6px 0 12px">Entre le code que Woidih t'a envoyé, du genre ABCD-EFGH.</p>
+    <input id="porteCode" placeholder="ABCD-EFGH" autocomplete="off" style="background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:11px 14px;border-radius:9px;font-size:16px;width:100%;font-family:inherit;letter-spacing:.08em;text-transform:uppercase">
+    <div style="margin-top:10px"><button class="pill" id="porteOk" style="border-color:var(--amber);color:var(--amber)">Entrer</button></div>
+    <p id="porteEtat" style="font-size:13px;color:var(--muted);margin-top:9px"></p>`;
+  h.insertBefore(d, h.firstChild);
+  const go = async () => {
+    const c = $("porteCode").value.trim().toUpperCase(); if(!c) return;
+    $("porteEtat").textContent = "Vérification…";
+    try{
+      const r = await fetch(srvCopilote() + "/api/ping", {headers: {"x-code": c}});
+      if(r.status === 401){ $("porteEtat").innerHTML = '<span style="color:var(--clay)">Ce code n\'existe pas. Vérifie-le, ou demande-le à Woidih.</span>'; return; }
+      if(!r.ok) throw new Error();
+      try{ localStorage.setItem("woidih_code_acces", c); }catch(_){}
+      $("porteEtat").innerHTML = '<span style="color:var(--sage)">C\'est bon. J\'ouvre ton espace…</span>';
+      setTimeout(() => location.reload(), 700);
+    }catch(_){ $("porteEtat").innerHTML = '<span style="color:var(--clay)">Le serveur ne répond pas. Réessaie dans un instant.</span>'; }
+  };
+  $("porteOk").onclick = go;
+  $("porteCode").onkeydown = e => { if(e.key === "Enter") go(); };
+})();
+
+// l'app de base affiche « Il manque ta clé » dès qu'il n'y a pas de clé API, même avec un code :
+// un testeur n'a pas de clé à avoir, ce message ne ferait que l'inquiéter
+if(!actif()){
+  const enleve = () => document.querySelectorAll("#home .block").forEach(b => { const t = b.querySelector("h3"); if(t && /Il manque ta clé/.test(t.textContent)) b.remove(); });
+  try{ (typeof PRET !== "undefined" && PRET ? PRET : Promise.resolve()).then(() => setTimeout(enleve, 0)); }catch(_){}
+  setTimeout(enleve, 1500);
+}
+
+const TESTEUR = modeTesteur();
+if(!actif() && !TESTEUR) return;
+// un testeur ne voit pas les outils de réglage, ni « Ma méthode » (elle montre les fiches et leurs auteurs)
+if(TESTEUR){ const st = document.createElement("style"); st.textContent = "#btnMaMethode{display:none!important}"; document.head.appendChild(st); }
 
 /* ---------------------------------------------------------------------
    L'habillage : sobre, neutre, une seule couleur d'accent
@@ -2447,7 +2534,11 @@ function montre(el){
   home.style.display = el ? "none" : "flex";
   if(el) el.scrollTop = 0;
 }
-function accueil(){ arreteVoix(); ancien.classList.remove("on"); accueilEl.style.display = ""; montre(null); rendAccueil(); }
+function accueil(){
+  arreteVoix(); ancien.classList.remove("on"); accueilEl.style.display = ""; montre(null); rendAccueil();
+  // un testeur revient d'un jeu de rôle ou d'une séance : son essai a bougé
+  if(TESTEUR) majEssai().then(() => { if(home.style.display !== "none" && accueilEl.style.display !== "none") rendAccueil(); });
+}
 $("cpAncienRetour").onclick = () => { ancien.classList.remove("on"); accueilEl.style.display = ""; home.scrollTop = 0; };
 
 /* ---------------------------------------------------------------------
@@ -2465,6 +2556,12 @@ const PROFILS_DEFAUT = [
 let PROFILS = PROFILS_DEFAUT.map(p => Object.assign({}, p));
 let PROFIL = "woidih";
 try{ PROFIL = localStorage.getItem("woidih_profil_actif") || "woidih"; }catch(_){}
+// un testeur : un seul espace, le sien, avec Coach Vérité et Coach Objections
+if(TESTEUR){
+  PROFILS = [{id: "t", nom: "", feminin: false, desc: "un closer francophone qui vend en high ticket", coachs: ["verite", "objections"]}];
+  PROFIL = "t";
+}
+const COACHS_TESTEUR = [{k: "verite", nom: "Coach Vérité", court: "Coach Vérité"}, {k: "objections", nom: "Coach Objections", court: "Coach Objections", src: "bill walsh"}];
 const profil = () => PROFILS.find(p => p.id === PROFIL) || PROFILS[0];
 const nomProfil = () => profil().nom || "Toi";
 const K = base => base + (PROFIL === "woidih" ? "" : "__" + PROFIL);   // tes données gardent leurs anciens noms
@@ -2485,8 +2582,9 @@ async function chargeProfil(){
   if(autorises && !autorises.includes(CP.qui)) CP.qui = autorises[0];
   const s = (await Store.get(K("coach_perso_suivi"))) || {};
   let defaut = "";
-  if(PROFIL === "woidih"){ try{ defaut = srvCopilote().replace(/\/copilot\/?$/, "") + "/suivi"; }catch(_){} }
-  CP.suivi = {url: s.url || defaut, mdp: s.mdp || ""};
+  if(PROFIL === "woidih" || TESTEUR){ try{ defaut = srvCopilote().replace(/\/copilot\/?$/, "") + "/suivi"; }catch(_){} }
+  // un testeur entre dans son suivi avec son code d'accès : rien à taper
+  CP.suivi = TESTEUR ? {url: defaut, mdp: "", code: codeAcces()} : {url: s.url || defaut, mdp: s.mdp || ""};
 }
 async function changeProfil(id){
   arreteVoix();
@@ -2502,9 +2600,10 @@ const aujourdhui = () => new Date().toISOString().slice(0, 10);
 
 /* --- les coachs disponibles --- */
 function coachs(){
+  if(TESTEUR) return COACHS_TESTEUR;
   const l = [{k: "mix", nom: "Ton coach", court: "Ton coach"}];
   Object.keys(DOCTRINES).sort().forEach(k => {
-    if(!DOCTRINES[k] || !DOCTRINES[k].cerveau) return;
+    if(!DOCTRINES[k] || !DOCTRINES[k].cerveau || !docVisible(k)) return;
     const nom = (ECOLES[k] && ECOLES[k].nom) || k;
     l.push({k, nom, court: nom.split(" ")[0]});
   });
@@ -2531,7 +2630,9 @@ const VISAGES = {
   "keenan":      {peau: "#D4AE93", cheveux: "#6B5B4E", coupe: "rase",  barbe: true,  lunettes: false},
   "bill walsh":  {peau: "#C99878", cheveux: "#9C9890", coupe: "court", barbe: false, lunettes: true},
   "ben byrne":   {peau: "#D8B49A", cheveux: "#5A4130", coupe: "haut",  barbe: false, lunettes: false},
-  "sami":        {peau: "#A97B5E", cheveux: "#1E1A18", coupe: "court", barbe: true,  lunettes: false}
+  "sami":        {peau: "#A97B5E", cheveux: "#1E1A18", coupe: "court", barbe: true,  lunettes: false},
+  "verite":      {peau: "#C9A487", cheveux: "#2F2722", coupe: "court", barbe: false, lunettes: false},
+  "objections":  {peau: "#C49676", cheveux: "#6E6A64", coupe: "rase",  barbe: true,  lunettes: true}
 };
 function visage(k, idBouche){
   const v = VISAGES[k] || Object.assign({}, VISAGES.mix, {peau: ["#C29A7E", "#B0856A", "#D6B092"][String(k).length % 3]});
@@ -2642,17 +2743,41 @@ async function parle(txt){
 /* ---------------------------------------------------------------------
    Ton suivi de calls
    --------------------------------------------------------------------- */
-async function suivi(chemin){
-  const s = CP.suivi; if(!s.url || !s.mdp) throw new Error("suivi non connecté");
-  const r = await fetch(s.url.replace(/\/+$/, "") + chemin, {headers: {"x-mot-de-passe": s.mdp}});
-  if(r.status === 401) throw new Error("mot de passe du suivi refusé");
+/* un testeur : son prénom et où en est son essai, d'après le Serveur Copilot */
+async function majEssai(){
+  if(!TESTEUR) return;
+  try{
+    const r = await fetch(srvCopilote() + "/api/ping", {headers: {"x-code": codeAcces()}});
+    if(r.status === 401){ CP.essaiRefuse = true; return; }
+    const d = await r.json().catch(() => ({}));
+    if(d.compte){
+      CP.essai = d.compte; CP.essaiEtat = d.essai || {ok: true};
+      const p = PROFILS[0];
+      p.nom = d.compte.nom || ""; p.feminin = !!d.compte.feminin;
+      p.desc = (p.feminin ? "une closeuse francophone" : "un closer francophone") + " qui vend en high ticket";
+    }
+  }catch(_){}
+}
+const ligneEssai = () => !CP.essai ? "" : `Ton essai : ${CP.essai.call.fait}/${CP.essai.call.max} calls analysés · ${CP.essai.roleplay.fait}/${CP.essai.roleplay.max} jeux de rôle · ${CP.essai.coaching.fait}/${CP.essai.coaching.max} séances de coaching`;
+const suiviConnecte = () => !!(CP.suivi.url && (CP.suivi.mdp || CP.suivi.code));
+async function suivi(chemin, methode, corps){
+  const s = CP.suivi; if(!suiviConnecte()) throw new Error("suivi non connecté");
+  const h = s.code ? {"x-code": s.code} : {"x-mot-de-passe": s.mdp};
+  if(corps) h["Content-Type"] = "application/json";
+  const r = await fetch(s.url.replace(/\/+$/, "") + chemin, {method: methode || "GET", headers: h, body: corps ? JSON.stringify(corps) : undefined});
+  if(r.status === 401) throw new Error(s.code ? "ton code d'accès est refusé par le suivi" : "mot de passe du suivi refusé");
   if(!r.ok){ const d = await r.json().catch(() => ({})); throw new Error(d.erreur || ("suivi : erreur " + r.status)); }
   return chemin.endsWith("/transcript") ? r.text() : r.json();
 }
 function chargeSuivi(force){
   if(CP.charge && !force) return CP.charge;
   CP.charge = (async () => {
-    if(!CP.suivi.url || !CP.suivi.mdp){ CP.suiviErreur = "non connecté"; return; }
+    if(!suiviConnecte()){ CP.suiviErreur = "non connecté"; return; }
+    // un testeur sans clé Fathom : on le lui demande, plutôt que d'afficher un suivi vide
+    if(TESTEUR){
+      try{ const c = await suivi("/api/compte"); CP.fathomOk = !!c.fathom; }catch(e){ CP.suiviErreur = e.message; return; }
+      if(!CP.fathomOk){ CP.suiviErreur = "fathom"; return; }
+    }
     try{
       const depuis = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
       const [st, tout, ca] = await Promise.all([suivi("/api/stats?depuis=" + depuis), suivi("/api/stats"), suivi("/api/calls")]);
@@ -2691,8 +2816,11 @@ function rendAccueil(){
   const heure = new Date().getHours();
   accueilEl.innerHTML = `<div class="cp-page">
     <div class="cp-haut"><span class="cp-marque">Closing Copilot</span>
-      <button class="cp-lien" id="cpVersReglages">Réglages et outils</button></div>
-    <div class="cp-onglets" style="margin-bottom:22px">${PROFILS.map(p => `<button data-espace="${p.id}" class="${p.id === PROFIL ? "on" : ""}">${p.nom ? "Espace de " + escapeHTML(p.nom) : "Créer l'espace de ta femme"}</button>`).join("")}</div>
+      ${TESTEUR ? "" : '<button class="cp-lien" id="cpVersReglages">Réglages et outils</button>'}</div>
+    ${TESTEUR && CP.essaiRefuse ? `<div class="cp-carte" style="border-color:var(--clay)"><h4>Ton code n'est plus valide</h4><p class="cp-vide">Demande un nouveau code à Woidih.</p>
+      <div class="cp-btns" style="margin-top:10px"><button class="cp-btn plein" id="cpChangeCode">Entrer un autre code</button></div></div>` : ""}
+    ${TESTEUR && CP.essaiEtat && !CP.essaiEtat.ok ? `<div class="cp-carte" style="border-color:var(--clay)"><p class="cp-vide" style="color:var(--ink)">${escapeHTML(CP.essaiEtat.raison || "Ton essai est arrivé au bout.")}</p></div>` : ""}
+    <div class="cp-onglets" style="margin-bottom:22px;${TESTEUR ? "display:none" : ""}">${PROFILS.map(p => `<button data-espace="${p.id}" class="${p.id === PROFIL ? "on" : ""}">${p.nom ? "Espace de " + escapeHTML(p.nom) : "Créer l'espace de ta femme"}</button>`).join("")}</div>
     <div class="cp-carte" id="cpNouveauProfil" style="display:none"><h4>Son espace</h4>
       <p class="cp-vide">Son prénom, et en une phrase ce qu'elle vend. Ses coachs : Josh et Bill. Elle aura ses propres séances, devoirs et calls.</p>
       <input class="cp-champ" id="cpProfilNom" placeholder="Son prénom">
@@ -2700,6 +2828,7 @@ function rendAccueil(){
       <div class="cp-btns" style="margin-top:10px"><button class="cp-btn plein" id="cpProfilOk">Créer son espace</button></div></div>
     <h1 class="cp-titre">${heure < 18 ? "Bonjour" : "Bonsoir"} ${escapeHTML(nomProfil())}.</h1>
     <p class="cp-sous">${prio ? "En ce moment, ce qui te coûte le plus : <b style='color:var(--ink)'>" + escapeHTML(prio.nom) + "</b>, réussi dans " + prio.taux + " % de tes calls." : "Tes calls d'un côté, ton travail de l'autre. Les deux sont reliés."}</p>
+    ${TESTEUR && CP.essai ? `<p style="font-size:13px;color:var(--muted);margin:-10px 0 22px">${escapeHTML(ligneEssai())}</p>` : ""}
     <div class="cp-portes">
       <button class="cp-porte" id="cpPorteTracking"><div class="cp-ico">${ICO.suivi}</div><h3>Tracking</h3>
         <p>Tes vrais calls, ta grille, ta progression semaine après semaine.</p>
@@ -2714,7 +2843,8 @@ function rendAccueil(){
   </div>`;
   $("cpPorteTracking").onclick = ouvreTracking;
   $("cpPorteCoaching").onclick = ouvreCoaching;
-  $("cpVersReglages").onclick = () => { accueilEl.style.display = "none"; ancien.classList.add("on"); home.scrollTop = 0; };
+  if($("cpVersReglages")) $("cpVersReglages").onclick = () => { accueilEl.style.display = "none"; ancien.classList.add("on"); home.scrollTop = 0; };
+  if($("cpChangeCode")) $("cpChangeCode").onclick = () => { try{ localStorage.removeItem("woidih_code_acces"); }catch(_){} location.reload(); };
   accueilEl.querySelectorAll("[data-reprendre]").forEach(b => b.onclick = () => reprend(b.dataset.reprendre));
   accueilEl.querySelectorAll("[data-espace]").forEach(b => b.onclick = () => {
     const p = PROFILS.find(x => x.id === b.dataset.espace);
@@ -2743,6 +2873,16 @@ async function ouvreTracking(){
   rendTracking();
 }
 function formulaireSuivi(){
+  if(TESTEUR){
+    const err = CP.suiviErreur && !["non connecté", "fathom"].includes(CP.suiviErreur) ? "<span style='color:var(--clay)'>" + escapeHTML(CP.suiviErreur) + "</span><br>" : "";
+    return `<div class="cp-carte"><h4>Connecter tes calls Fathom</h4>
+      <p class="cp-vide">${err}Colle ta clé Fathom une seule fois. Tes calls seront ensuite récupérés et analysés tout seuls${CP.essai ? ", dans la limite de ton essai (" + CP.essai.call.max + " calls)" : ""}.</p>
+      <p class="cp-vide" style="font-size:13px;margin-top:8px">Où la trouver : dans Fathom, ouvre <b style="color:var(--ink)">Réglages</b>, puis <b style="color:var(--ink)">API</b>, et crée une clé.</p>
+      <input class="cp-champ" id="cpFathomCle" type="password" placeholder="ta clé Fathom" autocomplete="off">
+      <p style="font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.5">Bon à savoir : tes calls (leur transcription et leur analyse) sont stockés sur le serveur de Woidih, uniquement pour ton coaching. Il les supprime dès que tu le lui demandes.</p>
+      <div class="cp-btns" style="margin-top:12px"><button class="cp-btn plein" id="cpFathomOk">Connecter mes calls</button></div>
+      <p id="cpFathomEtat" style="font-size:13px;color:var(--muted);margin-top:8px"></p></div>`;
+  }
   return `<div class="cp-carte"><h4>Connecter ton suivi</h4>
     <p class="cp-vide">${CP.suiviErreur && CP.suiviErreur !== "non connecté" ? "<span style='color:var(--clay)'>" + escapeHTML(CP.suiviErreur) + "</span><br>" : ""}Une seule fois : ta page « Mon suivi » s'ouvre un instant et passe elle-même ton mot de passe. Tu n'as rien à taper.</p>
     <div class="cp-btns" style="margin-top:12px"><button class="cp-btn plein" id="cpSuiviAuto">Connecter mon suivi</button></div>
@@ -2762,7 +2902,38 @@ window.addEventListener("message", async e => {
   toast(CP.suiviErreur ? "Suivi : " + CP.suiviErreur : "Ton suivi est connecté.");
   if(APRES_LIEN) APRES_LIEN();
 });
+// un testeur : sa clé Fathom, puis la première relève de ses calls
+async function releveTesteur(etat){
+  const dit = t => { if(etat) etat.innerHTML = t; };
+  dit("Je récupère tes calls et je les analyse. Compte une minute environ par call, tu peux attendre ici…");
+  try{
+    await suivi("/api/fathom", "POST", {});
+    // l'analyse tourne sur le serveur : on suit son avancement
+    let r = {};
+    for(let i = 0; i < 180; i++){
+      await new Promise(ok => setTimeout(ok, 5000));
+      const p = await suivi("/api/ping").catch(() => null);
+      if(p && p.releve && !p.releve.en_cours){ r = p.releve; break; }
+      if(i % 6 === 5) dit("Toujours en train d'analyser tes calls… (" + Math.round((i + 1) * 5 / 60) + " min)");
+    }
+    const err = (r.erreurs || []).filter(Boolean);
+    dit(r.nouveaux ? `<span style="color:var(--sage)">${r.nouveaux} call${r.nouveaux > 1 ? "s" : ""} analysé${r.nouveaux > 1 ? "s" : ""}.</span>` + (err.length ? " " + escapeHTML(err[0]) : "")
+                   : (err.length ? '<span style="color:var(--clay)">' + escapeHTML(err[0]) + "</span>" : "Pas de nouveau call pour l'instant."));
+  }catch(e){ dit('<span style="color:var(--clay)">' + escapeHTML(e.message) + "</span>"); }
+  await majEssai();
+}
 function brancheFormulaireSuivi(apres){
+  const fo = $("cpFathomOk");
+  if(fo) fo.onclick = async () => {
+    const cle = $("cpFathomCle").value.trim(), etat = $("cpFathomEtat");
+    if(!cle) return toast("Colle ta clé Fathom.");
+    fo.disabled = true; etat.textContent = "Je vérifie ta clé auprès de Fathom…";
+    try{ await suivi("/api/compte", "PUT", {fathom: cle}); }
+    catch(e){ fo.disabled = false; etat.innerHTML = '<span style="color:var(--clay)">' + escapeHTML(e.message) + "</span>"; return; }
+    CP.fathomOk = true;
+    await releveTesteur(etat);
+    await chargeSuivi(true); apres();
+  };
   const a = $("cpSuiviAuto");
   if(a) a.onclick = () => {
     APRES_LIEN = apres;
@@ -2783,8 +2954,10 @@ function brancheFormulaireSuivi(apres){
 function rendTracking(){
   const el = $("cpTrackingIn"), st = CP.stats;
   let h = `<div class="cp-haut"><button class="cp-lien" id="cpTrRetour">← Accueil</button>
-    <div class="cp-btns"><button class="cp-btn" id="cpTrMaj">Actualiser</button>${CP.suivi.url ? `<a class="cp-btn" style="text-decoration:none" target="_blank" rel="noopener" href="${escapeHTML(CP.suivi.url)}">Page complète du suivi</a>` : ""}</div></div>
-    <h1 class="cp-titre">Tracking</h1><p class="cp-sous">Les 45 derniers jours, analysés avec ta grille. La courbe montre toute ta progression.</p>`;
+    <div class="cp-btns"><button class="cp-btn" id="cpTrMaj">Actualiser</button>${TESTEUR ? (CP.fathomOk ? '<button class="cp-btn" id="cpTrReleve">Relever mes nouveaux calls</button>' : "")
+      : (CP.suivi.url ? `<a class="cp-btn" style="text-decoration:none" target="_blank" rel="noopener" href="${escapeHTML(CP.suivi.url)}">Page complète du suivi</a>` : "")}</div></div>
+    <h1 class="cp-titre">Tracking</h1><p class="cp-sous">Les 45 derniers jours, analysés avec ta grille. La courbe montre toute ta progression.</p>
+    ${TESTEUR ? `<p id="cpTrEtat" style="font-size:13px;color:var(--muted);margin:-8px 0 16px">${CP.essai ? "Ton essai : " + CP.essai.call.fait + "/" + CP.essai.call.max + " calls analysés. Tes nouveaux calls sont relevés tout seuls toutes les heures." : ""}</p>` : ""}`;
   if(!st){ el.innerHTML = h + formulaireSuivi(); branche(); brancheFormulaireSuivi(rendTracking); return; }
   const scoreMoy = (() => { const v = CP.calls.filter(c => String(c.date || "") >= new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10)).map(scoreCall).filter(x => x !== null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; })();
   h += `<div class="cp-kpis">
@@ -2811,6 +2984,7 @@ function rendTracking(){
   function branche(){
     $("cpTrRetour").onclick = accueil;
     if($("cpTrMaj")) $("cpTrMaj").onclick = async () => { $("cpTrMaj").textContent = "…"; await chargeSuivi(true); rendTracking(); };
+    if($("cpTrReleve")) $("cpTrReleve").onclick = async () => { $("cpTrReleve").disabled = true; await releveTesteur($("cpTrEtat")); await chargeSuivi(true); rendTracking(); };
     el.querySelectorAll("[data-analyser]").forEach(b => b.onclick = () => nouvelleAnalyse(CP.calls.find(c => c.id === b.dataset.analyser)));
     el.querySelectorAll("[data-travailler]").forEach(b => b.onclick = () => { CP.onglet = "phases"; ouvreCoaching(b.dataset.travailler); });
   }
@@ -2941,7 +3115,19 @@ function lanceRoleplay(scenario){
 /* ---------------------------------------------------------------------
    Les séances : on s'arrête, on reprend un autre jour
    --------------------------------------------------------------------- */
-function nouvelleSeance(o){
+// un testeur : chaque nouvelle séance compte dans son essai (le serveur refuse au bout)
+async function annonceCoaching(){
+  if(!TESTEUR) return true;
+  try{
+    const r = await fetch(srvCopilote() + "/api/exercice", {method: "POST", headers: {"Content-Type": "application/json", "x-code": codeAcces()}, body: JSON.stringify({type: "coaching"})});
+    const d = await r.json().catch(() => ({}));
+    if(d.essai) CP.essai = d.essai;
+    if(r.status === 402){ toast(d.erreur || "Ton essai est arrivé au bout."); return false; }
+    return true;
+  }catch(_){ return true; }          // réseau capricieux : on ne bloque pas la séance
+}
+async function nouvelleSeance(o){
+  if(!(await annonceCoaching())) return false;
   const s = {id: "s" + Date.now(), titre: o.titre || "Séance", type: o.type || "qr", k: o.k || null, call: o.call || null,
              qui: CP.qui, conv: [], etat: "en_cours", debut: Date.now(), maj: Date.now(), texte: o.texte || ""};
   CP.seances.push(s); CP.actuelle = s.id;
@@ -2949,6 +3135,7 @@ function nouvelleSeance(o){
   sauve(); ouvreSeance();
   if(o.ouverture){ $("cpMoi").value = o.ouverture; envoie(); }
   else if(!o.silence){ s.conv.push({role: "coach", nom: coachDe(s.qui).court, t: Date.now(), txt: ouvertureCoach()}); sauve(); rendFil(); }
+  return true;
 }
 function ouvertureCoach(){
   const d = devoirsOuverts().slice(-1)[0];
@@ -2957,7 +3144,7 @@ function ouvertureCoach(){
 }
 async function nouvelleAnalyse(c, k){
   if(!c) return;
-  nouvelleSeance({type: "analyse", titre: "Analyse : " + nomCall(c) + " (" + (c.date || "") + ")", call: c, k: k || null, silence: true});
+  if(!(await nouvelleSeance({type: "analyse", titre: "Analyse : " + nomCall(c) + " (" + (c.date || "") + ")", call: c, k: k || null, silence: true}))) return;
   const s = seance();
   $("cpCallJoint").textContent = "Je récupère la transcription…";
   try{ s.texte = await suivi("/api/call/" + encodeURIComponent(c.id) + "/transcript"); }catch(e){ toast("Transcription non récupérée : " + e.message); }
@@ -3131,7 +3318,7 @@ function systemeCoach(){
   }
   else if(DOCTRINES[c.k] && DOCTRINES[c.k].cerveau){ vraieTete = true; cerveau = "### TA TÊTE\n" + DOCTRINES[c.k].cerveau; }
   else {
-    const f = (FICHES || []).filter(x => x.ecole === c.k).slice(0, 60);
+    const f = (FICHES || []).filter(x => x.ecole === (c.src || c.k)).slice(0, 60);
     cerveau = "### CE QUE " + c.nom.toUpperCase() + " ENSEIGNE (ses principes et ses phrases, à faire passer par ta propre réflexion, jamais à réciter)\n" +
       f.map(x => "- " + (x.situation ? x.situation + " → " : "") + "« " + x.phrase + " »" + (x.pourquoi ? " (" + x.pourquoi + ")" : "")).join("\n");
   }
@@ -3348,9 +3535,15 @@ $("cpMoi").addEventListener("keydown", e => { if(e.key === "Enter" && (e.ctrlKey
 accueilEl.innerHTML = '<div class="cp-page"><span class="cp-marque">Closing Copilot</span></div>';
 (async () => {
   CP.regl = (await Store.get("coach_perso_regl")) || {};
-  const pf = await Store.get("coach_perso_profils");
-  if(Array.isArray(pf)) PROFILS = PROFILS_DEFAUT.map(d => Object.assign({}, d, pf.find(x => x.id === d.id) || {}, {coachs: d.coachs}));
-  if(!PROFILS.some(p => p.id === PROFIL && p.nom)) PROFIL = "woidih";
+  if(TESTEUR){
+    // son prénom et son essai d'abord, pour que l'accueil lui parle à lui
+    habilleTesteur();
+    await majEssai();
+  } else {
+    const pf = await Store.get("coach_perso_profils");
+    if(Array.isArray(pf)) PROFILS = PROFILS_DEFAUT.map(d => Object.assign({}, d, pf.find(x => x.id === d.id) || {}, {coachs: d.coachs}));
+    if(!PROFILS.some(p => p.id === PROFIL && p.nom)) PROFIL = "woidih";
+  }
   await chargeProfil();
   // l'ancienne conversation unique devient une séance à reprendre
   const vieille = PROFIL === "woidih" ? await Store.get("coach_perso_conv") : null;
