@@ -99,6 +99,42 @@ Si la phrase de la fiche colle déjà, reprends-la telle quelle. Ta phrase reste
 Donne toujours le numéro de la fiche dont tu es parti. Si aucune ne s'applique vraiment, mets numero à null et dis-le : c'est un trou dans sa base, et c'est une information utile.`;
 
 /* =====================================================================
+   LE FIL : ce que les coachs gardent en tête de tout votre travail.
+   Les roleplays y sont écrits à leur débrief ; les séances de coaching
+   (analyses, questions, phases) sont relues depuis leur propre mémo.
+   ===================================================================== */
+const DEPART_FIL = new Date(2026, 9, 19, 11, 0).getTime();   // nouveau départ : le nouveau cerveau de Josh
+function cleFil(){
+  let p = "woidih";
+  try{ p = localStorage.getItem("woidih_profil_actif") || "woidih"; }catch(_){}
+  if(modeTesteur()) p = "t";
+  return "coach_fil" + (p === "woidih" ? "" : "__" + p);
+}
+async function filLit(){ const l = await Store.get(cleFil()); return Array.isArray(l) ? l : []; }
+async function filEcrit(e){
+  const l = await filLit();
+  const i = l.findIndex(x => x.id === e.id);
+  if(i >= 0) Object.assign(l[i], e); else l.push(e);
+  await Store.set(cleFil(), l.slice(-200));
+}
+// une ligne de roleplay, telle que le coach la relira
+function ligneRoleplay(e){
+  return [e.vu, e.joue ? "Là où ça a basculé : " + e.joue : "", e.faute ? "Sa faute : " + e.faute : "",
+          e.aurait_du ? "Il fallait dire : « " + e.aurait_du + " »" : "", e.a_travailler ? "À corriger : " + e.a_travailler : "",
+          e.note != null ? "Note " + e.note + "/10." : ""].filter(Boolean).join(" ").slice(0, 700);
+}
+let filSeances = null;      // la section 7 y branche les séances de coaching : (sauf) => [{t, txt}]
+let FIL_DEBRIEF = "";       // le fil lu juste avant un débrief de roleplay
+// tout le travail fait, du plus ancien au plus récent (les n derniers), sauf la séance en cours
+async function texteFil(n, sauf){
+  const rp = (await filLit()).filter(e => e.type === "roleplay" && (e.t || 0) > DEPART_FIL)
+    .map(e => ({t: e.t, txt: e.titre + (e.coach ? " (avec " + e.coach + ")" : "") + " : " + ligneRoleplay(e)}));
+  let se = []; try{ se = filSeances ? filSeances(sauf) : []; }catch(_){}
+  return rp.concat(se).sort((a, b) => a.t - b.t).slice(-n)
+    .map(x => "  - " + new Date(x.t).toLocaleDateString("fr-FR", {weekday: "long", day: "numeric", month: "long"}) + " · " + x.txt).join("\n");
+}
+
+/* =====================================================================
    1A. LE DÉBRIEF DU ROLEPLAY / SPARRING
    ===================================================================== */
 const REQUIS_SPAR = ["lecture","note","faute","trouve","criteres","une_chose"];
@@ -140,6 +176,10 @@ JUGE-LE SUR CES CRITÈRES-LÀ, ET SUR RIEN D'AUTRE :
 ${criteres}
 
 ${notesDuCoach()}
+${FIL_DEBRIEF ? `CE QU'IL A DÉJÀ TRAVAILLÉ AVEC SES COACHS (le plus récent en dernier) :
+${FIL_DEBRIEF}
+C'est un fil, pas un exercice isolé. Si sa faute d'aujourd'hui est déjà apparue là-dedans, dis-le-lui clairement dans "lecture" (« c'est la même chose que sur… »). S'il a corrigé quelque chose qui revenait, dis-le aussi. La note, elle, ne juge que cet exercice.
+` : ""}
 ${SPAR.finRaison ? "L'EXERCICE S'EST TERMINÉ : " + SPAR.finRaison + "." : ""}
 ${sparMode === "coach" ? `MODE COACHING : le coach a dû l'arrêter ${SPAR.arrets||0} fois pendant l'exercice.` : ""}
 ${(SPAR.silencesTotal||0) > 0 ? `Il a tenu le silence ${SPAR.silencesTotal} fois après ses questions.` : "Il n'a jamais tenu le silence après une question forte."}
@@ -385,6 +425,7 @@ $("btnSparFin").onclick = async () => {
   $("sparDebrief").scrollIntoView({block:"start"});
 
   let j;
+  try{ FIL_DEBRIEF = await texteFil(8); }catch(_){ FIL_DEBRIEF = ""; }
   try{
     j = await appelJson(promptDebrief1(), 2800, REQUIS_SPAR, optsDebrief());
   }catch(e){
@@ -411,6 +452,11 @@ $("btnSparFin").onclick = async () => {
   if(HISTO.length > 300) HISTO = HISTO.slice(-300);
   Store.set("historique", HISTO);
   if(note !== null) majSession(SPAR.debut, s => { if(!s.notes.length) s.notes.push(note); });
+  // le fil : ce roleplay restera en tête du coach pour les séances suivantes
+  const idFil = "r" + SPAR.debut;
+  filEcrit({id: idFil, t: Date.now(), type: "roleplay", coach: manniereDuCoach().nom,
+            titre: "Roleplay « " + segmentCourant().nom + " »" + (SPAR.p.metier ? " contre un prospect " + SPAR.p.metier : "") + (SPAR.reel ? " (rejeu d'un vrai call)" : ""),
+            vu: j.lecture || "", joue: j.bascule || "", faute: j.faute || "", a_travailler: j.une_chose || "", note, trouve: j.trouve}).catch(() => {});
 
   // Deuxième temps : il va chercher dans ta méthode ce qui répond à SA lecture.
   let m;
@@ -419,6 +465,7 @@ $("btnSparFin").onclick = async () => {
     const r = await appelJson(promptDebrief2(j, fiches), 1800, ["exercice","exercices"], optsDebrief());
     m = Object.assign({}, r, {fiche: ficheParNumero(fiches, r.numero)});
   }catch(e){ m = {erreur: e.message}; }
+  if(m && m.aurait_du) filEcrit({id: idFil, aurait_du: m.aurait_du}).catch(() => {});
   DEBRIEF_EN_COURS = false; boutonFinAppuye(false);
   if(SPAR && SPAR.dernierDebrief === j){
     SPAR.dernierMethode = m;
@@ -3061,18 +3108,20 @@ function rendCoaching(phaseOuverte){
     h += `<div class="cp-carte"><h4>Questions-réponses</h4><p class="cp-vide" style="margin-bottom:14px">Raconte un call, une situation, un doute. Il te fera chercher avant de te répondre.</p>
       <button class="cp-btn plein" id="cpNouvelleQR">Nouvelle séance avec ${escapeHTML(coachCourant().nom)}</button></div>`;
   }
+  h += `<div class="cp-carte" id="cpMemoire" style="display:none"></div>`;
   const finies = CP.seances.filter(s => s.etat === "terminee").sort((a, b) => b.maj - a.maj).slice(0, 6);
   if(finies.length) h += `<div class="cp-carte"><h4>Tes dernières séances</h4>${finies.map(s => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(s.titre)}</b>
       <small>${jour(s.maj)} · ${escapeHTML(coachDe(s.qui).nom)}${s.bilan ? " · " + escapeHTML(s.bilan.slice(0, 140)) + (s.bilan.length > 140 ? "…" : "") : ""}</small></div>
       <button class="cp-btn" data-relire="${s.id}">Relire</button></div>`).join("")}</div>`;
   el.innerHTML = h;
+  rendMemoire();
   $("cpCoRetour").onclick = accueil;
   brancheFormulaireSuivi(() => rendCoaching());
   el.querySelectorAll("[data-coach]").forEach(b => b.onclick = () => { CP.qui = b.dataset.coach; sauve(); rendCoaching(phaseOuverte); });
   el.querySelectorAll("[data-onglet]").forEach(b => b.onclick = () => { CP.onglet = b.dataset.onglet; rendCoaching(); });
   el.querySelectorAll("[data-reprendre]").forEach(b => b.onclick = () => reprend(b.dataset.reprendre));
   el.querySelectorAll("[data-relire]").forEach(b => b.onclick = () => reprend(b.dataset.relire));
-  el.querySelectorAll("[data-clore]").forEach(b => b.onclick = () => { const s = CP.seances.find(x => x.id === b.dataset.clore); if(s){ s.etat = "terminee"; s.maj = Date.now(); sauve(); rendCoaching(); } });
+  el.querySelectorAll("[data-clore]").forEach(b => b.onclick = () => { const s = CP.seances.find(x => x.id === b.dataset.clore); if(s){ s.etat = "terminee"; s.maj = Date.now(); sauve(); memoSeance(s); rendCoaching(); } });
   el.querySelectorAll("[data-entrainer]").forEach(b => b.onclick = () => entrainePhase(b.dataset.entrainer, b));
   el.querySelectorAll("[data-comprendre]").forEach(b => b.onclick = () => nouvelleSeance({type: "phase", k: b.dataset.comprendre, titre: "Comprendre : " + nomPhase(b.dataset.comprendre),
       ouverture: "Je veux travailler « " + nomPhase(b.dataset.comprendre) + " ». D'après ma grille, je le réussis dans " + ((lignesGrille().find(l => l.k === b.dataset.comprendre) || {}).taux ?? "?") + " % de mes calls. Aide-moi à comprendre ce que je rate."}));
@@ -3080,6 +3129,22 @@ function rendCoaching(phaseOuverte){
   el.querySelectorAll("[data-analyser]").forEach(b => b.onclick = () => nouvelleAnalyse(CP.calls.find(c => c.id === b.dataset.analyser), b.dataset.phase));
   if($("cpRpLibre")) $("cpRpLibre").onclick = () => lanceRoleplay("");
   if($("cpNouvelleQR")) $("cpNouvelleQR").onclick = () => nouvelleSeance({type: "qr", titre: "Questions-réponses"});
+}
+
+/* ce que tes coachs ont en tête : le même fil que celui qu'ils relisent */
+async function rendMemoire(){
+  let rp = []; try{ rp = (await filLit()).filter(e => e.type === "roleplay" && (e.t || 0) > DEPART_FIL); }catch(_){}
+  const el = $("cpMemoire"); if(!el) return;
+  const l = rp.map(e => ({t: e.t, titre: e.titre, txt: e.a_travailler || e.faute || e.vu || ""}))
+    .concat(CP.seances.filter(s => (s.maj || 0) > DEPART_FIL && (s.conv.some(m => m.role === "moi") || s.plan))
+      .map(s => ({t: s.maj, titre: s.titre, txt: (s.memo && s.memo.txt) || s.bilan || (s.call && s.call.joue && s.call.joue.quoi) || ""})))
+    .sort((a, b) => b.t - a.t);
+  if(!l.length) return;
+  el.style.display = "block";
+  el.innerHTML = `<h4>Ce que tes coachs ont en mémoire</h4>
+    <p class="cp-vide" style="font-size:12.5px;margin-bottom:8px">${l.length} moment${l.length > 1 ? "s" : ""} de travail gardé${l.length > 1 ? "s" : ""} (analyses de calls, séances, roleplays). À chaque séance, ton coach relit les 14 plus récents et fait les liens entre eux.</p>
+    ${l.slice(0, 6).map(x => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(x.titre)}</b>
+      <small>${jour(x.t)}${x.txt ? " · " + escapeHTML(x.txt.slice(0, 150)) + (x.txt.length > 150 ? "…" : "") : ""}</small></div></div>`).join("")}`;
 }
 
 /* un prospect construit pour la phase que tu rates, à partir de tes vrais calls */
@@ -3128,6 +3193,7 @@ async function annonceCoaching(){
 }
 async function nouvelleSeance(o){
   if(!(await annonceCoaching())) return false;
+  rattrapeMemos();
   const s = {id: "s" + Date.now(), titre: o.titre || "Séance", type: o.type || "qr", k: o.k || null, call: o.call || null,
              qui: CP.qui, conv: [], etat: "en_cours", debut: Date.now(), maj: Date.now(), texte: o.texte || ""};
   CP.seances.push(s); CP.actuelle = s.id;
@@ -3167,11 +3233,11 @@ function litJsonCoach(txt){
   t = t.slice(a, b + 1);
   try{ return JSON.parse(t); }catch(_){ try{ return JSON.parse(t.replace(/,(\s*[}\]])/g, "$1")); }catch(__){ return null; } }
 }
-function promptPlan(s, k){
+function promptPlan(s, k, fil){
   const dest = coachCourant().k === "keenan"
     ? "l'écart entre sa situation actuelle et la situation qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant"
     : "les quatre accords qui font une vente : un problème qui le brûle ; un vrai désir de le régler ; il admet qu'il ne peut pas le régler seul ; il croit que l'offre peut l'aider, et il sait pourquoi maintenant";
-  return `${texteProfil()}${texteDuCall(s)}
+  return `${texteProfil()}${fil ? "\n" + TITRE_FIL + "\n" + fil + "\nSi ce call répète quelque chose de ce fil (la même faute, le même moment qui lâche), tu le relies dans ton premier message : c'est souvent là que se trouve le vrai travail.\n" : ""}${texteDuCall(s)}
 ${k ? "Il veut surtout travailler « " + nomPhase(k) + " ».\n" : ""}
 Avant de commencer la séance, tu lis tout ce call comme pour une revue de call, et tu prépares la carte de la séance : d'où il part, où vous allez, et pourquoi.
 1. La destination d'un call de vente, c'est ${dest}. Pour chacun des quatre accords : obtenu ou non dans ce call, et à quelle minute si la transcription a les minutes.
@@ -3188,7 +3254,8 @@ async function preparePlan(s, k){
   const c = coachCourant();
   CP.enCours = true; $("cpEtat").textContent = c.court + " lit tout ton call et prépare la séance…";
   try{
-    const j = litJsonCoach(await appelCerveau(promptPlan(s, k), {systeme: systemeCoach(), max: 1800, effort: "medium"}));
+    let fil = ""; try{ fil = await texteFil(14, s); }catch(_){}
+    const j = litJsonCoach(await appelCerveau(promptPlan(s, k, fil), {systeme: systemeCoach(), max: 1800, effort: "medium"}));
     const moments = (j && Array.isArray(j.moments) ? j.moments : []).filter(m => m && m.titre).slice(0, 3)
       .map(m => ({minute: minuteOk(m.minute), titre: String(m.titre).slice(0, 90), objectif: m.objectif ? String(m.objectif).slice(0, 200) : ""}));
     if(!moments.length || !j.ouverture) throw new Error("carte illisible");
@@ -3261,16 +3328,16 @@ function ouvreSeance(){
   setTimeout(() => { sec.scrollTop = sec.scrollHeight; }, 50);
 }
 function majCallJoint(){ const s = seance(); $("cpCallJoint").textContent = s && s.call ? "On parle du call : " + nomCall(s.call) + " (" + (s.call.date || "") + ")" + (s.texte ? "" : " · sans transcription") : ""; }
-$("cpPause").onclick = () => { const s = seance(); if(s){ s.maj = Date.now(); sauve(); } arreteVoix(); toast("Séance gardée. Tu la retrouves dans Coaching, « À reprendre »."); ouvreCoaching(); };
+$("cpPause").onclick = () => { const s = seance(); if(s){ s.maj = Date.now(); sauve(); memoSeance(s); } arreteVoix(); toast("Séance gardée. Tu la retrouves dans Coaching, « À reprendre »."); ouvreCoaching(); };
 $("cpRetour").onclick = $("cpPause").onclick;
 $("cpTerminer").onclick = async () => {
   const s = seance(); if(!s) return;
-  if(s.conv.filter(m => m.role === "moi").length < 2){ s.etat = "terminee"; s.maj = Date.now(); sauve(); return ouvreCoaching(); }
+  if(s.conv.filter(m => m.role === "moi").length < 2){ s.etat = "terminee"; s.maj = Date.now(); sauve(); memoSeance(s); return ouvreCoaching(); }
   $("cpMoi").value = "On s'arrête là pour cette séance. Fais-moi le bilan : ce que j'ai compris, ce qui reste fragile, et ce que je dois travailler d'ici la prochaine fois.";
   await envoie(true);
   s.etat = "terminee"; s.maj = Date.now();
   const der = [...s.conv].reverse().find(m => m.role === "coach"); if(der) s.bilan = der.txt;
-  sauve();
+  sauve(); memoSeance(s);
   $("cpEtat").innerHTML = 'Séance terminée. <a href="#" id="cpVersCoaching" style="color:var(--ink)">Retour au coaching</a>';
   $("cpVersCoaching").onclick = e => { e.preventDefault(); ouvreCoaching(); };
 };
@@ -3351,6 +3418,11 @@ Un point à la fois. Quand il est acquis, tu le dis, tu fais le point en une phr
 Quand ce n'est pas évident, ta question dit pourquoi tu la poses.
 Quand vous avez fait le tour, tu lui demandes ce qu'il retient, avec ses mots, avant de conclure.
 
+TA MÉMOIRE
+Tu as en tête le fil de tout votre travail : ses analyses de calls, ses séances, ses roleplays, même ceux faits avec un autre coach ou laissés en pause. Il est écrit plus bas, dans « LE FIL DE VOTRE TRAVAIL ».
+Tu fais les liens toi-même, comme un coach qui suit son élève depuis des semaines : quand la même faute revient d'un call ou d'un roleplay à l'autre, tu le lui dis (« c'est le troisième call où ça lâche au même endroit »), et quand il a corrigé quelque chose, tu le remarques.
+S'il te parle d'un call, d'un exercice ou d'une séance d'avant, tu le cherches dans ce fil et tu t'en sers. Tu ne lui dis jamais que tu ne sais pas de quoi il parle si c'est dans le fil. Si ce n'est vraiment pas dedans, tu lui demandes de te le rappeler en une phrase.
+
 COMMENT TU PARLES
 Tu parles, tu n'écris pas. Pas de listes, pas de titres, pas de gras, pas d'émojis, pas de mots de consultant. Des phrases courtes, à l'oral, en tutoyant, avec tes réactions d'humain (« attends », « tu vois ce qui se passe là ? », « non, écoute-toi »). En général 2 à 6 phrases. Plus long seulement s'il te demande d'expliquer en détail, ou pour un bilan.
 ${maniere ? "\nTA MANIÈRE\n" + maniere + "\n" : ""}
@@ -3360,16 +3432,50 @@ DEUX REPÈRES, à mettre seulement quand c'est utile, chacun seul sur une ligne 
 
 ${cerveau}`;
 }
-function promptCoach(question, estQuestion){
+/* --- la mémoire des séances : chaque séance quittée laisse un mémo, que tous les coachs relisent --- */
+const TITRE_FIL = "LE FIL DE VOTRE TRAVAIL : tout ce qu'il a fait avec ses coachs (analyses de calls, séances, roleplays), du plus ancien au plus récent. C'est ta mémoire :";
+function digestSeance(s){
+  const c = s.call;
+  const tete = s.titre + " (avec " + coachDe(s.qui).nom + (s.etat === "terminee" ? "" : ", pas terminée") + ")";
+  const call = c ? " Le call" + (c.issue ? " (" + c.issue + ")" : "") + " : " + String(c.resume || "").slice(0, 220) +
+    (c.joue && c.joue.quoi ? " Là où ça s'est joué" + (c.joue.minute ? ", minute " + c.joue.minute : "") + " : " + String(c.joue.quoi).slice(0, 200) : "") : "";
+  let fond = "";
+  if(s.memo && s.memo.txt) fond = " Ce qu'on en a retenu : " + s.memo.txt;
+  else if(s.bilan) fond = " Bilan : " + s.bilan.slice(0, 600);
+  else{ const der = s.conv.filter(m => m.role === "coach").slice(-2).map(m => m.txt.slice(0, 300)).join(" / "); if(der) fond = " Les derniers mots du coach : " + der; }
+  return tete + " :" + call + fond;
+}
+filSeances = sauf => CP.seances
+  .filter(s => s !== sauf && (s.maj || 0) > DEPART_FIL && (s.conv.some(m => m.role === "moi") || s.plan))
+  .map(s => ({t: s.maj, txt: digestSeance(s)}));
+async function memoSeance(s){
+  if(!s || !s.conv.some(m => m.role === "moi")) return;
+  if(s.memo && s.memo.n === s.conv.length) return;
+  const n = s.conv.length;
+  const conv = s.conv.slice(-40).map(m => (m.role === "moi" ? nomProfil() : (m.nom || "Coach")) + " : " + m.txt.slice(0, 700)).join("\n");
+  try{
+    const txt = await appelCerveau(`Voici une séance de coaching de ${nomProfil()}, closer high ticket, avec son coach : « ${s.titre} ».
+${s.call ? "Le call travaillé : " + (s.call.resume || "") + (s.call.joue && s.call.joue.quoi ? " Là où ça s'est joué : " + s.call.joue.quoi : "") + "\n" : ""}
+LA SÉANCE :
+${conv}
+
+Écris la note que le coach garde en tête pour les prochaines séances : 3 à 5 phrases, au passé, sans liste. Ce qui ressort de ce call ou de ce travail (avec les mots exacts quand ils comptent), ce que ${nomProfil()} a compris, la phrase juste qu'il a trouvée s'il y en a une, ce qui reste fragile, et le travail donné. Concret, rien de général. Réponds avec la note seule.`, {max: 450, effort: "low"});
+    if(txt && txt.trim() && CP.seances.includes(s)){ s.memo = {n, t: Date.now(), txt: txt.replace(/<<[\s\S]*?>>/g, "").trim().slice(0, 900)}; sauve(); }
+  }catch(_){}
+}
+// les séances quittées sans mémo à jour (onglet fermé en pleine séance…) : rattrapées en fond
+function rattrapeMemos(){
+  CP.seances.filter(s => s.id !== CP.actuelle && (s.maj || 0) > DEPART_FIL && s.conv.some(m => m.role === "moi") && !(s.memo && s.memo.n === s.conv.length))
+    .slice(-3).forEach(s => memoSeance(s));
+}
+function promptCoach(question, estQuestion, fil){
   const c = coachCourant(), s = seance();
   const hist = (s ? s.conv : []).slice(-24, -1).map(m => (m.role === "moi" ? (m.question ? nomProfil().toUpperCase() + " (question à côté)" : nomProfil().toUpperCase()) : (m.nom || "COACH").toUpperCase()) + " : " + m.txt).join("\n");
   // les devoirs ne servent qu'en début de séance (pour les lui redemander) : ensuite ils coloreraient chaque réponse
   const debut = !s || s.conv.filter(m => m.role === "moi").length <= 1;
   // nouveau départ : ce qui a été écrit avant le nouveau cerveau de Josh (19 octobre, ancienne façon de penser) n'est plus relu
-  const depuis = new Date(2026, 9, 19, 11, 0).getTime();
-  const ouverts = debut ? devoirsOuverts().filter(d => (Number(d.id) || 0) > depuis).slice(-3).map(d => "  - (" + d.date + ") " + d.txt).join("\n") : "";
-  const avant = CP.seances.filter(x => x.etat === "terminee" && x.bilan && x !== s && (x.maj || 0) > depuis).sort((a, b) => b.maj - a.maj).slice(0, 3)
-    .map(x => "  - " + jour(x.maj) + ", " + x.titre + " : " + x.bilan.slice(0, 500)).join("\n");
+  const ouverts = debut ? devoirsOuverts().filter(d => (Number(d.id) || 0) > DEPART_FIL).slice(-3).map(d => "  - (" + d.date + ") " + d.txt).join("\n") : "";
+  const avant = fil || "";
   const objet = s && s.k ? `\nCETTE SÉANCE PORTE SUR UNE PHASE PRÉCISE DE SES CALLS : « ${nomPhase(s.k)} ». Reste dessus, sauf quand il te pose une question directe : tu y réponds d'abord.\n` : "";
   const consigneQuestion = estQuestion ? `
 ATTENTION : CE MESSAGE EST UNE QUESTION DIRECTE qu'il te pose, à côté de l'exercice. Il veut ta réponse, pas une nouvelle question.
@@ -3377,7 +3483,7 @@ Réponds-y vraiment : clairement, complètement, avec un exemple concret ou la p
 Pas de DEVOIR ni de ROLEPLAY. Termine par une seule courte phrase qui propose de reprendre l'exercice là où vous en étiez.
 ` : "";
   let sv = ""; try{ sv = souvenirs(question + " " + (s && s.call ? (s.call.resume || "") : "") + (s && s.k ? " " + nomPhase(s.k) : ""), [], "", 6); }catch(_){}
-  return `${texteProfil()}${avant ? "\nVOS DERNIÈRES SÉANCES (leur bilan) :\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${textePlan(s)}${sv}
+  return `${texteProfil()}${avant ? "\n" + TITRE_FIL + "\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${textePlan(s)}${sv}
 ${hist ? "CETTE SÉANCE JUSQU'ICI :\n" + hist + "\n" : ""}
 ${nomProfil().toUpperCase()}${estQuestion ? " (QUESTION DIRECTE)" : ""} : ${question}
 ${consigneQuestion}
@@ -3402,13 +3508,19 @@ function rendDevoirs(){
 async function envoie(silencieux, estQuestion){
   const q = $("cpMoi").value.trim(), s = seance();
   if(!q || CP.enCours || !s) return;
+  // une clé collée ici partirait chez l'IA : on la retient
+  if(!/\s/.test(q) && q.length >= 30 && /[A-Za-z]/.test(q) && /\d/.test(q)){
+    $("cpEtat").innerHTML = '<span style="color:var(--clay)">Ça ressemble à une clé : je ne l\'envoie pas au coach. Efface-la d\'ici. Ta clé Fathom se met dans Tracking, à l\'endroit prévu.</span>';
+    return;
+  }
   arreteVoix();
   const c = coachCourant();
   s.conv.push(Object.assign({role: "moi", txt: q, t: Date.now()}, estQuestion ? {question: true} : {})); s.maj = Date.now(); s.qui = CP.qui;
   $("cpMoi").value = ""; rendFil(); sauve();
   CP.enCours = true; $("cpEtat").textContent = c.court + " réfléchit…";
   try{
-    let rep = await appelCerveau(promptCoach(q, estQuestion), {systeme: systemeCoach(), max: 1400, effort: "medium"});
+    let fil = ""; try{ fil = await texteFil(14, s); }catch(_){}
+    let rep = await appelCerveau(promptCoach(q, estQuestion, fil), {systeme: systemeCoach(), max: 1400, effort: "medium"});
     const dv = rep.match(/<<\s*DEVOIR\s*:\s*([\s\S]*?)>>/i), rp = rep.match(/<<\s*ROLEPLAY\s*:\s*([\s\S]*?)>>/i);
     const momentFait = /<<\s*MOMENT[_ ]FAIT\s*>>/i.test(rep);
     rep = rep.replace(/<<[\s\S]*?>>/g, "").trim();
@@ -3426,7 +3538,9 @@ async function envoie(silencieux, estQuestion){
     $("cpEtat").textContent = "";
     await parle(rep);
   }catch(e){
-    $("cpEtat").innerHTML = '<span style="color:var(--clay)">' + escapeHTML(e.message) + "</span>";
+    // un testeur n'a rien à vérifier lui-même : la clé de l'IA est sur le serveur
+    const m = TESTEUR && /clé api|config\.json/i.test(e.message) ? "Le coach ne répond pas pour le moment : c'est un souci de notre côté, pas du tien. Réessaie un peu plus tard." : e.message;
+    $("cpEtat").innerHTML = '<span style="color:var(--clay)">' + escapeHTML(m) + "</span>";
   }
   CP.enCours = false;
 }
