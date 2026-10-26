@@ -2629,9 +2629,12 @@ async function chargeProfil(){
   if(autorises && !autorises.includes(CP.qui)) CP.qui = autorises[0];
   const s = (await Store.get(K("coach_perso_suivi"))) || {};
   let defaut = "";
-  if(PROFIL === "woidih" || TESTEUR){ try{ defaut = srvCopilote().replace(/\/copilot\/?$/, "") + "/suivi"; }catch(_){} }
-  // un testeur entre dans son suivi avec son code d'accès : rien à taper
-  CP.suivi = TESTEUR ? {url: defaut, mdp: "", code: codeAcces()} : {url: s.url || defaut, mdp: s.mdp || ""};
+  try{ defaut = srvCopilote().replace(/\/copilot\/?$/, "") + "/suivi"; }catch(_){}
+  // un testeur entre dans son suivi avec son code d'accès : rien à taper.
+  // L'espace de ta femme aussi passe par un code (le sien, créé dans ta page des accès) : ses calls à elle, séparés des tiens.
+  CP.suivi = TESTEUR ? {url: defaut, mdp: "", code: codeAcces()}
+           : PROFIL === "woidih" || s.mdp ? {url: s.url || defaut, mdp: s.mdp || ""}
+           : {url: defaut, mdp: "", code: s.code || ""};
 }
 async function changeProfil(id){
   arreteVoix();
@@ -2807,6 +2810,8 @@ async function majEssai(){
 }
 const ligneEssai = () => !CP.essai ? "" : `Ton essai : ${CP.essai.call.fait}/${CP.essai.call.max} calls analysés · ${CP.essai.roleplay.fait}/${CP.essai.roleplay.max} jeux de rôle · ${CP.essai.coaching.fait}/${CP.essai.coaching.max} séances de coaching`;
 const suiviConnecte = () => !!(CP.suivi.url && (CP.suivi.mdp || CP.suivi.code));
+// un suivi par code (testeur, ou l'espace de ta femme) : sa clé Fathom est gardée dans son espace sur le serveur
+const parCode = () => TESTEUR || (PROFIL !== "woidih" && !CP.suivi.mdp);
 async function suivi(chemin, methode, corps){
   const s = CP.suivi; if(!suiviConnecte()) throw new Error("suivi non connecté");
   const h = s.code ? {"x-code": s.code} : {"x-mot-de-passe": s.mdp};
@@ -2821,7 +2826,7 @@ function chargeSuivi(force){
   CP.charge = (async () => {
     if(!suiviConnecte()){ CP.suiviErreur = "non connecté"; return; }
     // un testeur sans clé Fathom : on le lui demande, plutôt que d'afficher un suivi vide
-    if(TESTEUR){
+    if(parCode()){
       try{ const c = await suivi("/api/compte"); CP.fathomOk = !!c.fathom; }catch(e){ CP.suiviErreur = e.message; return; }
       if(!CP.fathomOk){ CP.suiviErreur = "fathom"; return; }
     }
@@ -2920,13 +2925,20 @@ async function ouvreTracking(){
   rendTracking();
 }
 function formulaireSuivi(){
-  if(TESTEUR){
+  // l'espace de ta femme, pas encore relié : d'abord son code d'accès
+  if(parCode() && !CP.suivi.code){
+    return `<div class="cp-carte"><h4>Relier les calls de ${escapeHTML(nomProfil())}</h4>
+      <p class="cp-vide">${CP.suiviErreur && CP.suiviErreur !== "non connecté" ? "<span style='color:var(--clay)'>" + escapeHTML(CP.suiviErreur) + "</span><br>" : ""}Ses calls ont leur propre espace sur ton serveur, séparé du tien. Crée-lui un accès dans ta page des accès (ton adresse + /copilot/admin), avec de grandes limites, puis colle son code ici. La clé Fathom viendra juste après.</p>
+      <input class="cp-champ" id="cpSuiviCode" placeholder="son code d'accès (ex. ABCD-EFGH)" autocomplete="off">
+      <div class="cp-btns" style="margin-top:12px"><button class="cp-btn plein" id="cpSuiviCodeOk">Relier</button></div></div>`;
+  }
+  if(parCode()){
     const err = CP.suiviErreur && !["non connecté", "fathom"].includes(CP.suiviErreur) ? "<span style='color:var(--clay)'>" + escapeHTML(CP.suiviErreur) + "</span><br>" : "";
     return `<div class="cp-carte"><h4>Connecter tes calls Fathom</h4>
       <p class="cp-vide">${err}Colle ta clé Fathom une seule fois. Tes calls seront ensuite récupérés et analysés tout seuls${CP.essai ? ", dans la limite de ton essai (" + CP.essai.call.max + " calls)" : ""}.</p>
       <p class="cp-vide" style="font-size:13px;margin-top:8px">Où la trouver : dans Fathom, ouvre <b style="color:var(--ink)">Réglages</b>, puis <b style="color:var(--ink)">API</b>, et crée une clé.</p>
       <input class="cp-champ" id="cpFathomCle" type="password" placeholder="ta clé Fathom" autocomplete="off">
-      <p style="font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.5">Bon à savoir : tes calls (leur transcription et leur analyse) sont stockés sur le serveur de Woidih, uniquement pour ton coaching. Il les supprime dès que tu le lui demandes.</p>
+      ${TESTEUR ? `<p style="font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.5">Bon à savoir : tes calls (leur transcription et leur analyse) sont stockés sur le serveur de Woidih, uniquement pour ton coaching. Il les supprime dès que tu le lui demandes.</p>` : ""}
       <div class="cp-btns" style="margin-top:12px"><button class="cp-btn plein" id="cpFathomOk">Connecter mes calls</button></div>
       <p id="cpFathomEtat" style="font-size:13px;color:var(--muted);margin-top:8px"></p></div>`;
   }
@@ -2970,6 +2982,20 @@ async function releveTesteur(etat){
   await majEssai();
 }
 function brancheFormulaireSuivi(apres){
+  const co = $("cpSuiviCodeOk");
+  if(co) co.onclick = async () => {
+    const code = $("cpSuiviCode").value.trim().toUpperCase();
+    if(!code) return toast("Colle son code d'accès.");
+    co.disabled = true; co.textContent = "Je vérifie…";
+    CP.suivi = {url: CP.suivi.url, mdp: "", code};
+    await Store.set(K("coach_perso_suivi"), {code});
+    await chargeSuivi(true);
+    if(/code d'accès est refusé/.test(CP.suiviErreur)){
+      CP.suivi.code = ""; await Store.set(K("coach_perso_suivi"), {});
+      toast("Ce code est refusé : vérifie-le dans ta page des accès.");
+    }
+    apres();
+  };
   const fo = $("cpFathomOk");
   if(fo) fo.onclick = async () => {
     const cle = $("cpFathomCle").value.trim(), etat = $("cpFathomEtat");
@@ -3001,7 +3027,7 @@ function brancheFormulaireSuivi(apres){
 function rendTracking(){
   const el = $("cpTrackingIn"), st = CP.stats;
   let h = `<div class="cp-haut"><button class="cp-lien" id="cpTrRetour">← Accueil</button>
-    <div class="cp-btns"><button class="cp-btn" id="cpTrMaj">Actualiser</button>${TESTEUR ? (CP.fathomOk ? '<button class="cp-btn" id="cpTrReleve">Relever mes nouveaux calls</button>' : "")
+    <div class="cp-btns"><button class="cp-btn" id="cpTrMaj">Actualiser</button>${parCode() ? (CP.fathomOk ? '<button class="cp-btn" id="cpTrReleve">Relever mes nouveaux calls</button>' : "")
       : (CP.suivi.url ? `<a class="cp-btn" style="text-decoration:none" target="_blank" rel="noopener" href="${escapeHTML(CP.suivi.url)}">Page complète du suivi</a>` : "")}</div></div>
     <h1 class="cp-titre">Tracking</h1><p class="cp-sous">Les 45 derniers jours, analysés avec ta grille. La courbe montre toute ta progression.</p>
     ${TESTEUR ? `<p id="cpTrEtat" style="font-size:13px;color:var(--muted);margin:-8px 0 16px">${CP.essai ? "Ton essai : " + CP.essai.call.fait + "/" + CP.essai.call.max + " calls analysés. Tes nouveaux calls sont relevés tout seuls toutes les heures." : ""}</p>` : ""}`;
