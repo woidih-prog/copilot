@@ -254,6 +254,12 @@ a{color:var(--steel)}
         <input type="text" id="raisonMort" placeholder="Pas de budget, pas décideur, pas le bon moment…">
       </div>
 
+      <label for="telProspect">Son numéro WhatsApp</label>
+      <input type="text" id="telProspect" inputmode="tel" placeholder="06 12 34 56 78">
+      <label style="display:flex;gap:9px;align-items:center;margin-top:9px;font-size:14px;color:var(--ink)">
+        <input type="checkbox" id="okWhatsapp" style="width:auto"> Il est d'accord pour que je lui écrive sur WhatsApp
+      </label>
+
       <label for="notePerso">Ce que tu veux ajouter</label>
       <textarea id="notePerso" style="min-height:70px" placeholder="Ton ressenti, un détail à ne pas oublier."></textarea>
     </div>
@@ -291,6 +297,17 @@ a{color:var(--steel)}
         <button class="pill" id="btnImport">Importer un pipeline</button>
       </div>
       <p class="note">Fais-le une fois par semaine. Un navigateur qui se vide, c'est tout ton suivi qui part.</p>
+    </div>
+    <div class="block">
+      <h3>Agent follow-up</h3>
+      <p class="note" style="margin-bottom:11px">L'adresse de ton agent sur le VPS et son code. Chaque fiche enregistrée lui est envoyée : il s'occupe des relances.</p>
+      <input type="text" id="agentUrl" placeholder="https://…/followup">
+      <input type="password" id="agentCode" placeholder="Code d'accès" style="margin-top:9px">
+      <div class="row" style="margin-top:11px">
+        <button class="pill" id="btnAgent">Enregistrer et tester</button>
+        <button class="pill" id="btnAgentTout">Envoyer tout le pipeline</button>
+      </div>
+      <p id="agentEtat" class="note"></p>
     </div>
     <button class="pill" id="btnRegleRetour">Retour</button>
   </div>
@@ -739,6 +756,8 @@ function ouvreFiche(c, neuve){
   $("pretexte").value = c.pretexte || "";
   $("raisonMort").value = c.raison || "";
   $("notePerso").value = c.note || "";
+  $("telProspect").value = c.telephone || "";
+  $("okWhatsapp").checked = !!c.whatsapp;
   $("btnSuppr").style.display = neuve ? "none" : "inline-block";
 }
 function majSuite(s){
@@ -760,6 +779,8 @@ $("btnEnreg").onclick = async () => {
   COURANT.note = $("notePerso").value.trim();
   COURANT.pretexte = $("pretexte").value.trim();
   COURANT.raison = $("raisonMort").value.trim();
+  COURANT.telephone = $("telProspect").value.trim();
+  COURANT.whatsapp = $("okWhatsapp").checked;
   if(COURANT.suite === "r2"){
     if(!$("dateR2").value) return toast("Mets la date du R2, c'est tout l'intérêt");
     COURANT.quand = $("dateR2").value;
@@ -772,6 +793,7 @@ $("btnEnreg").onclick = async () => {
   CALLS.push(COURANT);
   await Store.set("calls", CALLS);
   toast("Enregistré");
+  versAgent([COURANT]);   // sans attendre : si l'agent ne répond pas, la fiche est quand même gardée
   retourHome();
 };
 
@@ -923,6 +945,39 @@ $("btnRetour").onclick = () => { arreteDicte(); arreteEcoute(); retourHome(); };
 $("btnFicheRetour").onclick = retourHome;
 $("btnRegle").onclick = () => { $("home").classList.remove("on"); $("regle").classList.add("on"); $("memEtat").textContent = "Tes fiches sont gardées dans : " + MEM + "."; };
 $("btnRegleRetour").onclick = retourHome;
+
+/* ================= AGENT FOLLOW-UP ================= */
+function agentCfg(){ try{ return JSON.parse(localStorage.getItem("r1_agent") || "null") || {}; }catch(e){ return {}; } }
+async function versAgent(fiches){
+  const a = agentCfg();
+  if(!a.url || !a.code) return null;
+  // on n'envoie pas la transcription brute : l'agent n'a besoin que de la fiche
+  const legeres = fiches.map(({brut, ...reste}) => reste);
+  try{
+    const r = await fetch(a.url.replace(/\/+$/,"") + "/api/sync", {
+      method:"POST", headers:{"content-type":"application/json","x-code":a.code},
+      body: JSON.stringify({source:"suivi-r1", fiches: legeres})});
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  }catch(e){ toast("Agent follow-up injoignable"); return null; }
+}
+(function(){
+  const a = agentCfg();
+  $("agentUrl").value = a.url || ""; $("agentCode").value = a.code || "";
+})();
+$("btnAgent").onclick = async () => {
+  const url = $("agentUrl").value.trim(), code = $("agentCode").value.trim();
+  try{ localStorage.setItem("r1_agent", JSON.stringify({url, code})); }catch(e){}
+  $("agentEtat").textContent = "Je teste…";
+  try{
+    const r = await fetch(url.replace(/\/+$/,"") + "/api/ping", {headers:{"x-code":code}});
+    $("agentEtat").innerHTML = r.ok ? '<span class="ok">Agent connecté.</span>' : '<span class="err">Code refusé.</span>';
+  }catch(e){ $("agentEtat").innerHTML = '<span class="err">Agent injoignable.</span>'; }
+};
+$("btnAgentTout").onclick = async () => {
+  const b = await versAgent(CALLS);
+  $("agentEtat").textContent = b ? `${b.crees} suivis créés, ${b.maj} mis à jour.` : "Rien envoyé : vérifie l'adresse et le code.";
+};
 
 /* Un onglet mis en arrière-plan sur mobile suspend le micro sans prévenir.
    Au retour, on relance l'écoute plutôt que de laisser un chrono qui tourne

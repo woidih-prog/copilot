@@ -1,0 +1,17 @@
+{
+  "name": "followup-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent de follow-up personnel : relances courtes et longues par WhatsApp, à partir du tracking Suivi R1.",
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "import": "node --env-file-if-exists=.env scripts/import.js",
+    "tick": "node --env-file-if-exists=.env scripts/tick.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0"
+  }
+}
