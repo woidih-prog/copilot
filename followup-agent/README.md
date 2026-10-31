@@ -78,7 +78,7 @@ L'agent n'écrit qu'aux suivis `actif`, uniquement pendant la fenêtre d'envoi (
 | Coût WhatsApp | **0 €** | Payant au message hors fenêtre de 24 h (voir plus bas) |
 | Risque | Aucun | Il faut des modèles de message validés par Meta |
 
-Commence en **assist**. Passe en **cloud** quand le volume le justifie : il suffit de changer `TRANSPORT=cloud` dans `.env`, le reste ne bouge pas.
+Pour du **100 % automatique**, c'est le mode **cloud** : la mise en place est détaillée plus bas (« Passer en 100 % automatique »). Le mode **assist** sert en attendant que ton compte Meta soit prêt.
 
 > Je n'ai pas branché de bibliothèque WhatsApp non officielle (du genre WhatsApp Web automatisé). C'est gratuit, mais c'est contraire aux conditions de WhatsApp, et ton numéro perso peut être banni.
 
@@ -177,12 +177,57 @@ L'agent recopie tout dans Notion à chaque tour. Tu peux modifier à la main **S
 
 Installe l'app **ntfy**, abonne-toi à un sujet au nom impossible à deviner, et mets `NTFY_URL=https://ntfy.sh/ton-sujet-secret`.
 
-### Passer en mode cloud (plus tard)
+### Passer en 100 % automatique (mode cloud)
 
-1. Crée une app sur developers.facebook.com, ajoute le produit WhatsApp et enregistre un numéro. Remplis `WA_TOKEN`, `WA_PHONE_NUMBER_ID` et `WA_APP_SECRET`.
-2. Webhook : `https://…ts.net/followup/webhook/whatsapp`, avec le jeton de vérification `WA_VERIFY_TOKEN`. Abonne-toi à `messages`.
-3. Fais valider deux modèles avec une seule variable `{{1}}`, qui recevra le texte rédigé : `relance_suivi` (marketing) et `rappel_rdv` (utility).
-4. Mets `TRANSPORT=cloud`. Garde `DEFAULT_SEND_MODE=validation` tant que tu n'as pas relu une vingtaine de messages.
+C'est le mode où tu n'as plus rien à faire : l'agent écrit, envoie, lit les réponses et te prévient.
+
+**0. Le numéro.** L'API officielle ne peut pas utiliser un numéro qui tourne déjà dans l'app WhatsApp classique. Deux choix :
+- **un numéro dédié au suivi** : une carte SIM prépayée suffit, elle sert juste à recevoir le code SMS une fois. C'est la voie la plus simple ;
+- **garder ton numéro actuel** grâce à la « coexistence » de Meta : ton numéro passe sur l'app *WhatsApp Business* et l'API l'utilise en même temps. Tu continues à voir et écrire tes messages sur ton téléphone. Pour l'instant, cette option passe par un prestataire agréé par Meta, et sa disponibilité en France est à vérifier au moment de l'inscription.
+
+**1. Le compte Meta** (environ 30 min)
+1. Va sur business.facebook.com et crée un portefeuille business, si tu n'en as pas déjà un.
+2. Sur developers.facebook.com, crée une app de type « Business » et ajoute le produit **WhatsApp**.
+3. Dans WhatsApp → Configuration de l'API, ajoute ton numéro et valide-le par SMS. Note le **Phone number ID** → `WA_PHONE_NUMBER_ID`.
+4. Dans Paramètres business → Utilisateurs système, crée un utilisateur système **admin**. Donne-lui l'app et le compte WhatsApp, puis génère un jeton **permanent** avec les droits `whatsapp_business_messaging` et `whatsapp_business_management` → `WA_TOKEN`.
+5. Dans l'app → Paramètres → Général, récupère la **clé secrète de l'app** → `WA_APP_SECRET`.
+6. Ajoute un moyen de paiement dans le compte WhatsApp. Sans ça, les modèles ne partent pas.
+
+**2. Le webhook** (pour recevoir les réponses)
+- URL de rappel : `https://…ts.net/followup/webhook/whatsapp`
+- Jeton de vérification : invente-le, et mets le même dans `WA_VERIFY_TOKEN`.
+- Abonne-toi au champ **messages**.
+
+**3. Les deux modèles** (WhatsApp Manager → Modèles de message), en langue **Français** (`fr`). Meta refuse un modèle qui commence ou finit par une variable, d'où le texte fixe autour :
+
+| Nom | Catégorie | Texte |
+|---|---|---|
+| `relance_suivi` | Marketing | `Bonjour {{1}}, {{2}}` puis, sur une nouvelle ligne : `Réponds STOP si tu ne veux plus de messages de ma part.` |
+| `rappel_rdv` | Utility | `Bonjour {{1}}, petit rappel : notre rendez-vous est prévu {{2}}. Tu me confirmes que c'est toujours bon pour toi ?` |
+
+`{{1}}` reçoit le prénom, `{{2}}` le message rédigé par l'IA (ou la date du rendez-vous). Exemples à donner à Meta : `Paul` / `j'ai retrouvé le cas client dont je t'ai parlé, je te l'envoie ?` et `Paul` / `mardi 3 novembre à 14h00`. La validation prend en général de quelques minutes à 24 h.
+
+**4. Les réglages** dans `.env` :
+
+```ini
+TRANSPORT=cloud
+DEFAULT_SEND_MODE=auto
+```
+
+Puis redémarre l'agent :
+
+```bash
+systemctl restart followup
+```
+
+**5. Le test.** Crée dans Suivi R1 une fiche à ton nom, avec **ton propre numéro**, « À relancer » pour aujourd'hui et la case WhatsApp cochée. Le message doit arriver dans les 10 minutes, pendant la fenêtre d'envoi. Réponds-lui « ok intéressé » : tu dois recevoir l'alerte.
+
+**Comment l'agent choisit le format**
+- Le prospect t'a écrit il y a moins de 24 h → message libre, gratuit.
+- Sinon → modèle `relance_suivi` : l'IA écrit sans « Bonjour », puisque le modèle le met déjà.
+- Rappel de R2 → modèle `rappel_rdv`, rempli avec la date. Pas d'IA, donc pas de coût Claude.
+
+Tu peux garder certains prospects en validation (colonne **Mode** dans Notion) et laisser tous les autres en automatique.
 
 ---
 

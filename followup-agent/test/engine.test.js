@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalisePhone, classe, depuisFiche, apresEnvoi, apresReponse, dansFenetre } from "../src/engine.js";
+import { parseQuand, normalisePhone, classe, depuisFiche, apresEnvoi, apresReponse, dansFenetre } from "../src/engine.js";
 import { openDb, makeRepo } from "../src/db.js";
 import { makeAgent } from "../src/agent.js";
 import { config } from "../src/config.js";
@@ -51,6 +51,12 @@ test("stop est définitif", () => {
   assert.equal(r.patch.consentement, false);
 });
 
+test("dates du tracker lues en heure de Paris (été comme hiver)", () => {
+  assert.equal(parseQuand("2026-11-03T09:00", "Europe/Paris").toISOString(), "2026-11-03T08:00:00.000Z");
+  assert.equal(parseQuand("2026-07-03T09:00", "Europe/Paris").toISOString(), "2026-07-03T07:00:00.000Z");
+  assert.equal(parseQuand("2026-11-03T09:00:00Z").toISOString(), "2026-11-03T09:00:00.000Z");
+});
+
 test("fenêtre d'envoi en heure de Paris", () => {
   assert.equal(dansFenetre(new Date("2026-11-02T10:00:00Z"), cfg), true);  // lun 11h
   assert.equal(dansFenetre(new Date("2026-11-02T20:00:00Z"), cfg), false); // lun 21h
@@ -90,4 +96,45 @@ test("bout en bout : synchro → brouillon → envoyé → réponse", async () =
   // Lina reçoit son numéro dans le tracker → elle repart toute seule
   agent.synchronise("suivi-r1", [{ id: 12, nom: "Lina", suite: "relance", chaud: "chaud", quand: "2026-11-02", telephone: "0699999999", whatsapp: true }]);
   assert.equal(repo.bySource("suivi-r1", 12).statut, "actif");
+});
+
+import { corpsCloud, parametre } from "../src/whatsapp.js";
+
+test("modèle Meta : prénom + message, sans retour à la ligne", () => {
+  const f = { telephone: "33612345678", nom: "Paul Durand", type: "court", derniere_entree: null };
+  const c = corpsCloud(f, "Ligne 1\n\nLigne     2");
+  assert.equal(c.type, "template");
+  assert.deepEqual(c.template.components[0].parameters.map((p) => p.text), ["Paul", "Ligne 1 Ligne 2"]);
+  assert.equal(parametre("", "à toi"), "à toi");
+});
+
+test("dans les 24 h après sa réponse : message libre", () => {
+  const f = { telephone: "33612345678", nom: "Paul", type: "court", derniere_entree: new Date().toISOString() };
+  assert.equal(corpsCloud(f, "Top, jeudi 18h ?").type, "text");
+});
+
+test("mode cloud + auto : part tout seul, sans validation", async () => {
+  config.transport = "cloud";
+  try {
+    const repo = makeRepo(openDb(":memory:"));
+    const envois = [];
+    const agent = makeAgent(repo, {
+      redige: async (f, angle, h, o) => `msg ${angle} ${o.sansSalutation ? "sans-salut" : ""}`.trim(),
+      envoie: async (f, texte, o) => { envois.push({ texte, o }); return "wamid." + envois.length; },
+      previens: async () => {},
+    });
+    agent.synchronise("suivi-r1", [
+      { id: 1, nom: "Paul", suite: "relance", chaud: "chaud", quand: "2026-11-02", telephone: "0612345678", whatsapp: true },
+      { id: 2, nom: "Lina", suite: "r2", quand: "2026-11-03T14:00", telephone: "0699999999", whatsapp: true },
+    ]);
+    repo.list().forEach((f) => repo.update(f.id, { mode_envoi: "auto" }));
+    const j = await agent.tour(new Date("2026-11-02T14:00:00Z")); // lundi 15h : le rappel de la veille est dû
+    assert.deepEqual(j.erreurs, []);
+    assert.equal(j.envoyes, 2);
+    assert.equal(repo.pending().length, 0);
+    assert.ok(envois.some((e) => e.texte === "msg pretexte sans-salut"));
+    const rappel = envois.find((e) => e.o.heureRdv);
+    assert.match(rappel.o.heureRdv, /mardi 3 novembre à 14h00/);
+    assert.equal(repo.bySource("suivi-r1", 1).etape, 1);
+  } finally { config.transport = "assist"; }
 });

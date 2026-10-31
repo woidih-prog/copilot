@@ -11,6 +11,7 @@
      Consentement WhatsApp (case) · Objectif (texte) · Prétexte (texte)
      Dernier échange (texte) · Notes (texte) · ID agent (nombre)          */
 import { config } from "./config.js";
+import { parseQuand } from "./engine.js";
 
 const API = "https://api.notion.com/v1";
 const actif = () => !!(config.notion.token && config.notion.databaseId);
@@ -89,7 +90,7 @@ export async function tireDeNotion(repo, depuisIso) {
       const jourSeul = date && date.length <= 10;
       const meme = !date ? !f.prochaine
         : !!f.prochaine && (jourSeul ? f.prochaine.slice(0, 10) === date : new Date(date).getTime() === new Date(f.prochaine).getTime());
-      if (!meme) patch.prochaine = date ? new Date(jourSeul ? date + "T00:00:00" : date).toISOString() : null;
+      if (!meme) patch.prochaine = date ? parseQuand(date, config.tz).toISOString() : null;
       const ok = lit.box(p["Consentement WhatsApp"]);
       if (ok !== f.consentement && f.statut !== "stop") patch.consentement = ok;
       const notes = lit.txt(p["Notes"]);

@@ -31,23 +31,43 @@ async function graph(body) {
   return j.messages?.[0]?.id;
 }
 
-/* Envoi par l'API Cloud. Renvoie l'id WhatsApp du message. */
-export async function envoieCloud(f, texte) {
+/* Une variable de modèle n'accepte ni retour à la ligne, ni tabulation,
+   ni plus de 4 espaces d'affilée, et ne peut pas être vide.              */
+export const parametre = (s, secours = "") => {
+  const t = String(s ?? "").replace(/\s*[\n\r\t]+\s*/g, " ").replace(/ {2,}/g, " ").trim();
+  return (t || secours).slice(0, 900);
+};
+export const prenomDe = (f) => parametre(String(f.nom || "").split(/\s+/)[0], "à toi");
+
+/* Le corps du message tel que Meta l'attend.
+   Modèles à créer chez Meta (texte exact dans le README) :
+     relance_suivi (Marketing) : Bonjour {{1}}, {{2}} … Réponds STOP pour ne plus recevoir de messages.
+     rappel_rdv    (Utility)   : Bonjour {{1}}, petit rappel : notre rendez-vous est prévu {{2}}. …   */
+export function corpsCloud(f, texte, { heureRdv } = {}) {
   if (fenetreOuverte(f)) {
-    return graph({ to: f.telephone, type: "text", text: { body: texte, preview_url: false } });
+    // Il t'a écrit il y a moins de 24 h : message libre, gratuit.
+    return { to: f.telephone, type: "text", text: { body: texte, preview_url: false } };
   }
-  // Hors fenêtre : modèle obligatoire. Le modèle a une seule variable {{1}} = le texte rédigé.
-  const nom = f.type === "rappel_r2" ? config.wa.templateRappelR2 : config.wa.templateRelance;
-  return graph({
+  const rappel = f.type === "rappel_r2";
+  return {
     to: f.telephone,
     type: "template",
     template: {
-      name: nom,
+      name: rappel ? config.wa.templateRappelR2 : config.wa.templateRelance,
       language: { code: config.wa.templateLang },
-      components: [{ type: "body", parameters: [{ type: "text", text: texte.replace(/\s*\n+\s*/g, " ") }] }],
+      components: [{
+        type: "body",
+        parameters: [
+          { type: "text", text: prenomDe(f) },
+          { type: "text", text: rappel ? parametre(heureRdv, "comme convenu") : parametre(texte) },
+        ],
+      }],
     },
-  });
+  };
 }
+
+/* Envoi par l'API Cloud. Renvoie l'id WhatsApp du message. */
+export const envoieCloud = (f, texte, opts) => graph(corpsCloud(f, texte, opts));
 
 /* ---------- webhook entrant ---------- */
 export function verifieSignature(rawBody, signature) {

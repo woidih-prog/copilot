@@ -18,12 +18,22 @@ export function normalisePhone(raw) {
 /* ---------- dates ---------- */
 const addDays = (d, n) => new Date(new Date(d).getTime() + n * JOUR);
 
-/* « 2026-11-04 » = ce jour-là, à l'ouverture de la fenêtre d'envoi. */
-export function parseQuand(q) {
+/* Les dates du tracker sont en heure de Paris, sans fuseau (« 2026-11-04 »,
+   « 2026-11-04T14:00 »). On les lit dans ce fuseau, quel que soit celui du serveur.
+   Une date seule = ce jour-là à minuit : l'envoi part à l'ouverture de la fenêtre. */
+export function parseQuand(q, tz = process.env.TZ_LOCAL || "Europe/Paris") {
   if (!q) return null;
-  const s = String(q);
-  const d = new Date(s.length <= 10 ? s + "T00:00:00" : s);
-  return isNaN(d) ? null : d;
+  let s = String(q);
+  if (s.length <= 10) s += "T00:00:00";
+  if (/[zZ]|[+-]\d\d:?\d\d$/.test(s)) { const d = new Date(s); return isNaN(d) ? null : d; }
+  const naif = new Date(s + "Z"); // les chiffres lus comme s'ils étaient UTC
+  if (isNaN(naif)) return null;
+  // décalage du fuseau à cet instant (heure d'été / d'hiver comprise)
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  }).formatToParts(naif).map((x) => [x.type, x.value]));
+  const vu = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return new Date(naif.getTime() - (vu - naif.getTime()));
 }
 
 function heureLocale(date, tz) {

@@ -1,8 +1,8 @@
 /* L'AGENT — relie le moteur, la base, l'IA et WhatsApp. */
 import { config } from "./config.js";
-import { depuisFiche, dansFenetre, angleDe, apresEnvoi, apresReponse } from "./engine.js";
+import { depuisFiche, dansFenetre, angleDe, apresEnvoi, apresReponse, parseQuand } from "./engine.js";
 import { redige, analyseReponse } from "./llm.js";
-import { envoieCloud, lienWaMe } from "./whatsapp.js";
+import { envoieCloud, lienWaMe, fenetreOuverte } from "./whatsapp.js";
 import { tireDeNotion, pousseVersNotion } from "./notion.js";
 import { previens } from "./notify.js";
 
@@ -59,8 +59,12 @@ export function makeAgent(repo, deps = {}) {
           }
           const angle = angleDe(f);
           if (!angle) { repo.update(f.id, { statut: "termine", prochaine: null }); continue; }
-          const heureRdv = f.type === "rappel_r2" ? new Date(f.contexte.rdv).toLocaleString("fr-FR", { timeZone: config.tz, weekday: "long", hour: "2-digit", minute: "2-digit" }) : undefined;
-          const texte = await ia.redige(f, angle, repo.history(f.id), { heureRdv });
+          const heureRdv = heureRdvDe(f);
+          const modele = config.transport === "cloud" && !fenetreOuverte(f, maintenant.getTime());
+          // Rappel de R2 par modèle : le texte est fixe chez Meta, inutile de payer l'IA.
+          const texte = modele && f.type === "rappel_r2"
+            ? `Bonjour ${(f.nom || "").split(/\s+/)[0] || "à toi"}, petit rappel : notre rendez-vous est prévu ${heureRdv}.`
+            : await ia.redige(f, angle, repo.history(f.id), { heureRdv, sansSalutation: modele });
 
           const auto = config.transport === "cloud" && f.mode_envoi === "auto";
           const msgId = repo.addMessage({ followup_id: f.id, sens: "sortant", etape: f.etape, texte, statut: auto ? "a_envoyer" : "brouillon" });
@@ -86,7 +90,7 @@ export function makeAgent(repo, deps = {}) {
     if (f.statut === "stop" || !f.consentement) throw new Error("Ce contact a refusé les messages.");
     const texte = (texteCorrige || m.texte).trim();
     try {
-      const waId = await envoie(f, texte);
+      const waId = await envoie(f, texte, { heureRdv: heureRdvDe(f) });
       repo.updateMessage(msgId, { texte, statut: "envoye", wa_id: waId || null });
     } catch (e) {
       repo.updateMessage(msgId, { statut: "echec" });
@@ -155,6 +159,13 @@ export function makeAgent(repo, deps = {}) {
   }
 
   return { synchronise, tour, valide, marqueEnvoye, ecarte, recoit, envoieMaintenant };
+}
+
+function heureRdvDe(f) {
+  if (f.type !== "rappel_r2" || !f.contexte.rdv) return undefined;
+  return parseQuand(f.contexte.rdv, config.tz).toLocaleString("fr-FR", {
+    timeZone: config.tz, weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
+  }).replace(/ à (\d\d):(\d\d)$/, " à $1h$2");
 }
 
 const ajouteNote = (notes, n) => {

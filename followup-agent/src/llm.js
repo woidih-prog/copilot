@@ -66,7 +66,7 @@ async function appel({ system, user, schema, maxTokens = 2000 }) {
 const resumeHistorique = (h) =>
   h.slice(-8).map((m) => `${m.sens === "sortant" ? "MOI" : "LUI"} (${m.cree.slice(0, 10)}) : ${m.texte}`).join("\n") || "(aucun échange)";
 
-export async function redige(f, angle, historique, { heureRdv } = {}) {
+export async function redige(f, angle, historique, { heureRdv, sansSalutation } = {}) {
   const ctx = Object.fromEntries(Object.entries(f.contexte).filter(([, v]) => v && (!Array.isArray(v) || v.length)));
   const { data } = await appel({
     system: SYSTEME,
@@ -89,7 +89,7 @@ ${resumeHistorique(historique)}
 
 Intention du message à écrire : ${ANGLES[angle] || angle}
 
-Réponds avec le seul message à envoyer, dans le champ "message".`,
+${sansSalutation ? "Le message sera précédé automatiquement de « Bonjour <prénom>, » : commence directement par le fond, sans salutation ni prénom, en une seule ligne, sans retour à la ligne.\n" : ""}Réponds avec le seul message à envoyer, dans le champ "message".`,
   });
   return data.message.trim();
 }
