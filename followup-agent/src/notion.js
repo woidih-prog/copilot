@@ -2,13 +2,14 @@
 
    L'agent garde sa propre base (SQLite) et la recopie dans Notion.
    Dans Notion, tu peux modifier à la main ces colonnes, et l'agent les reprend :
-     Statut · Prochaine relance · Type · Mode · Consentement WhatsApp · Notes
+     Statut · Prochaine relance · Type · Mode · Canal · Consentement · Notes
    Les autres colonnes sont écrites par l'agent : inutile de les toucher.
 
    Colonnes à créer dans la base Notion (noms exacts) :
-     Nom (titre) · Téléphone (téléphone) · Type (select) · Statut (select)
+     Nom (titre) · Téléphone (téléphone) · Email (e-mail) · Canal (select)
+     Type (select) · Statut (select)
      Étape (nombre) · Prochaine relance (date) · Mode (select)
-     Consentement WhatsApp (case) · Objectif (texte) · Prétexte (texte)
+     Consentement (case) · Objectif (texte) · Prétexte (texte)
      Dernier échange (texte) · Notes (texte) · ID agent (nombre)          */
 import { config } from "./config.js";
 import { parseQuand } from "./engine.js";
@@ -38,12 +39,14 @@ function versNotion(f, dernier) {
   return {
     "Nom": { title: [{ text: { content: f.nom || "Prospect" } }] },
     "Téléphone": { phone_number: f.telephone ? "+" + f.telephone : null },
+    "Email": { email: f.email || null },
+    "Canal": sel(f.canal || "auto"),
     "Type": sel(f.type),
     "Statut": sel(f.statut),
     "Étape": { number: f.etape },
     "Prochaine relance": { date: f.prochaine ? { start: f.prochaine } : null },
     "Mode": sel(f.mode_envoi),
-    "Consentement WhatsApp": { checkbox: !!f.consentement },
+    "Consentement": { checkbox: !!f.consentement },
     "Objectif": txt(f.contexte.objectif),
     "Prétexte": txt(f.contexte.pretexte),
     "Dernier échange": txt(dernier),
@@ -91,7 +94,9 @@ export async function tireDeNotion(repo, depuisIso) {
       const meme = !date ? !f.prochaine
         : !!f.prochaine && (jourSeul ? f.prochaine.slice(0, 10) === date : new Date(date).getTime() === new Date(f.prochaine).getTime());
       if (!meme) patch.prochaine = date ? parseQuand(date, config.tz).toISOString() : null;
-      const ok = lit.box(p["Consentement WhatsApp"]);
+      const canal = lit.sel(p["Canal"]);
+      if (canal && ["auto", "sms", "email", "whatsapp", "telegram"].includes(canal) && (canal === "auto" ? null : canal) !== (f.canal || null)) patch.canal = canal === "auto" ? null : canal;
+      const ok = lit.box(p["Consentement"]);
       if (ok !== f.consentement && f.statut !== "stop") patch.consentement = ok;
       const notes = lit.txt(p["Notes"]);
       if (notes !== (f.notes || null)) patch.notes = notes;

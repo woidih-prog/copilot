@@ -15,6 +15,13 @@ export function normalisePhone(raw) {
   return /^\d{8,15}$/.test(d) ? d : null;
 }
 
+export function normaliseEmail(s) {
+  const m = String(s || "").trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m) ? m : null;
+}
+
+const CANAUX_VALIDES = ["whatsapp", "sms", "email", "telegram"];
+
 /* ---------- dates ---------- */
 const addDays = (d, n) => new Date(new Date(d).getTime() + n * JOUR);
 
@@ -133,6 +140,9 @@ export function depuisFiche(fiche, existant, cfg, maintenant = new Date()) {
   const base = {
     nom: fiche.nom || null,
     telephone: normalisePhone(fiche.telephone) || existant?.telephone || null,
+    email: normaliseEmail(fiche.email) || existant?.email || null,
+    // canal imposé par la fiche ; « auto » ou vide = l'agent choisit
+    canal: CANAUX_VALIDES.includes(fiche.canal) ? fiche.canal : fiche.canal === "auto" ? null : existant?.canal ?? null,
     consentement: fiche.whatsapp === true || fiche.consentement === true || !!existant?.consentement,
     contexte,
   };

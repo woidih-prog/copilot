@@ -1,8 +1,8 @@
 # Agent follow-up
 
-Un outil perso qui reprend ton tracking **Suivi R1** et gère seul les relances WhatsApp : relances courtes, relances longues, rappels de R2. Il lit les réponses et te passe la main dès qu'un prospect s'engage.
+Un outil perso qui reprend ton tracking **Suivi R1** et gère seul les relances, par **SMS, mail, Telegram ou WhatsApp** : relances courtes, relances longues, rappels de R2. Il lit les réponses et te passe la main dès qu'un prospect s'engage.
 
-Closing Copilot n'est pas touché. Suivi R1 gagne deux champs (numéro + accord WhatsApp) et envoie chaque fiche à l'agent quand tu l'enregistres.
+Closing Copilot n'est pas touché. Suivi R1 gagne quatre champs (numéro, mail, canal, accord pour être relancé) et envoie chaque fiche à l'agent quand tu l'enregistres.
 
 ---
 
@@ -22,8 +22,8 @@ Closing Copilot n'est pas touché. Suivi R1 gagne deux champs (numéro + accord 
                                             │              │               │              │
                                   miroir ⇄  │   messages ⇄ │     alertes → │   page →     │
                                      ┌──────▼────┐  ┌──────▼──────┐  ┌──────▼─────┐  ┌─────▼──────┐
-                                     │  Notion   │  │  WhatsApp   │  │   ntfy     │  │  Digest    │
-                                     │ (tu édites│  │ assist/cloud│  │ (ton tél.) │  │ /digest    │
+                                     │  Notion   │  │ SMS · mail  │  │   ntfy     │  │  Digest    │
+                                     │ (tu édites│  │ TG · WhatsA.│  │ (ton tél.) │  │ /digest    │
                                      │  à la main)│ └─────────────┘  └────────────┘  └────────────┘
                                      └───────────┘        + export CSV pour Excel
 ```
@@ -68,19 +68,26 @@ L'agent n'écrit qu'aux suivis `actif`, uniquement pendant la fenêtre d'envoi (
 
 ---
 
-## 2. Deux façons d'envoyer
+## 2. Les canaux : SMS, mail, Telegram, WhatsApp
 
-| | **assist** (par défaut) | **cloud** |
-|---|---|---|
-| Comment | L'agent rédige. Dans le digest, tu appuies sur « Ouvrir WhatsApp » : le message s'ouvre déjà écrit dans **ton** WhatsApp, tu l'envoies. | API WhatsApp Cloud officielle (Meta). L'envoi et la lecture des réponses sont automatiques. |
-| Numéro vu par le prospect | Ton numéro habituel | Un numéro déclaré chez Meta |
-| Réponses | Tu les colles dans le digest, l'agent les lit | Elles arrivent toutes seules (webhook) |
-| Coût WhatsApp | **0 €** | Payant au message hors fenêtre de 24 h (voir plus bas) |
-| Risque | Aucun | Il faut des modèles de message validés par Meta |
+Chaque prospect est relancé sur **un** canal. L'agent prend celui choisi sur la fiche (« Le relancer par »). Sinon, il prend le premier canal de la liste `CANAUX` (dans `.env`) qui est configuré et pour lequel il a une coordonnée. Si le prospect répond sur un autre canal, l'agent continue sur celui-là.
 
-Pour du **100 % automatique**, c'est le mode **cloud** : la mise en place est détaillée plus bas (« Passer en 100 % automatique »). Le mode **assist** sert en attendant que ton compte Meta soit prêt.
+| | **SMS** | **Mail** | **Telegram** | **WhatsApp** |
+|---|---|---|---|---|
+| Comment | Un téléphone Android avec une SIM envoie les SMS (appli *SMS Gateway for Android*) | Depuis ta boîte Gmail (ou autre) | Ton bot Telegram | API officielle Meta (auto) ou lien wa.me (assisté) |
+| 100 % automatique | ✅ | ✅ | ✅ une fois relié | ✅ en cloud · ❌ en assisté |
+| Ce que voit le prospect | Un vrai numéro français | Ta vraie adresse | Un bot, pas ton compte | Un numéro déclaré chez Meta |
+| Réponses captées | ✅ tout de suite | ✅ toutes les 10 min | ✅ tout de suite | ✅ en cloud |
+| Coût par message | **0 €** avec un forfait SMS illimité | **0 €** | **0 €** | 0 € en assisté · ≈ 0,07 à 0,09 € en cloud |
+| Limite | Il faut un Android allumé, avec du réseau. Pas d'envoi en masse (l'opérateur peut bloquer). | Peut finir en spam si tu envoies beaucoup d'un coup | Un bot ne peut pas écrire le premier : le prospect doit ouvrir ton lien une fois | Mise en place Meta plus longue |
 
-> Je n'ai pas branché de bibliothèque WhatsApp non officielle (du genre WhatsApp Web automatisé). C'est gratuit, mais c'est contraire aux conditions de WhatsApp, et ton numéro perso peut être banni.
+**Ma recommandation : le SMS en canal principal, le mail en secours.** C'est gratuit, entièrement automatique, et c'est le canal le plus lu. Le mail prend le relais quand tu n'as pas de numéro. Telegram fonctionne, mais peu de prospects l'utilisent en France, et ce n'est pas ton nom qui s'affiche.
+
+**Pour que tout parte sans toi**, mets `DEFAULT_SEND_MODE=auto` dans `.env`. Garde `validation` les premiers jours, le temps de relire une vingtaine de messages dans le digest. Tu peux aussi passer les prospects en `auto` un par un (colonne **Mode** dans Notion).
+
+Le réglage par défaut est `CANAUX=sms,email,whatsapp,telegram`. Un canal sans clés est simplement sauté. WhatsApp sans compte Meta reste en mode assisté : tu valides et tu envoies d'un tap.
+
+> Je n'ai branché aucune bibliothèque WhatsApp non officielle (WhatsApp Web automatisé). C'est contraire aux conditions de WhatsApp, et ton numéro perso pourrait être banni.
 
 ---
 
@@ -94,10 +101,13 @@ Pour du **100 % automatique**, c'est le mode **cloud** : la mise en place est d�
 | Alertes ntfy | **0 €** |
 | Claude, `claude-opus-5-5` (par défaut) | ≈ 1 centime par message rédigé ou lu → ≈ 2 à 3 € pour 200 messages par mois |
 | Claude, `claude-haiku-5-5` | ≈ 40 fois moins cher (quelques centimes par mois). À tester sur tes vrais messages avant de changer `CLAUDE_MODEL`. |
+| SMS (téléphone Android + forfait illimité) | **0 €** |
+| Mail (ta boîte Gmail) | **0 €** |
+| Telegram | **0 €** |
 | WhatsApp en `assist` | **0 €** |
 | WhatsApp en `cloud` | Les réponses envoyées dans les 24 h qui suivent un message du prospect sont gratuites. En dehors, Meta facture chaque modèle envoyé : une relance compte en catégorie « marketing » (de l'ordre de 0,07 à 0,09 € en France), un rappel de R2 en « utility » (de l'ordre de 0,03 €). **Ce sont des ordres de grandeur, à vérifier sur la grille tarifaire de Meta.** |
 
-**Total de départ : 2 à 3 € par mois** (Claude seulement). Moins de 1 € si Haiku suffit.
+**Total en SMS + mail : 2 à 3 € par mois** (Claude seulement). Moins de 1 € si Haiku suffit. Les rappels de R2 utilisent un texte fixe, donc pas d'IA à payer.
 
 ---
 
@@ -168,16 +178,65 @@ npm run import -- ~/pipeline-r1-2026-10-31.json
 ### Notion (facultatif)
 
 1. Crée une intégration sur notion.so/my-integrations et copie le jeton dans `NOTION_TOKEN`.
-2. Crée une base avec ces colonnes (noms exacts) : `Nom` (titre), `Téléphone` (téléphone), `Type` (select), `Statut` (select), `Étape` (nombre), `Prochaine relance` (date), `Mode` (select), `Consentement WhatsApp` (case), `Objectif`, `Prétexte`, `Dernier échange`, `Notes` (texte), `ID agent` (nombre).
+2. Crée une base avec ces colonnes (noms exacts) : `Nom` (titre), `Téléphone` (téléphone), `Email` (e-mail), `Canal` (select), `Type` (select), `Statut` (select), `Étape` (nombre), `Prochaine relance` (date), `Mode` (select), `Consentement` (case), `Objectif`, `Prétexte`, `Dernier échange`, `Notes` (texte), `ID agent` (nombre).
 3. Partage la base avec l'intégration et copie son id dans `NOTION_DATABASE_ID`.
 
-L'agent recopie tout dans Notion à chaque tour. Tu peux modifier à la main **Statut, Prochaine relance, Type, Mode, Consentement WhatsApp, Notes** : l'agent reprend tes changements au tour suivant (ta modification gagne). Ne touche pas aux autres colonnes, l'agent les réécrit.
+L'agent recopie tout dans Notion à chaque tour. Tu peux modifier à la main **Statut, Prochaine relance, Type, Mode, Canal, Consentement, Notes** : l'agent reprend tes changements au tour suivant (ta modification gagne). Ne touche pas aux autres colonnes, l'agent les réécrit.
 
 ### Alertes sur ton téléphone (facultatif)
 
-Installe l'app **ntfy**, abonne-toi à un sujet au nom impossible à deviner, et mets `NTFY_URL=https://ntfy.sh/ton-sujet-secret`.
+Deux options gratuites, cumulables :
+- **ntfy** : installe l'app, abonne-toi à un sujet au nom impossible à deviner, et mets `NTFY_URL=https://ntfy.sh/ton-sujet-secret`.
+- **Telegram** : si tu as créé le bot (plus bas), écris-lui `/start` depuis ton compte. Ton numéro de conversation s'affiche dans le journal de l'agent (« contact inconnu telegram 123456789 »). Mets-le dans `TELEGRAM_OWNER_CHAT_ID`.
 
-### Passer en 100 % automatique (mode cloud)
+### Le SMS automatique (recommandé, 0 €)
+
+Il te faut un téléphone **Android** (un ancien suffit) avec une SIM et un forfait SMS illimité, branché sur secteur et connecté à Internet. Si possible, une SIM à part de ton numéro perso.
+
+1. Installe l'appli **SMS Gateway for Android** (projet open source sms-gate.app, sur le Play Store ou sur GitHub `capcom6/android-sms-gateway`).
+2. Dans l'appli, active **Cloud server**. Note l'identifiant et le mot de passe affichés → `SMS_USER` et `SMS_PASS`.
+3. Désactive l'optimisation de batterie pour l'appli, sinon Android l'endort.
+4. Invente un jeton long → `SMS_WEBHOOK_TOKEN`. Vérifie que `PUBLIC_URL` est rempli.
+5. Enregistre les webhooks (les réponses arriveront toutes seules) :
+
+```bash
+npm run canaux
+```
+
+6. Teste en t'envoyant un SMS :
+
+```bash
+npm run canaux -- test 0612345678
+```
+
+À savoir : en mode « cloud » de l'appli, les messages transitent par le relais sms-gate.app. L'appli propose aussi un serveur privé, si tu préfères que rien ne passe par un tiers. La mention « STOP pour ne plus recevoir de messages » est ajoutée au premier SMS de chaque prospect (`SMS_MENTION_STOP=premier`, `toujours` ou `jamais`).
+
+### Le mail automatique (0 €)
+
+1. Sur ton compte Google, active la **validation en deux étapes**, puis crée un **mot de passe d'application** (myaccount.google.com/apppasswords).
+2. Dans `.env` : `MAIL_USER=toi@gmail.com`, `MAIL_PASS=<le mot de passe d'application>`, `MAIL_FROM_NAME=Ton Prénom` et `SIGNATURE=Ton Prénom` (ajoutée en bas de chaque mail).
+3. Teste :
+
+```bash
+npm run canaux -- test - toi@gmail.com
+```
+
+Tous les mails à un même prospect restent dans un seul fil. L'agent relève ta boîte toutes les 10 minutes, ne lit que les mails des prospects suivis, et ne garde que leur réponse, sans la citation. Chaque mail se termine par « réponds simplement « stop » » pour se désinscrire.
+
+Autre boîte que Gmail : renseigne `SMTP_HOST`, `SMTP_PORT`, `IMAP_HOST` et `IMAP_PORT`.
+
+### Telegram (facultatif, 0 €)
+
+1. Dans Telegram, écris à **@BotFather** : `/newbot`, choisis un nom. Note le jeton → `TELEGRAM_BOT_TOKEN`, et le nom du bot → `TELEGRAM_BOT_NAME`.
+2. Invente un secret → `TELEGRAM_WEBHOOK_SECRET`, puis lance :
+
+```bash
+npm run canaux
+```
+
+3. Chaque prospect a son lien personnel, affiché dans le digest (« Liens Telegram à envoyer »). Quand il l'ouvre, il est relié et l'agent lui écrit ensuite par Telegram.
+
+### WhatsApp en 100 % automatique (mode cloud)
 
 C'est le mode où tu n'as plus rien à faire : l'agent écrit, envoie, lit les réponses et te prévient.
 
@@ -233,8 +292,9 @@ Tu peux garder certains prospects en validation (colonne **Mode** dans Notion) e
 
 ## 5. Les règles qui protègent
 
-- **Accord d'abord.** Personne ne reçoit de message sans la case « Il est d'accord pour que je lui écrive sur WhatsApp » cochée. Demande-le pendant le call, en une phrase. C'est aussi ce que prévoit la règle française sur la prospection par message.
-- **Un stop est définitif.** Une demande d'arrêt coupe tout, pour toujours.
+- **Accord d'abord.** Personne ne reçoit de message sans la case « Il est d'accord pour que je le relance » cochée. Demande-le pendant le call, en une phrase. C'est aussi ce que prévoit la règle française sur la prospection par SMS et par mail.
+- **Un stop est définitif.** Une demande d'arrêt coupe tout, sur tous les canaux, pour toujours. Un « STOP » seul est reconnu sans passer par l'IA : il est donc respecté même si l'IA est en panne.
+- **Une sortie facile.** Le premier SMS porte la mention STOP, et chaque mail dit comment ne plus recevoir de messages.
 - **Les heures d'un humain.** Rien n'est envoyé la nuit ni le dimanche.
 - **Pas de rafale.** 15 messages au maximum par tour.
 - **Les données du prospect restent des données.** Si un prospect écrit « ignore tes consignes… », c'est traité comme du texte à classer, jamais comme un ordre.
@@ -248,13 +308,18 @@ Tu peux garder certains prospects en validation (colonne **Mode** dans Notion) e
 |---|---|
 | `src/engine.js` | Les règles : classement, dates, fenêtre d'envoi, réactions aux réponses |
 | `src/sequences.js` | **Le rythme des relances : c'est là qu'on règle tout** |
-| `src/llm.js` | Les deux consignes données à Claude : rédiger, lire |
+| `src/llm.js` | Les deux consignes données à Claude : rédiger (avec un style par canal), lire |
 | `src/agent.js` | Le tour de garde, la validation, la réception des réponses |
 | `src/db.js` | La base SQLite (`followups`, `messages`) |
+| `src/canaux/index.js` | Le choix du canal pour chaque prospect |
+| `src/canaux/sms.js` | SMS par la passerelle Android, webhook des réponses |
+| `src/canaux/email.js` | Envoi SMTP en fil de discussion, relève IMAP des réponses |
+| `src/canaux/telegram.js` | Bot, liens personnels, webhook |
 | `src/whatsapp.js` | Liens wa.me (assist), API Cloud, webhook signé |
 | `src/notion.js` | Le miroir Notion, dans les deux sens |
 | `src/digest.js` | La page de validation pour ton téléphone |
 | `src/server.js` | Les routes HTTP et la boucle des 10 minutes |
 | `scripts/import.js` | Importer un export JSON |
 | `scripts/tick.js` | Lancer un seul tour (pour un cron, au lieu du serveur) |
+| `scripts/canaux.js` | Enregistrer les webhooks SMS / Telegram, envoyer un message de test |
 | `test/engine.test.js` | Les tests du moteur et un parcours complet de bout en bout |

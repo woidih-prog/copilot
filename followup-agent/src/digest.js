@@ -2,6 +2,16 @@
    Les relances à valider, les réponses à traiter, ce qui arrive.
    Même charte que Suivi R1. Toutes les données affichées sont échappées. */
 
+import { CANAUX } from "./canaux/index.js";
+import { lienTelegram } from "./canaux/telegram.js";
+
+const NOM_CANAL = { sms: "SMS", email: "Mail", whatsapp: "WhatsApp", telegram: "Telegram" };
+/* Le lien qui ouvre la bonne appli sur ton téléphone pour lui répondre toi-même. */
+const lienConversation = (f, canal) =>
+  canal === "email" && f.email ? `mailto:${f.email}`
+    : canal === "sms" && f.telephone ? `sms:+${f.telephone}`
+      : canal === "telegram" ? null
+        : f.telephone ? `https://wa.me/${f.telephone}` : null;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const jour = (iso, tz) => (iso ? new Date(iso).toLocaleDateString("fr-FR", { timeZone: tz, weekday: "short", day: "numeric", month: "short" }) : "—");
 
@@ -12,18 +22,28 @@ export function pageDigest(repo, config) {
   const pauses = tous.filter((f) => f.statut === "en_pause");
   const avenir = tous.filter((f) => f.statut === "actif" && f.prochaine).slice(0, 15);
   const assist = config.transport === "assist";
+  const actifs = Object.values(CANAUX).filter((c) => c.configure() && (c.nom !== "whatsapp" || config.canaux.includes("whatsapp")))
+    .map((c) => NOM_CANAL[c.nom] + (c.automatique() ? "" : " (assisté)"));
 
-  const carteBrouillon = (m) => `
+  const carteBrouillon = (m) => {
+    const canal = m.canal || "whatsapp";
+    const manuel = !CANAUX[canal]?.automatique();
+    return `
     <div class="block" data-msg="${m.id}">
-      <div class="l1"><b>${esc(m.nom || "Prospect")}</b><span class="muted">étape ${(m.etape ?? 0) + 1}</span></div>
+      <div class="l1"><b>${esc(m.nom || "Prospect")}</b><span><span class="tag">${esc(NOM_CANAL[canal] || canal)}</span> <span class="muted">étape ${(m.etape ?? 0) + 1}</span></span></div>
+      ${canal === "email" ? `<input class="sujet" value="${esc(m.sujet || "")}" placeholder="Objet">` : ""}
       <textarea>${esc(m.texte)}</textarea>
       <div class="row">
-        <button class="go" data-act="valider">${assist ? "Ouvrir WhatsApp" : "Envoyer"}</button>
-        ${assist ? '<button data-act="envoye" class="ok" style="display:none">C\'est envoyé ✓</button>' : ""}
+        <button class="go" data-act="valider">${manuel ? "Ouvrir WhatsApp" : "Envoyer"}</button>
+        ${manuel ? '<button data-act="envoye" class="ok" style="display:none">C\'est envoyé ✓</button>' : ""}
         <button data-act="ecarter">Réécrire</button>
         <button data-act="pause">Pause</button>
       </div>
     </div>`;
+  };
+
+  const liensTg = CANAUX.telegram.configure() && config.telegram.bot
+    ? tous.filter((f) => !f.telegram_chat_id && f.consentement && !["stop", "perdu", "termine"].includes(f.statut)).slice(0, 30) : [];
 
   const carteReponse = (f) => {
     const h = repo.history(f.id).filter((m) => m.sens === "entrant").pop();
@@ -33,13 +53,13 @@ export function pageDigest(repo, config) {
       ${h ? `<p>« ${esc(h.texte)} »</p>` : ""}
       ${a?.resume ? `<p class="muted">${esc(a.resume)}</p>` : ""}
       ${a?.suggestion ? `<p class="sugg">→ ${esc(a.suggestion)}</p>` : ""}
-      ${f.telephone ? `<a class="lien" href="https://wa.me/${esc(f.telephone)}">Ouvrir la conversation</a>` : ""}
+      ${lienConversation(f, h?.canal) ? `<a class="lien" href="${esc(lienConversation(f, h?.canal))}">Lui répondre</a>` : ""}
     </div>`;
   };
 
   const carteColler = () => assist ? `
     <div class="block">
-      <h3>Un prospect t'a répondu ?</h3>
+      <h3>Une réponse sur ton WhatsApp ?</h3>
       <select id="qui">${tous.filter((f) => !["stop", "perdu", "termine"].includes(f.statut))
         .map((f) => `<option value="${f.id}">${esc(f.nom || "Prospect #" + f.id)}</option>`).join("")}</select>
       <textarea id="rep" placeholder="Colle sa réponse ici : l'agent la lit, met le suivi à jour et te propose quoi répondre."></textarea>
@@ -59,7 +79,7 @@ h3{font-size:14px;margin-bottom:8px}
 .l1{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}
 .muted{color:var(--muted)}.sugg{color:var(--amber);margin-top:6px}
 .tag{border:1px solid var(--steel);color:var(--steel);border-radius:99px;padding:1px 10px;font-size:12px}
-textarea,select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:10px;font:inherit;margin-bottom:10px}
+textarea,select,input.sujet{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:10px;font:inherit;margin-bottom:10px}
 textarea{min-height:90px}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 button{background:none;border:1px solid var(--line);color:var(--ink);border-radius:99px;padding:8px 15px;font:inherit;cursor:pointer}
@@ -68,7 +88,7 @@ button.ok{border-color:var(--sage);color:var(--sage)}
 .lien{color:var(--steel)}
 table{width:100%;border-collapse:collapse;font-size:14px}td{padding:7px 4px;border-top:1px solid var(--line)}
 </style></head><body>
-<p class="muted">${assist ? "Mode assisté · tu envoies depuis ton WhatsApp" : "Mode automatique · API WhatsApp"}</p>
+<p class="muted">Canaux : ${esc(actifs.join(" · ") || "aucun")}</p>
 <h1>Follow-up</h1>
 
 <h2>À valider (${brouillons.length})</h2>
@@ -85,6 +105,9 @@ ${pauses.length ? `<h2>En pause (${pauses.length})</h2><div class="block"><table
 <div class="block"><table>${avenir.map((f) =>
   `<tr><td>${esc(f.nom)}</td><td class="muted">${esc(f.type)} · ${f.etape + 1}</td><td>${jour(f.prochaine, config.tz)}</td></tr>`).join("") || "<tr><td class='muted'>Rien de prévu.</td></tr>"}</table></div>
 
+${liensTg.length ? `<h2>Liens Telegram à envoyer</h2><div class="block"><p class="muted" style="margin-bottom:8px">Un bot ne peut pas écrire le premier : le prospect doit ouvrir son lien une fois.</p><table>${liensTg.map((f) =>
+  `<tr><td>${esc(f.nom)}</td><td><a class="lien" href="${esc(lienTelegram(f))}">${esc(lienTelegram(f))}</a></td></tr>`).join("")}</table></div>` : ""}
+
 <p class="muted" style="margin-top:20px"><a class="lien" href="api/export.csv" id="csv">Exporter en CSV (Excel)</a></p>
 
 <script>
@@ -94,12 +117,12 @@ const post = (url, body) => fetch(url, {method:"POST", headers:{"content-type":"
   .then(async r => { const j = await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.erreur || r.status); return j; });
 
 document.querySelectorAll("[data-msg]").forEach(card => {
-  const id = card.dataset.msg, ta = card.querySelector("textarea");
+  const id = card.dataset.msg, ta = card.querySelector("textarea"), suj = card.querySelector(".sujet");
   card.querySelectorAll("[data-act]").forEach(b => b.onclick = async () => {
     try{
       const act = b.dataset.act;
       if(act === "valider"){
-        const r = await post("api/messages/"+id+"/valider", {texte: ta.value});
+        const r = await post("api/messages/"+id+"/valider", {texte: ta.value, sujet: suj ? suj.value : undefined});
         if(r.lien){ window.open(r.lien, "_blank"); const ok = card.querySelector('[data-act="envoye"]'); if(ok) ok.style.display = "inline-block"; return; }
       } else {
         await post("api/messages/"+id+"/"+act, {texte: ta.value});

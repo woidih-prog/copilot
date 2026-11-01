@@ -7,6 +7,8 @@ import { openDb, makeRepo } from "./db.js";
 import { makeAgent } from "./agent.js";
 import { verifieSignature, litWebhook } from "./whatsapp.js";
 import { pageDigest } from "./digest.js";
+import { litWebhookSms } from "./canaux/sms.js";
+import { litWebhookTelegram } from "./canaux/telegram.js";
 
 const repo = makeRepo(openDb(config.dbPath));
 const agent = makeAgent(repo);
@@ -40,7 +42,7 @@ function envoie(res, code, corps, type = "application/json; charset=utf-8") {
 }
 
 const csv = (rows) => {
-  const cols = ["id", "nom", "telephone", "type", "statut", "etape", "prochaine", "mode_envoi", "consentement", "derniere_sortie", "derniere_entree", "notes"];
+  const cols = ["id", "nom", "telephone", "email", "canal", "type", "statut", "etape", "prochaine", "mode_envoi", "consentement", "derniere_sortie", "derniere_entree", "notes"];
   const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   return "﻿" + [cols.join(";"), ...rows.map((r) => cols.map((c) => q(r[c])).join(";"))].join("\r\n");
 };
@@ -54,6 +56,30 @@ const serveur = createServer(async (req, res) => {
     if (chemin === "/health") return envoie(res, 200, { ok: true, transport: config.transport });
 
     /* ---- Webhook WhatsApp Cloud ---- */
+    /* ---- Webhook de la passerelle SMS Android (jeton secret dans l'URL) ---- */
+    if (chemin === "/webhook/sms" && req.method === "POST") {
+      const k = String(url.searchParams.get("k") || "");
+      if (!config.sms.webhookToken || !egal(k, config.sms.webhookToken)) return envoie(res, 401, { erreur: "jeton" });
+      const corps = JSON.parse((await lisCorps(req)).toString("utf8") || "{}");
+      envoie(res, 200, { ok: true });
+      const { recu, statut } = litWebhookSms(corps);
+      if (statut) { const m = repo.messageByWaId(statut.extId); if (m) repo.updateMessage(m.id, { statut: statut.statut }); }
+      if (recu?.de) await agent.recoit(recu).catch((e) => console.error("[sms]", e.message));
+      return;
+    }
+
+    /* ---- Webhook du bot Telegram (en-tête secret) ---- */
+    if (chemin === "/webhook/telegram" && req.method === "POST") {
+      const s = String(req.headers["x-telegram-bot-api-secret-token"] || "");
+      if (!config.telegram.secret || !egal(s, config.telegram.secret)) return envoie(res, 401, { erreur: "secret" });
+      const corps = JSON.parse((await lisCorps(req)).toString("utf8") || "{}");
+      envoie(res, 200, { ok: true });
+      const { liaison, recu } = litWebhookTelegram(corps);
+      if (liaison) await agent.lieTelegram(liaison).catch((e) => console.error("[telegram]", e.message));
+      else if (recu) await agent.recoit(recu).catch((e) => console.error("[telegram]", e.message));
+      return;
+    }
+
     if (chemin === "/webhook/whatsapp" && req.method === "GET") {
       const ok = url.searchParams.get("hub.mode") === "subscribe" && config.wa.verifyToken &&
         url.searchParams.get("hub.verify_token") === config.wa.verifyToken;
@@ -68,7 +94,7 @@ const serveur = createServer(async (req, res) => {
         const m = repo.messageByWaId(s.waId);
         if (m) repo.updateMessage(m.id, { statut: { sent: "envoye", delivered: "livre", read: "lu", failed: "echec" }[s.statut] || m.statut });
       }
-      for (const r of recus) await agent.recoit(r).catch((e) => console.error("[webhook]", e.message));
+      for (const r of recus) await agent.recoit({ ...r, canal: "whatsapp" }).catch((e) => console.error("[webhook]", e.message));
       return;
     }
 
@@ -99,7 +125,7 @@ const serveur = createServer(async (req, res) => {
     let m;
     if ((m = chemin.match(/^\/api\/messages\/(\d+)\/(valider|envoye|ecarter|pause)$/))) {
       const id = Number(m[1]);
-      if (m[2] === "valider") return envoie(res, 200, await agent.valide(id, corps.texte));
+      if (m[2] === "valider") return envoie(res, 200, await agent.valide(id, corps.texte, corps.sujet));
       if (m[2] === "envoye") { agent.marqueEnvoye(id, corps.texte); return envoie(res, 200, { ok: true }); }
       agent.ecarte(id, { pause: m[2] === "pause" });
       return envoie(res, 200, { ok: true });
@@ -112,7 +138,7 @@ const serveur = createServer(async (req, res) => {
     }
     // Modifier à la main (si tu n'utilises pas Notion)
     if ((m = chemin.match(/^\/api\/followups\/(\d+)$/))) {
-      const permis = ["statut", "type", "prochaine", "mode_envoi", "consentement", "notes", "telephone"];
+      const permis = ["statut", "type", "prochaine", "mode_envoi", "consentement", "notes", "telephone", "email", "canal"];
       const patch = Object.fromEntries(Object.entries(corps).filter(([k]) => permis.includes(k)));
       return envoie(res, 200, repo.update(Number(m[1]), patch));
     }

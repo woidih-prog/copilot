@@ -1,6 +1,7 @@
 /* La base follow-up. SQLite intégré à Node (aucun serveur, aucun coût).
    C'est la source de vérité de l'agent ; Notion en est le miroir éditable. */
 import { DatabaseSync } from "node:sqlite";
+import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
@@ -41,7 +42,7 @@ export function openDb(path) {
       etape         INTEGER,
       texte         TEXT NOT NULL,
       statut        TEXT NOT NULL,      -- brouillon | a_envoyer | envoye | livre | lu | echec | recu | rejete
-      wa_id         TEXT UNIQUE,        -- id WhatsApp : sert aussi d'anti-doublon webhook
+      wa_id         TEXT UNIQUE,        -- id externe (WhatsApp, SMS, Message-ID du mail, Telegram) : anti-doublon
       analyse       TEXT,               -- JSON : lecture de la réponse par l'IA
       cree          TEXT NOT NULL,
       maj           TEXT NOT NULL
@@ -51,6 +52,19 @@ export function openDb(path) {
     CREATE INDEX IF NOT EXISTS idx_fu_tel ON followups(telephone);
     CREATE INDEX IF NOT EXISTS idx_msg_fu ON messages(followup_id);
   `);
+  // Colonnes ajoutées avec le multi-canal (SMS, mail, Telegram).
+  const ajoute = (table, col, def) => {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+  };
+  ajoute("followups", "email", "TEXT");
+  ajoute("followups", "canal", "TEXT");            // préférence : whatsapp | sms | email | telegram (vide = auto)
+  ajoute("followups", "telegram_chat_id", "TEXT"); // rempli quand il a ouvert ton lien Telegram
+  ajoute("followups", "tg_code", "TEXT");          // le code de son lien t.me/<bot>?start=<code>
+  ajoute("messages", "canal", "TEXT");
+  ajoute("messages", "sujet", "TEXT");             // l'objet, pour les mails
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_fu_mail ON followups(email);
+           CREATE UNIQUE INDEX IF NOT EXISTS idx_fu_tg ON followups(tg_code);`);
   return db;
 }
 
@@ -67,6 +81,13 @@ export function makeRepo(db) {
       parse(db.prepare(
         "SELECT * FROM followups WHERE telephone = ? ORDER BY (statut IN ('stop','perdu','termine')), maj DESC LIMIT 1"
       ).get(tel)),
+    byEmail: (mail) =>
+      parse(db.prepare(
+        "SELECT * FROM followups WHERE email = ? ORDER BY (statut IN ('stop','perdu','termine')), maj DESC LIMIT 1"
+      ).get(mail)),
+    byTelegram: (chatId) => parse(db.prepare("SELECT * FROM followups WHERE telegram_chat_id = ? ORDER BY maj DESC LIMIT 1").get(String(chatId))),
+    byTgCode: (code) => parse(db.prepare("SELECT * FROM followups WHERE tg_code = ?").get(String(code))),
+    emailsSuivis: () => db.prepare("SELECT DISTINCT email FROM followups WHERE email IS NOT NULL").all().map((r) => r.email),
     list: () => db.prepare("SELECT * FROM followups ORDER BY prochaine IS NULL, prochaine").all().map(parse),
     /* lignes modifiées depuis leur dernier passage dans Notion */
     dirty: () => db.prepare("SELECT * FROM followups WHERE notion_sync IS NULL OR maj > notion_sync").all().map(parse),
@@ -81,9 +102,10 @@ export function makeRepo(db) {
     insert(f) {
       const t = now();
       const r = db.prepare(`INSERT INTO followups
-        (source, source_id, nom, telephone, consentement, type, statut, etape, prochaine, mode_envoi, contexte, notes, cree, maj)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-        f.source, String(f.source_id), f.nom ?? null, f.telephone ?? null, f.consentement ? 1 : 0,
+        (source, source_id, nom, telephone, email, canal, tg_code, consentement, type, statut, etape, prochaine, mode_envoi, contexte, notes, cree, maj)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        f.source, String(f.source_id), f.nom ?? null, f.telephone ?? null, f.email ?? null, f.canal ?? null,
+        f.tg_code ?? randomBytes(6).toString("base64url"), f.consentement ? 1 : 0,
         f.type, f.statut || "actif", f.etape || 0, f.prochaine ?? null, f.mode_envoi || "validation",
         JSON.stringify(f.contexte || {}), f.notes ?? null, t, t);
       return this.get(Number(r.lastInsertRowid));
@@ -102,9 +124,9 @@ export function makeRepo(db) {
 
     addMessage(m) {
       const t = now();
-      const r = db.prepare(`INSERT INTO messages (followup_id, sens, etape, texte, statut, wa_id, analyse, cree, maj)
-        VALUES (?,?,?,?,?,?,?,?,?)`).run(
-        m.followup_id, m.sens, m.etape ?? null, m.texte, m.statut, m.wa_id ?? null,
+      const r = db.prepare(`INSERT INTO messages (followup_id, sens, etape, canal, sujet, texte, statut, wa_id, analyse, cree, maj)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
+        m.followup_id, m.sens, m.etape ?? null, m.canal ?? null, m.sujet ?? null, m.texte, m.statut, m.wa_id ?? null,
         m.analyse ? JSON.stringify(m.analyse) : null, t, t);
       return Number(r.lastInsertRowid);
     },
@@ -117,7 +139,7 @@ export function makeRepo(db) {
         .run(...vals, now(), id);
     },
     history: (fid) => db.prepare("SELECT * FROM messages WHERE followup_id = ? ORDER BY id").all(fid),
-    pending: () => db.prepare(`SELECT m.*, f.nom, f.telephone FROM messages m JOIN followups f ON f.id = m.followup_id
+    pending: () => db.prepare(`SELECT m.*, f.nom, f.telephone, f.email FROM messages m JOIN followups f ON f.id = m.followup_id
       WHERE m.statut IN ('brouillon','a_envoyer') AND m.sens = 'sortant' ORDER BY m.id`).all(),
     hasOpenDraft: (fid) =>
       !!db.prepare("SELECT 1 FROM messages WHERE followup_id = ? AND sens = 'sortant' AND statut IN ('brouillon','a_envoyer')").get(fid),

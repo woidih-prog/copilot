@@ -4,6 +4,13 @@ import { config } from "./config.js";
 
 export async function previens(titre, texte, { lien, urgent = false } = {}) {
   console.log(`[notif] ${titre} — ${texte}`);
+  if (config.telegram.token && config.telegram.ownerChatId) {
+    // Tes alertes arrivent dans ta conversation avec ton propre bot.
+    fetch(`https://api.telegram.org/bot${config.telegram.token}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: config.telegram.ownerChatId, text: `${urgent ? "🔥 " : ""}${titre}\n${texte}${lien ? "\n" + lien : ""}` }),
+    }).catch((e) => console.error("[notif telegram]", e.message));
+  }
   if (!config.ntfyUrl) return;
   try {
     await fetch(config.ntfyUrl, {

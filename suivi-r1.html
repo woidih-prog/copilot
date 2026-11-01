@@ -254,10 +254,20 @@ a{color:var(--steel)}
         <input type="text" id="raisonMort" placeholder="Pas de budget, pas décideur, pas le bon moment…">
       </div>
 
-      <label for="telProspect">Son numéro WhatsApp</label>
+      <label for="telProspect">Son numéro</label>
       <input type="text" id="telProspect" inputmode="tel" placeholder="06 12 34 56 78">
+      <label for="mailProspect">Son mail</label>
+      <input type="text" id="mailProspect" inputmode="email" placeholder="prenom@exemple.fr">
+      <label for="canalProspect">Le relancer par</label>
+      <select id="canalProspect">
+        <option value="auto">Au mieux (l'agent choisit)</option>
+        <option value="sms">SMS</option>
+        <option value="email">Mail</option>
+        <option value="whatsapp">WhatsApp</option>
+        <option value="telegram">Telegram</option>
+      </select>
       <label style="display:flex;gap:9px;align-items:center;margin-top:9px;font-size:14px;color:var(--ink)">
-        <input type="checkbox" id="okWhatsapp" style="width:auto"> Il est d'accord pour que je lui écrive sur WhatsApp
+        <input type="checkbox" id="okWhatsapp" style="width:auto"> Il est d'accord pour que je le relance (SMS, mail, WhatsApp…)
       </label>
 
       <label for="notePerso">Ce que tu veux ajouter</label>
@@ -757,6 +767,8 @@ function ouvreFiche(c, neuve){
   $("raisonMort").value = c.raison || "";
   $("notePerso").value = c.note || "";
   $("telProspect").value = c.telephone || "";
+  $("mailProspect").value = c.email || "";
+  $("canalProspect").value = c.canal || "auto";
   $("okWhatsapp").checked = !!c.whatsapp;
   $("btnSuppr").style.display = neuve ? "none" : "inline-block";
 }
@@ -780,6 +792,8 @@ $("btnEnreg").onclick = async () => {
   COURANT.pretexte = $("pretexte").value.trim();
   COURANT.raison = $("raisonMort").value.trim();
   COURANT.telephone = $("telProspect").value.trim();
+  COURANT.email = $("mailProspect").value.trim();
+  COURANT.canal = $("canalProspect").value;
   COURANT.whatsapp = $("okWhatsapp").checked;
   if(COURANT.suite === "r2"){
     if(!$("dateR2").value) return toast("Mets la date du R2, c'est tout l'intérêt");

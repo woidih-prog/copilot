@@ -67,7 +67,7 @@ test("bout en bout : synchro → brouillon → envoyé → réponse", async () =
   const repo = makeRepo(openDb(":memory:"));
   const notifs = [];
   const agent = makeAgent(repo, {
-    redige: async (f, angle) => `msg ${angle}`,
+    redige: async (f, angle) => ({ texte: `msg ${angle}` }),
     analyse: async () => ({ intention: "interesse", date: null, resume: "veut un créneau", suggestion: "Jeudi 18h ?" }),
     previens: async (t) => notifs.push(t),
   });
@@ -99,6 +99,10 @@ test("bout en bout : synchro → brouillon → envoyé → réponse", async () =
 });
 
 import { corpsCloud, parametre } from "../src/whatsapp.js";
+import { CANAUX, canalDe } from "../src/canaux/index.js";
+import { litWebhookSms } from "../src/canaux/sms.js";
+import { litWebhookTelegram } from "../src/canaux/telegram.js";
+import { nettoieReponse } from "../src/canaux/email.js";
 
 test("modèle Meta : prénom + message, sans retour à la ligne", () => {
   const f = { telephone: "33612345678", nom: "Paul Durand", type: "court", derniere_entree: null };
@@ -115,12 +119,14 @@ test("dans les 24 h après sa réponse : message libre", () => {
 
 test("mode cloud + auto : part tout seul, sans validation", async () => {
   config.transport = "cloud";
+  const canauxAvant = config.canaux;
+  config.canaux = ["whatsapp"];
   try {
     const repo = makeRepo(openDb(":memory:"));
     const envois = [];
     const agent = makeAgent(repo, {
-      redige: async (f, angle, h, o) => `msg ${angle} ${o.sansSalutation ? "sans-salut" : ""}`.trim(),
-      envoie: async (f, texte, o) => { envois.push({ texte, o }); return "wamid." + envois.length; },
+      redige: async (f, angle, h, o) => ({ texte: `msg ${angle} ${o.sansSalutation ? "sans-salut" : ""}`.trim() }),
+      canaux: { ...CANAUX, whatsapp: { ...CANAUX.whatsapp, envoie: async (f, { texte }, o) => { envois.push({ texte, o }); return "wamid." + envois.length; } } },
       previens: async () => {},
     });
     agent.synchronise("suivi-r1", [
@@ -136,5 +142,109 @@ test("mode cloud + auto : part tout seul, sans validation", async () => {
     const rappel = envois.find((e) => e.o.heureRdv);
     assert.match(rappel.o.heureRdv, /mardi 3 novembre à 14h00/);
     assert.equal(repo.bySource("suivi-r1", 1).etape, 1);
-  } finally { config.transport = "assist"; }
+  } finally { config.transport = "assist"; config.canaux = canauxAvant; }
+});
+
+/* ---------- multi-canal ---------- */
+const faux = (nom, joignable, envois) => ({
+  nom, configure: () => true, joignable, automatique: () => true,
+  finalise: CANAUX[nom].finalise,
+  envoie: async (f, msg) => { envois.push({ nom, ...msg }); return `${nom}:${envois.length}`; },
+});
+
+test("choix du canal : celui de la fiche, sinon l'ordre de .env", () => {
+  const c = { sms: faux("sms", (f) => !!f.telephone, []), email: faux("email", (f) => !!f.email, []), whatsapp: faux("whatsapp", (f) => !!f.telephone, []), telegram: faux("telegram", (f) => !!f.telegram_chat_id, []) };
+  const avant = config.canaux; config.canaux = ["sms", "email"];
+  try {
+    assert.equal(canalDe({ telephone: "336", email: "a@b.fr" }, { canaux: c }).nom, "sms");
+    assert.equal(canalDe({ email: "a@b.fr" }, { canaux: c }).nom, "email");
+    assert.equal(canalDe({ telephone: "336", email: "a@b.fr", canal: "email" }, { canaux: c }).nom, "email");
+    assert.equal(canalDe({ telephone: "336", canal: "telegram" }, { canaux: c }).nom, "sms"); // Telegram pas relié → repli
+    assert.equal(canalDe({}, { canaux: c }), null);
+  } finally { config.canaux = avant; }
+});
+
+test("SMS automatique avec mention STOP au premier message ; mail avec objet et pied", async () => {
+  const envois = [];
+  const c = { sms: faux("sms", (f) => !!f.telephone, envois), email: faux("email", (f) => !!f.email, envois), whatsapp: faux("whatsapp", () => false, envois), telegram: faux("telegram", () => false, envois) };
+  const avant = config.canaux; config.canaux = ["sms", "email"];
+  try {
+    const repo = makeRepo(openDb(":memory:"));
+    const agent = makeAgent(repo, {
+      canaux: c, previens: async () => {}, releveMails: async () => [],
+      redige: async (f, angle, h, o) => ({ texte: `[${o.canal}] ${angle}`, sujet: o.canal === "email" ? "Ton projet" : null }),
+    });
+    agent.synchronise("suivi-r1", [
+      { id: 1, nom: "Paul", suite: "relance", chaud: "chaud", quand: "2026-11-02", telephone: "0612345678", whatsapp: true },
+      { id: 2, nom: "Lina", suite: "relance", chaud: "chaud", quand: "2026-11-02", email: "Lina@Mail.fr", consentement: true },
+    ]);
+    repo.list().forEach((f) => repo.update(f.id, { mode_envoi: "auto" }));
+    const j = await agent.tour(T0);
+    assert.deepEqual(j.erreurs, []);
+    assert.equal(j.envoyes, 2);
+    const s = envois.find((e) => e.nom === "sms"), m = envois.find((e) => e.nom === "email");
+    assert.equal(s.texte, "[sms] pretexte\nSTOP pour ne plus recevoir de messages");
+    assert.equal(m.sujet, "Ton projet");
+    assert.match(m.texte, /^\[email\] pretexte[\s\S]*réponds simplement « stop »/);
+
+    // 2e SMS : plus de mention STOP
+    const paul = repo.bySource("suivi-r1", 1);
+    repo.update(paul.id, { prochaine: T0.toISOString() });
+    await agent.tour(T0);
+    assert.equal(envois.filter((e) => e.nom === "sms")[1].texte, "[sms] valeur");
+  } finally { config.canaux = avant; }
+});
+
+test("réponse par mail : retrouvée par adresse, et on continue par mail", async () => {
+  const repo = makeRepo(openDb(":memory:"));
+  const agent = makeAgent(repo, {
+    previens: async () => {}, releveMails: async () => [],
+    analyse: async () => ({ intention: "plus_tard", date: "2027-01-15", resume: "en janvier", suggestion: "" }),
+  });
+  agent.synchronise("suivi-r1", [{ id: 1, nom: "Lina", suite: "relance", chaud: "chaud", quand: "2026-11-02", email: "lina@mail.fr", telephone: "0612345678", consentement: true }]);
+  const r = await agent.recoit({ extId: "mail:<a@b>", canal: "email", de: "lina@mail.fr", texte: "Plutôt en janvier" });
+  assert.equal(r.statut, "actif");
+  const f = repo.bySource("suivi-r1", 1);
+  assert.equal(f.type, "long");
+  assert.equal(f.canal, "email");
+  assert.equal((await agent.recoit({ extId: "mail:<a@b>", canal: "email", de: "lina@mail.fr", texte: "x" })).doublon, true);
+});
+
+test("Telegram : le lien relie le prospect, puis ses messages sont reconnus", async () => {
+  const repo = makeRepo(openDb(":memory:"));
+  const reponses = [];
+  const agent = makeAgent(repo, {
+    previens: async () => {}, repondTelegram: async (id, t) => reponses.push(t),
+    analyse: async () => ({ intention: "interesse", date: null, resume: "ok", suggestion: "" }),
+  });
+  agent.synchronise("suivi-r1", [{ id: 1, nom: "Paul Durand", suite: "relance", chaud: "chaud", quand: "2026-11-02", consentement: true }]);
+  const f = repo.bySource("suivi-r1", 1);
+  const { liaison } = litWebhookTelegram({ message: { message_id: 1, date: 1, chat: { id: 4242 }, text: "/start " + f.tg_code } });
+  await agent.lieTelegram(liaison);
+  assert.equal(repo.get(f.id).telegram_chat_id, "4242");
+  assert.equal(repo.get(f.id).canal, "telegram");
+  assert.match(reponses[0], /Merci Paul/);
+  const { recu } = litWebhookTelegram({ message: { message_id: 2, date: 1, chat: { id: 4242 }, text: "Je suis partant" } });
+  assert.equal((await agent.recoit(recu)).statut, "repondu");
+});
+
+test("webhook SMS : message reçu et accusé lus correctement", () => {
+  const { recu } = litWebhookSms({ event: "sms:received", payload: { messageId: "m1", message: "STOP", phoneNumber: "+33612345678", receivedAt: "2026-11-02T11:41:31.000+01:00" } });
+  assert.equal(recu.de, "33612345678");
+  assert.equal(recu.texte, "STOP");
+  assert.equal(litWebhookSms({ event: "sms:delivered", payload: { messageId: "x9" } }).statut.extId, "sms:x9");
+});
+
+test("mail : on garde sa réponse, pas la citation", () => {
+  const t = "Oui jeudi ça me va.\n\nLe lun. 2 nov. 2026 à 10:00, Moi <moi@mail.fr> a écrit :\n> Salut Paul";
+  assert.equal(nettoieReponse(t), "Oui jeudi ça me va.");
+});
+
+test("STOP respecté même quand l'IA est en panne", async () => {
+  const repo = makeRepo(openDb(":memory:"));
+  const agent = makeAgent(repo, { previens: async () => {}, analyse: async () => { throw new Error("panne"); } });
+  agent.synchronise("suivi-r1", [{ id: 1, nom: "Paul", suite: "relance", chaud: "chaud", quand: "2026-11-02", telephone: "0612345678", consentement: true }]);
+  const r = await agent.recoit({ extId: "sms:in:1", canal: "sms", de: "33612345678", texte: "Stop" });
+  assert.equal(r.statut, "stop");
+  assert.equal(repo.bySource("suivi-r1", 1).consentement, false);
 });
