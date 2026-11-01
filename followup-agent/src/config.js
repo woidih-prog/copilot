@@ -39,6 +39,8 @@ export const config = {
     pass: e.SMS_PASS || "",
     webhookToken: e.SMS_WEBHOOK_TOKEN || "",
     mentionStop: e.SMS_MENTION_STOP || "premier", // premier | toujours | jamais
+    // Les forfaits « illimités » interdisent l'envoi en masse : on reste à un rythme humain.
+    maxParJour: Number(e.SMS_MAX_PAR_JOUR || 40),
   },
 
   email: {

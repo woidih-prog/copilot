@@ -191,7 +191,12 @@ Deux options gratuites, cumulables :
 
 ### Le SMS automatique (recommandé, 0 €)
 
-Il te faut un téléphone **Android** (un ancien suffit) avec une SIM et un forfait SMS illimité, branché sur secteur et connecté à Internet. Si possible, une SIM à part de ton numéro perso.
+Il te faut un téléphone **Android** avec une SIM et un forfait SMS illimité, connecté à Internet.
+
+**Avec ta SIM perso de tous les jours**, ça marche, et tes prospects voient ton vrai numéro. Trois choses à savoir :
+- L'appli voit tous tes SMS. L'agent ignore en silence ceux qui ne viennent pas d'un prospect suivi (famille, codes bancaires…) : il ne les lit pas et ne les garde pas.
+- Les forfaits « illimités » interdisent l'envoi en masse. L'agent s'arrête à `SMS_MAX_PAR_JOUR` (40 par défaut) et reprend le lendemain.
+- Si tu réponds toi-même à un prospect depuis ton téléphone, l'agent ne voit pas ta réponse. Ce n'est pas grave : dès que le prospect a répondu, il est passé en « repondu » et l'agent ne le relance plus.
 
 1. Installe l'appli **SMS Gateway for Android** (projet open source sms-gate.app, sur le Play Store ou sur GitHub `capcom6/android-sms-gateway`).
 2. Dans l'appli, active **Cloud server**. Note l'identifiant et le mot de passe affichés → `SMS_USER` et `SMS_PASS`.

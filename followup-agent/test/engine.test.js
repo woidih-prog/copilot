@@ -248,3 +248,26 @@ test("STOP respecté même quand l'IA est en panne", async () => {
   assert.equal(r.statut, "stop");
   assert.equal(repo.bySource("suivi-r1", 1).consentement, false);
 });
+
+test("SIM perso : SMS d'inconnus ignorés en silence, plafond quotidien respecté", async () => {
+  const envois = [], notifs = [];
+  const c = { sms: faux("sms", (f) => !!f.telephone, envois), email: faux("email", () => false, envois), whatsapp: faux("whatsapp", () => false, envois), telegram: faux("telegram", () => false, envois) };
+  const avant = [config.canaux, config.sms.maxParJour, config.sendDays, config.sendFrom, config.sendTo];
+  config.canaux = ["sms"]; config.sms.maxParJour = 2;
+  config.sendDays = [1, 2, 3, 4, 5, 6, 7]; config.sendFrom = "00:00"; config.sendTo = "23:59"; // fenêtre ouverte en permanence
+  try {
+    const repo = makeRepo(openDb(":memory:"));
+    const agent = makeAgent(repo, { canaux: c, previens: async (t) => notifs.push(t), releveMails: async () => [],
+      redige: async (f, angle) => ({ texte: angle }) });
+    const r = await agent.recoit({ extId: "sms:in:x", canal: "sms", de: "33600000000", texte: "Votre code banque : 123456" });
+    assert.equal(r.inconnu, true);
+    assert.equal(notifs.length, 0);
+
+    agent.synchronise("suivi-r1", [1, 2, 3].map((i) => ({ id: i, nom: "P" + i, suite: "relance", chaud: "chaud", quand: "2020-01-01", telephone: "061234567" + i, consentement: true })));
+    repo.list().forEach((f) => repo.update(f.id, { mode_envoi: "auto" }));
+    const j = await agent.tour(new Date());
+    assert.equal(j.envoyes, 2);
+    assert.equal(j.quotaSms, true);
+    assert.equal(repo.list().filter((f) => f.etape === 0).length, 1); // le 3e attend demain
+  } finally { [config.canaux, config.sms.maxParJour, config.sendDays, config.sendFrom, config.sendTo] = avant; }
+});

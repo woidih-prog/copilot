@@ -73,6 +73,7 @@ export function makeAgent(repo, deps = {}) {
             journal.pauses++;
             continue;
           }
+          if (canal.nom === "sms" && quotaSmsAtteint(maintenant)) { journal.quotaSms = true; continue; } // reprend demain
           const angle = angleDe(f);
           if (!angle) { repo.update(f.id, { statut: "termine", prochaine: null }); continue; }
 
@@ -106,6 +107,12 @@ export function makeAgent(repo, deps = {}) {
     return journal;
   }
 
+  /* Minuit, heure de Paris, du jour donné. */
+  function quotaSmsAtteint(maintenant) {
+    const jour = new Intl.DateTimeFormat("en-CA", { timeZone: config.tz }).format(maintenant); // AAAA-MM-JJ
+    return repo.sortantsDepuis("sms", parseQuand(jour, config.tz).toISOString()) >= config.sms.maxParJour;
+  }
+
   /* ---------- sortie ---------- */
   async function envoieMaintenant(msgId, texteCorrige, sujetCorrige) {
     const m = repo.message(msgId);
@@ -113,6 +120,7 @@ export function makeAgent(repo, deps = {}) {
     if (f.statut === "stop" || !f.consentement) throw new Error("Ce contact a refusé les messages.");
     const canal = canaux[m.canal] || canalDe(f, { canaux });
     if (!canal) throw new Error("Aucun canal pour joindre ce contact.");
+    if (canal.nom === "sms" && quotaSmsAtteint(new Date())) throw new Error(`Plafond de ${config.sms.maxParJour} SMS atteint aujourd'hui (SMS_MAX_PAR_JOUR).`);
     const texte = (texteCorrige || m.texte).trim();
     const sujet = (sujetCorrige || m.sujet || "").trim() || null;
     try {
@@ -164,6 +172,9 @@ export function makeAgent(repo, deps = {}) {
     if (id && repo.messageByWaId(id)) return { doublon: true };
     f = f || (canal === "email" ? repo.byEmail(de) : canal === "telegram" ? repo.byTelegram(de) : repo.byPhone(de));
     if (!f) {
+      // Sur ta SIM perso, la passerelle voit TOUS tes SMS (famille, codes bancaires…) :
+      // ce qui ne vient pas d'un prospect suivi est ignoré, sans être lu ni gardé.
+      if (canal === "sms") return { inconnu: true };
       await notifie("Message d'un contact inconnu", `${canal || "whatsapp"} ${de} : ${String(texte).slice(0, 120)}`);
       return { inconnu: true };
     }

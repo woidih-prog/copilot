@@ -141,6 +141,9 @@ export function makeRepo(db) {
     history: (fid) => db.prepare("SELECT * FROM messages WHERE followup_id = ? ORDER BY id").all(fid),
     pending: () => db.prepare(`SELECT m.*, f.nom, f.telephone, f.email FROM messages m JOIN followups f ON f.id = m.followup_id
       WHERE m.statut IN ('brouillon','a_envoyer') AND m.sens = 'sortant' ORDER BY m.id`).all(),
+    sortantsDepuis: (canal, iso) => db.prepare(
+      "SELECT COUNT(*) AS n FROM messages WHERE sens = 'sortant' AND canal = ? AND statut IN ('envoye','livre','lu') AND maj >= ?"
+    ).get(canal, iso).n,
     hasOpenDraft: (fid) =>
       !!db.prepare("SELECT 1 FROM messages WHERE followup_id = ? AND sens = 'sortant' AND statut IN ('brouillon','a_envoyer')").get(fid),
   };
