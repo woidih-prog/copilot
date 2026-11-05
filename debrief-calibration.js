@@ -125,11 +125,12 @@ function ligneRoleplay(e){
 }
 let filSeances = null;      // la section 7 y branche les séances de coaching : (sauf) => [{t, txt}]
 let FIL_DEBRIEF = "";       // le fil lu juste avant un débrief de roleplay
-// tout le travail fait, du plus ancien au plus récent (les n derniers), sauf la séance en cours
-async function texteFil(n, sauf){
-  const rp = (await filLit()).filter(e => e.type === "roleplay" && (e.t || 0) > DEPART_FIL)
+// le travail déjà fait, du plus ancien au plus récent (les n derniers), sauf la séance en cours.
+// Cloisonné : quoi === "roleplay" → seulement les roleplays ; sinon → seulement les séances du même type que « sauf »
+async function texteFil(n, sauf, quoi){
+  const rp = quoi !== "roleplay" ? [] : (await filLit()).filter(e => e.type === "roleplay" && (e.t || 0) > DEPART_FIL)
     .map(e => ({t: e.t, txt: e.titre + (e.coach ? " (avec " + e.coach + ")" : "") + " : " + ligneRoleplay(e)}));
-  let se = []; try{ se = filSeances ? filSeances(sauf) : []; }catch(_){}
+  let se = []; if(quoi !== "roleplay"){ try{ se = filSeances ? filSeances(sauf) : []; }catch(_){} }
   return rp.concat(se).sort((a, b) => a.t - b.t).slice(-n)
     .map(x => "  - " + new Date(x.t).toLocaleDateString("fr-FR", {weekday: "long", day: "numeric", month: "long"}) + " · " + x.txt).join("\n");
 }
@@ -176,7 +177,7 @@ JUGE-LE SUR CES CRITÈRES-LÀ, ET SUR RIEN D'AUTRE :
 ${criteres}
 
 ${notesDuCoach()}
-${FIL_DEBRIEF ? `CE QU'IL A DÉJÀ TRAVAILLÉ AVEC SES COACHS (le plus récent en dernier) :
+${FIL_DEBRIEF ? `SES ROLEPLAYS PRÉCÉDENTS (le plus récent en dernier) :
 ${FIL_DEBRIEF}
 C'est un fil, pas un exercice isolé. Si sa faute d'aujourd'hui est déjà apparue là-dedans, dis-le-lui clairement dans "lecture" (« c'est la même chose que sur… »). S'il a corrigé quelque chose qui revenait, dis-le aussi. La note, elle, ne juge que cet exercice.
 ` : ""}
@@ -425,7 +426,7 @@ $("btnSparFin").onclick = async () => {
   $("sparDebrief").scrollIntoView({block:"start"});
 
   let j;
-  try{ FIL_DEBRIEF = await texteFil(8); }catch(_){ FIL_DEBRIEF = ""; }
+  try{ FIL_DEBRIEF = await texteFil(8, null, "roleplay"); }catch(_){ FIL_DEBRIEF = ""; }
   try{
     j = await appelJson(promptDebrief1(), 2800, REQUIS_SPAR, optsDebrief());
   }catch(e){
@@ -3168,7 +3169,7 @@ async function rendMemoire(){
   if(!l.length) return;
   el.style.display = "block";
   el.innerHTML = `<h4>Ce que tes coachs ont en mémoire</h4>
-    <p class="cp-vide" style="font-size:12.5px;margin-bottom:8px">${l.length} moment${l.length > 1 ? "s" : ""} de travail gardé${l.length > 1 ? "s" : ""} (analyses de calls, séances, roleplays). À chaque séance, ton coach relit les 14 plus récents et fait les liens entre eux.</p>
+    <p class="cp-vide" style="font-size:12.5px;margin-bottom:8px">${l.length} moment${l.length > 1 ? "s" : ""} de travail gardé${l.length > 1 ? "s" : ""} (analyses de calls, séances, roleplays). Chaque façon de travailler a sa propre mémoire : une analyse relit tes analyses, une question-réponse tes questions-réponses, un roleplay tes roleplays.</p>
     ${l.slice(0, 6).map(x => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(x.titre)}</b>
       <small>${jour(x.t)}${x.txt ? " · " + escapeHTML(x.txt.slice(0, 150)) + (x.txt.length > 150 ? "…" : "") : ""}</small></div></div>`).join("")}`;
 }
@@ -3226,13 +3227,16 @@ async function nouvelleSeance(o){
   if(s.k) CP.entrainements.push({t: Date.now(), k: s.k, type: s.type});
   sauve(); ouvreSeance();
   if(o.ouverture){ $("cpMoi").value = o.ouverture; envoie(); }
-  else if(!o.silence){ s.conv.push({role: "coach", nom: coachDe(s.qui).court, t: Date.now(), txt: ouvertureCoach()}); sauve(); rendFil(); }
+  else if(!o.silence){ s.conv.push({role: "coach", nom: coachDe(s.qui).court, t: Date.now(), txt: ouvertureCoach(s)}); sauve(); rendFil(); }
   return true;
 }
-function ouvertureCoach(){
-  const d = devoirsOuverts().slice(-1)[0];
-  return d ? "Avant tout : la dernière fois, je t'ai demandé ça. « " + d.txt + " » Tu l'as fait ? Raconte-moi ce que ça a donné."
-           : "Salut. Raconte-moi ton dernier call, ou ce qui te bloque en ce moment. On part de là.";
+function ouvertureCoach(s){
+  // le devoir redemandé vient du même type de travail : une question-réponse ne ressort pas un devoir d'analyse de call
+  const d = devoirsPour(s).slice(-1)[0];
+  if(d) return "Avant tout : la dernière fois, je t'ai demandé ça. « " + d.txt + " » Tu l'as fait ? Raconte-moi ce que ça a donné.";
+  return typeSeance(s) === "qr"
+    ? "Salut. De quoi tu veux qu'on parle ? Un call, ton état d'esprit, ton organisation, une offre, un doute… Vas-y, je t'écoute."
+    : "Salut. Raconte-moi ton dernier call, ou ce qui te bloque en ce moment. On part de là.";
 }
 async function nouvelleAnalyse(c, k){
   if(!c) return;
@@ -3263,7 +3267,7 @@ function promptPlan(s, k, fil){
   const dest = coachCourant().k === "keenan"
     ? "l'écart entre sa situation actuelle et la situation qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant"
     : "les quatre accords qui font une vente : un problème qui le brûle ; un vrai désir de le régler ; il admet qu'il ne peut pas le régler seul ; il croit que l'offre peut l'aider, et il sait pourquoi maintenant";
-  return `${texteProfil()}${fil ? "\n" + TITRE_FIL + "\n" + fil + "\nSi ce call répète quelque chose de ce fil (la même faute, le même moment qui lâche), tu le relies dans ton premier message : c'est souvent là que se trouve le vrai travail.\n" : ""}${texteDuCall(s)}
+  return `${texteProfil()}${fil ? "\n" + titreFil(s) + "\n" + fil + "\nSi ce call répète quelque chose de ce fil (la même faute, le même moment qui lâche), tu le relies dans ton premier message : c'est souvent là que se trouve le vrai travail.\n" : ""}${texteDuCall(s)}
 ${k ? "Il veut surtout travailler « " + nomPhase(k) + " ».\n" : ""}
 Avant de commencer la séance, tu lis tout ce call comme pour une revue de call, et tu prépares la carte de la séance : d'où il part, où vous allez, et pourquoi.
 1. La destination d'un call de vente, c'est ${dest}. Pour chacun des quatre accords : obtenu ou non dans ce call, et à quelle minute si la transcription a les minutes.
@@ -3395,7 +3399,34 @@ ${(g.faiblesses || []).length ? "Ses points faibles prioritaires : " + g.faibles
 (Cette grille mesure la structure du call, pas la qualité humaine de l'écoute. Si d'anciens calls ont été notés avec l'ancienne grille, un écart ou un impact « raté » veut peut-être seulement dire « pas chiffré » : vérifie dans le call si le prospect a ressenti son écart avant de lui reprocher quoi que ce soit.)
 ${trav ? "Ce qu'il a déjà travaillé avec toi, et l'effet sur ses vrais calls :\n" + trav : ""}\n`;
 }
-function systemeCoach(){
+/* chaque type de séance a sa conduite : une analyse de call vise la destination du call,
+   une question-réponse reste sur le sujet qu'il apporte (mindset, organisation, carrière…) */
+function conduiteSeance(c){
+  const s = seance(), type = typeSeance(s);
+  const memoire = `TA MÉMOIRE
+Plus bas, sous « ${titreFil(s).split(" (")[0]} », tu as ce que vous avez déjà fait dans ce même type de travail, même avec un autre coach ou laissé en pause. Tu fais les liens toi-même : quand la même chose revient, tu le lui dis, et quand il a corrigé quelque chose, tu le remarques.
+S'il te parle d'une séance d'avant, tu la cherches là et tu t'en sers. Si elle n'y est pas, tu lui demandes de te la rappeler en une phrase.
+Tu ne fais pas entrer un autre type de travail dans cette séance : pas ses calls dans une question-réponse, pas ses roleplays dans une analyse de call, sauf s'il en parle lui-même.
+`;
+  if(type === "qr") return `CETTE SÉANCE : QUESTIONS-RÉPONSES
+Il vient avec SON sujet : ça peut être un call, mais aussi son état d'esprit, sa confiance, sa motivation, son organisation, ses offres, sa carrière, une situation précise ou une question de technique. Tu restes sur ce sujet-là.
+Tu ne le ramènes pas à ses calls, à ses chiffres ou à sa grille. Tu ne les as pas sous les yeux, et ce n'est pas le moment. S'il en parle lui-même, tu le suis.
+Si c'est de l'état d'esprit, tu coaches l'homme, pas la technique de vente : ce qu'il vit, ce qu'il se raconte, ce qu'il évite, et ce qu'il va faire concrètement.
+Tu commences par bien comprendre sa question, puis tu l'aides à avancer. Un point à la fois. Quand vous avez fait le tour, tu lui demandes ce qu'il retient, avec ses mots.
+
+${memoire}`;
+  const phase = type === "phase" && s && s.k ? `CETTE SÉANCE PORTE SUR UNE SEULE PHASE DE SES CALLS : « ${nomPhase(s.k)} ». Vous ne parlez que d'elle : pourquoi il la rate, ce qui se passe chez le prospect à ce moment-là, et la phrase juste.\n` : "";
+  return `COMMENT TU CONDUIS UNE SÉANCE
+${phase}Il doit toujours savoir d'où il part, où vous allez, et pourquoi. Dès ton premier vrai message, tu lui dis ce que vous cherchez à comprendre ou à obtenir dans cette séance.
+La destination d'un call de vente, ${c.k === "keenan" ? "c'est l'écart entre sa situation actuelle et celle qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant" : "ce sont quatre accords : un problème qui le brûle ; un vrai désir de le régler ; il admet qu'il ne peut pas le régler seul ; il croit que l'offre peut l'aider, et il sait pourquoi maintenant"}. Chaque moment que vous travaillez est relié à cette destination, et tu le lui dis.
+Un détail du call (le budget, ses chiffres, son taux de conversion, la technique de son métier) ne mérite du temps que s'il sert cette destination. Sinon tu le dis franchement, « ça, ce n'est pas là que ça s'est joué », et tu ramènes.
+Tu as le chrono du call en tête : une découverte complète tient en général en une vingtaine de minutes. Si la transcription a les minutes, tu les cites, et tu lui dis quand il a passé trop de temps sur quelque chose.
+Un point à la fois. Quand il est acquis, tu le dis, tu fais le point en une phrase (« on a ça, maintenant on va là ») et tu passes au suivant. Tu ne tournes pas plus de cinq ou six échanges sur le même point.
+Quand ce n'est pas évident, ta question dit pourquoi tu la poses.
+Quand vous avez fait le tour, tu lui demandes ce qu'il retient, avec ses mots, avant de conclure.
+
+${memoire}`;
+}function systemeCoach(){
   const c = coachCourant();
   const maniere = (typeof MANIERE_COACH === "object" && MANIERE_COACH[c.k]) ? MANIERE_COACH[c.k].ton : "";
   let cerveau = "", vraieTete = false;
@@ -3435,20 +3466,7 @@ Tu t'appuies sur le réel : les mots du prospect, ceux de ton élève, le moment
 Tu es franc. Tu nommes ce qu'il évite, y compris chez lui : sa peur de déranger, sa peur d'aller trop loin, son envie de passer vite à l'offre. Dur quand il le faut, jamais méprisant, et chaleureux quand il est découragé.
 Pas de phrase magique. S'il cherche un raccourci, tu le lui dis, et tu le ramènes à ce qui fait progresser : comprendre, répéter, s'entraîner. Tu lui donnes souvent un travail précis, et tu le lui redemandes la fois suivante. Il peut mettre une séance en pause : c'est normal.
 
-COMMENT TU CONDUIS UNE SÉANCE
-Il doit toujours savoir d'où il part, où vous allez, et pourquoi. Dès ton premier vrai message, tu lui dis ce que vous cherchez à comprendre ou à obtenir dans cette séance.
-La destination d'un call de vente, ${c.k === "keenan" ? "c'est l'écart entre sa situation actuelle et celle qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant" : "ce sont quatre accords : un problème qui le brûle ; un vrai désir de le régler ; il admet qu'il ne peut pas le régler seul ; il croit que l'offre peut l'aider, et il sait pourquoi maintenant"}. Chaque moment que vous travaillez est relié à cette destination, et tu le lui dis.
-Un détail du call (le budget, ses chiffres, son taux de conversion, la technique de son métier) ne mérite du temps que s'il sert cette destination. Sinon tu le dis franchement, « ça, ce n'est pas là que ça s'est joué », et tu ramènes.
-Tu as le chrono du call en tête : une découverte complète tient en général en une vingtaine de minutes. Si la transcription a les minutes, tu les cites, et tu lui dis quand il a passé trop de temps sur quelque chose.
-Un point à la fois. Quand il est acquis, tu le dis, tu fais le point en une phrase (« on a ça, maintenant on va là ») et tu passes au suivant. Tu ne tournes pas plus de cinq ou six échanges sur le même point.
-Quand ce n'est pas évident, ta question dit pourquoi tu la poses.
-Quand vous avez fait le tour, tu lui demandes ce qu'il retient, avec ses mots, avant de conclure.
-
-TA MÉMOIRE
-Tu as en tête le fil de tout votre travail : ses analyses de calls, ses séances, ses roleplays, même ceux faits avec un autre coach ou laissés en pause. Il est écrit plus bas, dans « LE FIL DE VOTRE TRAVAIL ».
-Tu fais les liens toi-même, comme un coach qui suit son élève depuis des semaines : quand la même faute revient d'un call ou d'un roleplay à l'autre, tu le lui dis (« c'est le troisième call où ça lâche au même endroit »), et quand il a corrigé quelque chose, tu le remarques.
-S'il te parle d'un call, d'un exercice ou d'une séance d'avant, tu le cherches dans ce fil et tu t'en sers. Tu ne lui dis jamais que tu ne sais pas de quoi il parle si c'est dans le fil. Si ce n'est vraiment pas dedans, tu lui demandes de te le rappeler en une phrase.
-
+${conduiteSeance(c)}
 COMMENT TU PARLES
 Tu parles, tu n'écris pas. Pas de listes, pas de titres, pas de gras, pas d'émojis, pas de mots de consultant. Des phrases courtes, à l'oral, en tutoyant, avec tes réactions d'humain (« attends », « tu vois ce qui se passe là ? », « non, écoute-toi »). En général 2 à 6 phrases. Plus long seulement s'il te demande d'expliquer en détail, ou pour un bilan.
 ${maniere ? "\nTA MANIÈRE\n" + maniere + "\n" : ""}
@@ -3459,7 +3477,14 @@ DEUX REPÈRES, à mettre seulement quand c'est utile, chacun seul sur une ligne 
 ${cerveau}`;
 }
 /* --- la mémoire des séances : chaque séance quittée laisse un mémo, que tous les coachs relisent --- */
-const TITRE_FIL = "LE FIL DE VOTRE TRAVAIL : tout ce qu'il a fait avec ses coachs (analyses de calls, séances, roleplays), du plus ancien au plus récent. C'est ta mémoire :";
+// Chaque façon de travailler est cloisonnée : une analyse de call ne relit que les analyses,
+// une question-réponse que les questions-réponses, une phase que les séances sur cette phase.
+const typeSeance = s => (s && s.type) || "qr";
+const memeTravail = (a, b) => !b || (typeSeance(a) === typeSeance(b) && (typeSeance(b) !== "phase" || !b.k || a.k === b.k));
+const avecSesCalls = s => ["analyse", "phase"].includes(typeSeance(s));
+const titreFil = s => ({analyse: "SES ANALYSES DE CALLS PRÉCÉDENTES", phase: "SES SÉANCES PRÉCÉDENTES SUR CETTE PHASE", qr: "VOS QUESTIONS-RÉPONSES PRÉCÉDENTES"}[typeSeance(s)]) +
+  " (du plus ancien au plus récent). C'est ta mémoire de ce travail-là :";
+const devoirsPour = s => devoirsOuverts().filter(d => { const o = CP.seances.find(x => x.id === d.seance); return o && memeTravail(o, s); });
 function digestSeance(s){
   const c = s.call;
   const tete = s.titre + " (avec " + coachDe(s.qui).nom + (s.etat === "terminee" ? "" : ", pas terminée") + ")";
@@ -3472,7 +3497,7 @@ function digestSeance(s){
   return tete + " :" + call + fond;
 }
 filSeances = sauf => CP.seances
-  .filter(s => s !== sauf && (s.maj || 0) > DEPART_FIL && (s.conv.some(m => m.role === "moi") || s.plan))
+  .filter(s => s !== sauf && memeTravail(s, sauf) && (s.maj || 0) > DEPART_FIL && (s.conv.some(m => m.role === "moi") || s.plan))
   .map(s => ({t: s.maj, txt: digestSeance(s)}));
 async function memoSeance(s){
   if(!s || !s.conv.some(m => m.role === "moi")) return;
@@ -3500,7 +3525,7 @@ function promptCoach(question, estQuestion, fil){
   // les devoirs ne servent qu'en début de séance (pour les lui redemander) : ensuite ils coloreraient chaque réponse
   const debut = !s || s.conv.filter(m => m.role === "moi").length <= 1;
   // nouveau départ : ce qui a été écrit avant le nouveau cerveau de Josh (19 octobre, ancienne façon de penser) n'est plus relu
-  const ouverts = debut ? devoirsOuverts().filter(d => (Number(d.id) || 0) > DEPART_FIL).slice(-3).map(d => "  - (" + d.date + ") " + d.txt).join("\n") : "";
+  const ouverts = debut ? devoirsPour(s).filter(d => (Number(d.id) || 0) > DEPART_FIL).slice(-3).map(d => "  - (" + d.date + ") " + d.txt).join("\n") : "";
   const avant = fil || "";
   const objet = s && s.k ? `\nCETTE SÉANCE PORTE SUR UNE PHASE PRÉCISE DE SES CALLS : « ${nomPhase(s.k)} ». Reste dessus, sauf quand il te pose une question directe : tu y réponds d'abord.\n` : "";
   const consigneQuestion = estQuestion ? `
@@ -3509,7 +3534,8 @@ Réponds-y vraiment : clairement, complètement, avec un exemple concret ou la p
 Pas de DEVOIR ni de ROLEPLAY. Termine par une seule courte phrase qui propose de reprendre l'exercice là où vous en étiez.
 ` : "";
   let sv = ""; try{ sv = souvenirs(question + " " + (s && s.call ? (s.call.resume || "") : "") + (s && s.k ? " " + nomPhase(s.k) : ""), [], "", 6); }catch(_){}
-  return `${texteProfil()}${avant ? "\n" + TITRE_FIL + "\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${textePlan(s)}${sv}
+  // ses chiffres de calls ne servent qu'à une analyse ou une phase : une question-réponse reste sur son sujet à lui
+  return `${avecSesCalls(s) ? texteProfil() : ""}${avant ? "\n" + titreFil(s) + "\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${textePlan(s)}${sv}
 ${hist ? "CETTE SÉANCE JUSQU'ICI :\n" + hist + "\n" : ""}
 ${nomProfil().toUpperCase()}${estQuestion ? " (QUESTION DIRECTE)" : ""} : ${question}
 ${consigneQuestion}
@@ -3626,7 +3652,7 @@ $("cpQui").onchange = () => {
   arreteVoix();
   if(!avant.conv.some(m => m.role === "moi")){
     // rien n'a encore été dit : on change simplement de coach
-    avant.qui = CP.qui; avant.conv = [{role: "coach", nom: coachDe(CP.qui).court, t: Date.now(), txt: ouvertureCoach()}];
+    avant.qui = CP.qui; avant.conv = [{role: "coach", nom: coachDe(CP.qui).court, t: Date.now(), txt: ouvertureCoach(avant)}];
     sauve(); ouvreSeance(); return;
   }
   avant.maj = Date.now();
