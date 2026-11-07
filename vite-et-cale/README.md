@@ -12,7 +12,15 @@ Une seule page (`index.html`), sans serveur ni compte : le profil, la semaine et
 - **Plats** : tous les plats permis par le profil, avec le prix par assiette.
 - **Hors connexion** une fois ouverte une première fois (`sw.js`), et installable sur l'écran d'accueil (`manifest.json`).
 
+## Les prix
+Les prix viennent d'[Open Prices](https://prices.openfoodfacts.org) (Open Food Facts), une base ouverte de prix relevés en magasin (licence ODbL).
+
+- `prix/maj_prix.py` lit les relevés des 12 derniers mois en France pour chaque ingrédient, les ramène au kilo, au litre ou à la pièce, et écrit `prix.json` : un prix « bas » national (premier quartile, les produits les moins chers du rayon) et, à partir de 8 relevés, un prix bas par enseigne.
+- L'appli prend le prix de l'enseigne choisie quand il existe, sinon le prix bas national ajusté au magasin. À La Réunion, faute de relevés, c'est le prix national majoré d'environ 30 % pour les produits importés.
+- Le workflow `.github/workflows/prix-vite-et-cale.yml` relance le script chaque lundi et enregistre `prix.json` s'il a changé. Il ne tourne qu'une fois le workflow présent sur la branche par défaut du dépôt.
+- Pour mettre à jour à la main : `python3 vite-et-cale/prix/maj_prix.py` (Python 3.9+, aucune dépendance).
+
 ## Limites connues
-- Les prix sont des estimations d'enseigne discount, ajustées grossièrement par magasin et pour La Réunion.
+- Les prix sont des relevés faits par des particuliers : il y en a beaucoup pour Leclerc, Carrefour, Auchan, Intermarché et Super U, peu pour Lidl, Aldi et Géant Casino, presque pas pour La Réunion.
 - Les calories et protéines sont approximatives.
 - 17 plats midi et soir : avec beaucoup d'allergies et peu de temps de cuisine, il peut en rester trop peu.
