@@ -70,6 +70,15 @@ INGREDIENTS = {
     "patate":   {"base": "kg", "cat": "en:sweet-potatoes"},
     "fruit":    {"base": "kg", "cat": "en:apples"},
     "leg":      {"base": "kg", "cat": "en:carrots"},
+    "oignon":   {"base": "kg", "cat": "en:onions"},
+    "lardons":  {"base": "kg", "noms": ["lardons"], "exclut": r"poulet|dinde|volaille|v[ée]g[ée]|quiche|tarte|pâtes|salade"},
+    "creme":    {"base": "kg", "noms": ["crème fraîche épaisse", "crème fraîche"], "exclut": r"soja|avoine|dessert|chantilly|glac|ciboulette|ail|fines herbes|citron|vanille|aérosol|uht"},
+    "cuisse":   {"base": "kg", "noms": ["cuisses de poulet", "cuisse de poulet", "haut de cuisse", "hauts de cuisse", "pilons de poulet"], "exclut": r"r[ôo]ti|cuisin|pan[ée]|sauce|grill|marin|tandoori|fum|cuit|confit"},
+    "saucisse": {"base": "kg", "noms": ["saucisses de toulouse", "saucisse de toulouse", "chipolatas", "saucisses fumées"], "exclut": r"lentille|choucroute|cassoulet|cocktail|ap[ée]ritif|volaille|poulet|v[ée]g[ée]|knack|strasbourg|frite|pur[ée]e|cuisin"},
+    "colin":    {"base": "kg", "noms": ["filets de colin", "colin d'alaska", "filets de merlu", "filets de lieu"], "exclut": r"pan[ée]|fish|chips|meuni[èe]re|c[ée]r[ée]ales|sauce|cuisin|beignet|panure|fa[çc]on|croustill|gratin|crumble|riz|légume|tomate|citron"},
+    "hblanc":   {"base": "kg", "noms": ["haricots blancs", "haricots lingots"], "exclut": r"tomate|sauce|cuisin|v[ée]g[ée]|tranche|cassoulet|salade|pur[ée]e|sec|secs"},
+    "poiscasse": {"base": "kg", "noms": ["pois cassés"], "exclut": r"soupe|velout|cuisin|pur[ée]e"},
+    "pate":     {"base": "kg", "noms": ["pâte brisée"], "exclut": r"sans gluten|no gluten|sucr|feuillet"},
 }
 
 

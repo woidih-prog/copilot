@@ -60,6 +60,23 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within
 .opts{display:flex;flex-wrap:wrap;gap:8px}
 .opt{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 14px;font-weight:600;font-size:14.5px;text-align:left;display:flex;flex-direction:column;gap:1px}
 .opt small{font-weight:400;color:var(--muted);font-size:12.5px}
+.opt.store{flex-direction:row;align-items:center;gap:10px;padding:8px 14px 8px 8px}
+.logo{display:inline-flex;align-items:center;justify-content:center;flex:none;width:34px;height:34px;border-radius:8px;background:#FFFFFF;border:1px solid var(--line);overflow:hidden}
+.logo img{width:100%;height:100%;object-fit:contain;padding:3px}
+.logo.txt{font-size:11px;font-weight:800;color:#1B251E;letter-spacing:-.02em}
+.logo.sm{width:24px;height:24px;border-radius:6px}
+.chez{display:inline-flex;align-items:center;gap:8px}
+.plist summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px}
+.plist summary::-webkit-details-marker{display:none}
+.plist summary b{font-weight:700}
+.plist summary span.muted{font-size:12.5px}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:9px 14px;border-top:1px solid var(--line)}
+.prow .nm small{display:block;color:var(--muted);font-size:12px}
+.prow .pp{text-align:right;font-family:var(--f-mono);font-size:13px;white-space:nowrap}
+.prow .pp small{display:block;color:var(--muted);font-size:11.5px}
+.src{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--line);color:var(--muted);margin-left:6px;vertical-align:1px;white-space:nowrap}
+.src.ok{background:var(--leaf-soft);color:var(--leaf)}
+.prayon{padding:10px 14px 4px;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line)}
 .opt[aria-pressed=true]{border-color:var(--leaf);background:var(--leaf-soft);color:var(--leaf);box-shadow:inset 0 0 0 1px var(--leaf)}
 .opt.no[aria-pressed=true]{border-color:var(--warn);background:var(--warn-soft);color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
 .field{display:flex;flex-direction:column;gap:10px}
@@ -221,7 +238,16 @@ const ING = {
   soupe:{n:"Soupe de légumes",u:"ml",size:1000,price:1.40,pk:"brique 1 L"},
   noix:{n:"Cacahuètes non salées",u:"g",size:200,price:1.40,pk:"200 g"},
   fruit:{n:"Fruits de saison",u:"pc",size:1,price:0.30,pk:"à la pièce",kind:"saison"},
-  leg:{n:"Légumes de saison à croquer",u:"g",size:500,price:1.00,pk:"500 g",kind:"saison"}
+  leg:{n:"Légumes de saison",u:"g",size:500,price:1.00,pk:"500 g",kind:"saison"},
+  oignon:{n:"Oignons",u:"g",size:1000,price:1.60,pk:"filet 1 kg",kind:"local"},
+  lardons:{n:"Lardons",u:"g",size:200,price:1.80,pk:"barquette 200 g"},
+  creme:{n:"Crème fraîche épaisse",u:"g",size:200,price:1.10,pk:"pot 20 cl"},
+  cuisse:{n:"Cuisses de poulet",u:"g",size:1000,price:4.50,pk:"barquette 1 kg"},
+  saucisse:{n:"Saucisses de Toulouse",u:"g",size:500,price:3.90,pk:"4 saucisses, 500 g"},
+  colin:{n:"Filets de colin surgelés",u:"g",size:400,price:3.50,pk:"sachet 400 g"},
+  hblanc:{n:"Haricots blancs",u:"bt",size:1,price:0.95,pk:"boîte 400 g"},
+  poiscasse:{n:"Pois cassés",u:"g",size:500,price:1.50,pk:"500 g"},
+  pate:{n:"Pâte brisée",u:"pc",size:1,price:1.00,pk:"rouleau 230 g"}
 };
 
 /* ---------- Recettes : une portion. kcal et protéines approximatifs. ---------- */
@@ -236,6 +262,9 @@ const R = [
  {id:"m3",slot:"matin",n:"Tartines complètes et œufs brouillés minute",t:4,cook:"micro-ondes",kcal:380,p:21,tags:["oeuf"],
   ing:[["pain",2],["oeuf",2],["fruit",1]],
   steps:["Bats 2 œufs dans un bol avec sel et poivre.","1 min au micro-ondes, remue, encore 30 s.","Sur les tartines, avec un fruit à côté."]},
+ {id:"m5",slot:"matin",n:"Pain perdu et fruit",t:10,cook:"poêle",kcal:400,p:17,tags:["oeuf","lait"],
+  ing:[["pain",2],["oeuf",1],["lait",100],["fruit",1]],
+  steps:["Bats l'œuf avec le lait et un peu de sucre.","Trempe les tranches de pain.","2 min de chaque côté à la poêle."]},
  {id:"m4",slot:"matin",n:"Yaourts nature, banane et cacahuètes",t:1,cook:"aucune",kcal:360,p:14,tags:["lait"],
   ing:[["yaourt",2],["banane",1],["noix",20]],
   steps:["Tu ouvres, tu coupes la banane, tu manges."]},
@@ -293,6 +322,75 @@ const R = [
   ing:[["poulet",120],["coco",80],["surg",100],["riz",70]],
   steps:["Lanières de poulet 5 min à la poêle avec 1 c. à café de curry.","Ajoute le lait de coco et les légumes surgelés, 8 min à feu doux.","Sur le riz cuit d'avance."]},
 
+
+ // Plats plus longs : beaucoup de temps sans rien faire (four, mijoté). "actif" = minutes où l'on s'en occupe.
+ {id:"r18",slot:"repas",n:"Quiche lorraine et salade",t:45,actif:10,cook:"four",kcal:620,p:24,tags:["oeuf","lait","viande"],
+  ing:[["pate",0.25],["lardons",50],["oeuf",1],["creme",50],["lait",50],["fromage",15],["leg",80]],
+  steps:["Déroule la pâte dans un moule et pique le fond à la fourchette.","Pour 4 parts : bats 4 œufs, 20 cl de crème et 20 cl de lait, sel, poivre. Ajoute lardons et fromage.","35 min au four à 180 °C. Avec une salade. Les parts restantes se gardent 3 jours au frigo."]},
+ {id:"r19",slot:"repas",n:"Gratin de pâtes au jambon",t:30,actif:10,cook:"four",kcal:680,p:33,tags:["viande","lait"],
+  ing:[["pates",100],["jambon",1],["creme",40],["fromage",30]],
+  steps:["Cuis les pâtes 2 min de moins que prévu.","Mélange avec le jambon coupé et la crème, mets dans un plat.","Fromage dessus, 15 min au four à 200 °C."]},
+ {id:"r20",slot:"repas",n:"Hachis parmentier",t:50,actif:20,cook:"four",kcal:610,p:33,tags:["viande","lait"],
+  ing:[["steak",1],["pdt",300],["lait",80],["fromage",20],["oignon",40]],
+  steps:["Pommes de terre épluchées et coupées : 20 min dans l'eau bouillante, puis écrase-les avec le lait.","Fais revenir l'oignon et le steak haché émietté 5 min.","Viande au fond du plat, purée dessus, fromage. 20 min au four à 200 °C."]},
+ {id:"r21",slot:"repas",n:"Cuisses de poulet rôties et pommes de terre",t:55,actif:10,cook:"four",kcal:680,p:42,tags:["viande"],
+  ing:[["cuisse",250],["pdt",300],["oignon",40]],
+  steps:["Pommes de terre en quartiers et oignon dans un plat, huile, sel, herbes.","Cuisses de poulet par-dessus, paprika.","45 min au four à 200 °C, sans rien faire."]},
+ {id:"r22",slot:"repas",n:"Rougail saucisses",t:40,actif:15,cook:"casserole",kcal:790,p:29,tags:["viande"],
+  ing:[["saucisse",125],["tomate",150],["oignon",50],["riz",70]],
+  steps:["Saucisses coupées en rondelles, 5 min à la poêle pour les dorer.","Ajoute oignon, ail, curcuma, piment, puis les tomates.","20 min à feu doux à couvert. Avec le riz."]},
+ {id:"r23",slot:"repas",n:"Saucisses aux lentilles",t:25,actif:10,cook:"casserole",kcal:640,p:34,tags:["viande"],
+  ing:[["saucisse",125],["lbocal",0.5],["oignon",30],["leg",80]],
+  steps:["Dore les saucisses 5 min.","Ajoute oignon, carottes en rondelles et lentilles égouttées avec un fond d'eau.","15 min à feu doux à couvert."]},
+ {id:"r24",slot:"repas",n:"Chili con carne",t:35,actif:15,cook:"casserole",kcal:660,p:40,tags:["viande"],
+  ing:[["steak",1],["hrouge",0.5],["tomate",150],["oignon",40],["riz",70]],
+  steps:["Fais revenir l'oignon et le steak haché émietté.","Ajoute haricots égouttés, tomates, cumin et paprika.","20 min à feu doux. Avec le riz."]},
+ {id:"r25",slot:"repas",n:"Soupe de pois cassés aux lardons",t:60,actif:10,cook:"casserole",kcal:560,p:28,tags:["viande"],
+  ing:[["poiscasse",80],["leg",100],["oignon",30],["lardons",30],["pain",1]],
+  steps:["Dore les lardons et l'oignon dans une grande casserole.","Ajoute pois cassés, carottes et 3 fois leur volume d'eau.","50 min à feu doux, puis mixe ou écrase. Elle se garde 4 jours."]},
+ {id:"r26",slot:"repas",n:"Gratin dauphinois au jambon",t:70,actif:15,cook:"four",kcal:620,p:24,tags:["viande","lait"],
+  ing:[["pdt",300],["lait",150],["creme",30],["jambon",1],["fromage",20]],
+  steps:["Pommes de terre en rondelles fines dans un plat, avec le jambon coupé.","Verse lait et crème, sel, poivre, muscade. Fromage dessus.","1 h au four à 180 °C."]},
+ {id:"r27",slot:"repas",n:"Colin, riz et légumes",t:20,actif:10,cook:"poêle",kcal:470,p:31,tags:["poisson"],
+  ing:[["colin",130],["riz",70],["surg",150]],
+  steps:["Colin encore surgelé dans une poêle avec un filet d'huile, 6 min de chaque côté à couvert.","Légumes surgelés 5 min au micro-ondes.","Riz cuit d'avance réchauffé, citron, sel."]},
+ {id:"r28",slot:"repas",n:"Colin à la crème et pommes de terre vapeur",t:25,actif:10,cook:"casserole",kcal:500,p:29,tags:["poisson","lait"],
+  ing:[["colin",130],["creme",40],["pdt",250]],
+  steps:["Pommes de terre 20 min dans l'eau bouillante.","Colin à la poêle à couvert 10 min, puis la crème, sel, poivre, aneth.","Sers ensemble."]},
+ {id:"r29",slot:"repas",n:"Curry de pois chiches au lait de coco",t:25,actif:10,cook:"casserole",kcal:650,p:20,tags:[],
+  ing:[["pchiche",0.5],["coco",80],["tomate",100],["oignon",30],["riz",70]],
+  steps:["Oignon 3 min dans un peu d'huile avec 1 c. à café de curry.","Pois chiches, tomates et lait de coco, 15 min à feu doux.","Avec le riz."]},
+ {id:"r30",slot:"repas",n:"Cassoulet express",t:30,actif:10,cook:"casserole",kcal:680,p:36,tags:["viande"],
+  ing:[["saucisse",125],["hblanc",0.6],["tomate",100],["oignon",30]],
+  steps:["Dore les saucisses coupées en morceaux.","Ajoute oignon, haricots égouttés, tomates, thym.","20 min à feu doux."]},
+ {id:"r31",slot:"repas",n:"Poulet basquaise",t:50,actif:15,cook:"casserole",kcal:690,p:43,tags:["viande"],
+  ing:[["cuisse",250],["tomate",150],["leg",100],["oignon",40],["riz",70]],
+  steps:["Dore les cuisses de poulet 8 min dans une cocotte.","Ajoute oignon, légumes (poivron si c'est la saison), tomates, paprika.","35 min à feu doux à couvert. Avec le riz."]},
+ {id:"r32",slot:"repas",n:"Pâtes carbonara",t:15,actif:15,cook:"casserole",kcal:740,p:31,tags:["viande","oeuf","lait"],
+  ing:[["pates",100],["lardons",50],["oeuf",1],["creme",30],["fromage",15]],
+  steps:["Cuis les pâtes.","Dore les lardons 5 min.","Hors du feu, mélange pâtes, lardons, œuf battu avec la crème et le fromage."]},
+ {id:"r33",slot:"repas",n:"Œufs à la tomate (shakshuka)",t:20,actif:10,cook:"poêle",kcal:460,p:23,tags:["oeuf"],
+  ing:[["oeuf",2],["tomate",200],["oignon",40],["pain",2]],
+  steps:["Oignon 3 min à la poêle, puis les tomates, cumin, paprika, 8 min.","Creuse deux trous, casse les œufs dedans.","Couvre 5 min. Avec le pain."]},
+ {id:"r34",slot:"repas",n:"Soupe de lentilles corail et carottes",t:25,actif:10,cook:"casserole",kcal:500,p:23,tags:[],
+  ing:[["lcorail",70],["leg",150],["coco",50],["oignon",30],["pain",1]],
+  steps:["Oignon et carottes coupées 3 min dans un peu d'huile.","Lentilles et 3 fois leur volume d'eau, 15 min.","Lait de coco, sel, cumin. Mixe ou pas."]},
+ {id:"r35",slot:"repas",n:"Gratin de légumes aux œufs",t:40,actif:15,cook:"four",kcal:470,p:29,tags:["oeuf","lait"],
+  ing:[["leg",250],["lait",100],["fromage",30],["oeuf",2]],
+  steps:["Légumes de saison coupés, 10 min dans l'eau bouillante.","Dans un plat : légumes, puis œufs battus avec le lait, sel, poivre.","Fromage dessus, 25 min au four à 180 °C."]},
+ {id:"r36",slot:"repas",n:"Croque-monsieur et salade",t:10,cook:"poêle",kcal:460,p:27,tags:["viande","lait"],
+  ing:[["pain",2],["jambon",1],["fromage",25],["leg",80]],
+  steps:["Pain, jambon, fromage, pain.","4 min de chaque côté à la poêle avec un peu de beurre.","Avec la salade."]},
+ {id:"r37",slot:"repas",n:"Tortilla de pommes de terre",t:30,actif:15,cook:"poêle",kcal:570,p:25,tags:["oeuf"],
+  ing:[["oeuf",3],["pdt",200],["oignon",40],["leg",80]],
+  steps:["Pommes de terre en fines rondelles et oignon, 15 min à la poêle à couvert.","Verse les œufs battus, 8 min à feu doux.","Retourne à l'aide d'une assiette, 3 min. Avec une salade."]},
+ {id:"r38",slot:"repas",n:"Soupe de légumes maison et tartines au fromage",t:35,actif:10,cook:"casserole",kcal:470,p:19,tags:["lait"],
+  ing:[["leg",300],["pdt",100],["oignon",30],["pain",2],["fromage",25]],
+  steps:["Légumes, pomme de terre et oignon coupés dans une casserole, couverts d'eau, un cube de bouillon.","25 min à feu moyen, puis mixe.","Tartines au fromage 1 min au micro-ondes."]},
+ {id:"r39",slot:"repas",n:"Purée maison, œufs au plat et légumes",t:25,actif:10,cook:"casserole",kcal:520,p:22,tags:["oeuf","lait"],
+  ing:[["pdt",300],["lait",80],["oeuf",2],["surg",150]],
+  steps:["Pommes de terre 20 min dans l'eau bouillante, écrase avec le lait.","Œufs au plat 3 min à la poêle.","Légumes surgelés 5 min au micro-ondes."]},
+
  // En-cas
  {id:"e1",slot:"encas",n:"Fruit de saison et cacahuètes",t:0,cook:"aucune",kcal:190,p:6,tags:[],ing:[["fruit",1],["noix",20]],steps:["Rien à faire."]},
  {id:"e2",slot:"encas",n:"Yaourt nature et fruit",t:0,cook:"aucune",kcal:140,p:5,tags:["lait"],ing:[["yaourt",1],["fruit",1]],steps:["Rien à faire."]},
@@ -306,7 +404,14 @@ const VIZ={m1:[["oats",3],["banana",1]],m2:[["fb",2],["oats",1],["fruit",1],["nu
  r7:[["sweetpotato",1.5],["fb",1],["egg",1]],r8:[["soup",2],["bread",1],["egg",.8]],r9:[["friedrice",2],["veg",1]],r10:[["semoule",2],["tuna",1],["tomatoRaw",1]],
  r11:[["lentils",2],["egg",1],["carrot",1]],r12:[["steak",1],["potato",1.3],["greenbeans",1.2]],r13:[["pizza",3]],r14:[["pasta",2],["bolo",1.5]],
  r15:[["chicken",1.3],["rice",1.3],["broccoli",1]],r16:[["wrap",2],["chicken",1],["salad",.8]],r17:[["curry",1.6],["rice",1.4]],
- e1:[["fruit",1],["nuts",1]],e2:[["yogurt",1.5],["fruit",1]],e3:[["egg",1],["fruit",1]]};
+ e1:[["fruit",1],["nuts",1]],e2:[["yogurt",1.5],["fruit",1]],e3:[["egg",1],["fruit",1]],m5:[["bread",2],["fruit",1]],
+ r18:[["quiche",2],["salad",1]],r19:[["gratin",3]],r20:[["puree",2.2],["bolo",.8]],r21:[["chickenleg",1.4],["potato",1.6]],
+ r22:[["rougail",1.6],["rice",1.4]],r23:[["sausage",1.2],["lentils",1.5],["carrot",.5]],r24:[["chili",1.6],["rice",1.4]],
+ r25:[["peasoup",2.5],["bread",.6]],r26:[["gratin",2.5],["salad",.5]],r27:[["fish",1.2],["rice",1.2],["veg",1]],
+ r28:[["fish",1.2],["creamsauce",.6],["potato",1.4]],r29:[["chickcurry",1.6],["rice",1.4]],r30:[["whitebeans",1.6],["sausage",1.2]],
+ r31:[["basquaise",1.6],["rice",1.3]],r32:[["carbonara",3]],r33:[["shakshuka",2.4],["bread",.8]],r34:[["dahl",2.2],["bread",.8]],
+ r35:[["gratin",2.2],["veg",.8]],r36:[["bread",1.8],["salad",1]],r37:[["omelette",2],["potato",.8],["salad",.6]],
+ r38:[["soup",2.2],["bread",.8]],r39:[["puree",1.6],["egg",1],["veg",.8]]};
 const FOOD={
  rice:{b:"#F3EFE4",bits:[["grain",["#FFFFFF","#E2DCCB"],60,2]]},
  friedrice:{b:"#EBD9A8",bits:[["grain",["#F7E7B5"],40,2],["dot",["#E39B3B","#7CB342","#F2C94C"],22,1.8]]},
@@ -343,7 +448,22 @@ const FOOD={
  oats:{b:"#D9C49F",bits:[["grain",["#E8D7B5","#C6AE84"],50,1.8]]},
  banana:{b:"#F5DC7A",bits:[["slice",["#FBEAA8"],7,5]]},
  fruit:{b:"#CF3F33",bits:[["slice",["#E0624F","#F2C14E"],4,6]]},
- nuts:{b:"#C79A5B",bits:[["grain",["#B5844A","#DDB37A"],18,2.8]]}
+ nuts:{b:"#C79A5B",bits:[["grain",["#B5844A","#DDB37A"],18,2.8]]},
+ quiche:{b:"#E9C46A",bits:[["dot",["#F2D27E","#D9AE52"],18,2.6],["chunk",["#E79A9A","#C96F6F"],10,2.4]]},
+ gratin:{b:"#E8C27A",bits:[["dot",["#C98A3E","#B7762E","#F0D48F"],30,2.8]]},
+ puree:{b:"#F1E3B8",bits:[["dot",["#E8D49A","#F7EDCD"],14,3.4]]},
+ chickenleg:{b:"#C98845",bits:[["grill",["#D99A55","#B9773A"],4,5]]},
+ sausage:{b:"#9A4B2C",bits:[["tube",["#B5603A","#7E3F22"],7,4.6]]},
+ rougail:{b:"#B8432C",bits:[["tube",["#8B3A22","#A54B2E"],10,3.4],["dot",["#D9634A"],10,2]]},
+ peasoup:{b:"#8DAA4B",bits:[["dot",["#A5C25E","#7A9640"],16,2.6],["chunk",["#E79A9A"],6,2]]},
+ fish:{b:"#F3EEE4",bits:[["chunk",["#FFFFFF","#E8E1D3"],6,6]]},
+ creamsauce:{b:"#F6EFD9",bits:[["dot",["#ECE2C4"],8,3],["leaf",["#4C8A39"],6,1.3]]},
+ chickcurry:{b:"#E2A23B",bits:[["dot",["#EACB86","#D9B46A"],24,3],["leaf",["#5B9A3E"],4,2]]},
+ whitebeans:{b:"#C9643E",bits:[["grain",["#F1E7D0","#E3D6B8"],30,2.8]]},
+ basquaise:{b:"#C2412B",bits:[["grill",["#D99A55"],3,4.5],["strip",["#E8B93A","#4F8F3E"],10,1.4]]},
+ carbonara:{b:"#EBD08A",bits:[["tube",["#F3DE9E","#E2C46E"],22,3.4],["chunk",["#E79A9A"],8,2.2]]},
+ shakshuka:{b:"#C2412B",bits:[["egg",["#FFFFFF"],3,7],["leaf",["#4C8A39"],6,1.5]]},
+ chili:{b:"#8E3A26",bits:[["dot",["#6E3A26","#B5503F"],22,2.4],["grain",["#7A2A22"],12,2.6]]}
 };
 let plateN=0;
 function plateSVG(id){
@@ -420,24 +540,28 @@ const MAGASINS = {
   re:[["leclerc","E.Leclerc",1.00],["leader","Leader Price",1.00],["runmarket","Run Market",1.00],["carrefour","Carrefour",1.05],["superu","Super U",1.05],["casino","Géant Casino",1.08]]
 };
 const ALLERGIES = [
-  ["gluten","Gluten","pain, pâtes, semoule, tortillas, avoine",["pain","pates","semoule","tortilla","avoine"]],
-  ["lactose","Lait","lait, fromage blanc, yaourt, fromage",["lait","fb","yaourt","fromage"]],
+  ["gluten","Gluten","pain, pâtes, semoule, tortillas, avoine, pâte brisée",["pain","pates","semoule","tortilla","avoine","pate"]],
+  ["lactose","Lait","lait, fromage blanc, yaourt, fromage, crème",["lait","fb","yaourt","fromage","creme"]],
   ["arachide","Arachides","cacahuètes",["noix"]],
   ["oeuf","Œufs","",["oeuf"]],
-  ["poisson","Poisson","thon, maquereau, sardines",["thon","maq"]],
+  ["poisson","Poisson","thon, maquereau, sardines, colin",["thon","maq","colin"]],
   ["soja","Soja","sauce soja",[]]
 ];
 const ALLERGIE_RECETTE = {soja:["r9"]};
-const REGIMES = [["tout","Je mange de tout",""],["sansporc","Sans porc","pas de jambon"],["vege","Végétarien","ni viande ni poisson"]];
+const REGIMES = [["tout","Je mange de tout",""],["sansporc","Sans porc","ni jambon, ni lardons, ni saucisses"],["vege","Végétarien","ni viande ni poisson"]];
 const DEGOUTS = [["poulet","Poulet",["poulet"]],["boeuf","Bœuf haché",["steak"]],["thon","Thon",["thon"]],["sardine","Maquereau, sardines",["maq"]],
   ["lentilles","Lentilles",["lbocal","lcorail"]],["poischiches","Pois chiches",["pchiche"]],["haricots","Haricots rouges",["hrouge"]],
-  ["coco","Lait de coco",["coco"]],["patate","Patate douce",["patate"]],["fb","Fromage blanc",["fb"]]];
-const TEMPS = [["zero","Zéro cuisson","sans feu, micro-ondes au plus"],["10","10 min max","par repas"],["20","20 min max","le moins cher"]];
+  ["coco","Lait de coco",["coco"]],["patate","Patate douce",["patate"]],["fb","Fromage blanc",["fb"]],
+  ["porc","Porc","jambon, lardons, saucisses",["jambon","lardons","saucisse"]],["colin","Poisson blanc",["colin"]],["poiscasse","Pois cassés",["poiscasse"]]];
+const TEMPS = [["zero","Zéro cuisson","sans feu, micro-ondes au plus"],["10","10 min max","par repas"],["20","20 min max","rapide et moins cher"],
+  ["45","45 min max","mijotés et gratins simples"],["90","Je prends mon temps","jusqu'à 1 h 30, souvent au four"]];
 const RAYON = {avoine:"Épicerie",pates:"Épicerie",riz:"Épicerie",semoule:"Épicerie",lcorail:"Épicerie",lbocal:"Conserves",pchiche:"Conserves",hrouge:"Conserves",
   tomate:"Conserves",coco:"Conserves",thon:"Conserves",maq:"Conserves",soupe:"Épicerie",noix:"Épicerie",tortilla:"Boulangerie",pain:"Boulangerie",
   lait:"Frais",fb:"Frais",yaourt:"Frais",fromage:"Frais",jambon:"Frais",oeuf:"Frais",surg:"Surgelés",steak:"Surgelés",poulet:"Surgelés",
-  banane:"Fruits et légumes",pdt:"Fruits et légumes",patate:"Fruits et légumes",fruit:"Fruits et légumes",leg:"Fruits et légumes"};
-const RAYONS = ["Fruits et légumes","Frais","Surgelés","Conserves","Épicerie","Boulangerie"];
+  banane:"Fruits et légumes",pdt:"Fruits et légumes",patate:"Fruits et légumes",fruit:"Fruits et légumes",leg:"Fruits et légumes",
+  oignon:"Fruits et légumes",lardons:"Boucherie et charcuterie",saucisse:"Boucherie et charcuterie",cuisse:"Boucherie et charcuterie",
+  creme:"Frais",pate:"Frais",colin:"Surgelés",hblanc:"Conserves",poiscasse:"Épicerie"};
+const RAYONS = ["Fruits et légumes","Boucherie et charcuterie","Frais","Surgelés","Conserves","Épicerie","Boulangerie"];
 
 const PROFIL_DEFAUT = {prenom:"",region:"fr",magasin:"lidl",marche:false,allergies:[],regime:"tout",degouts:[],personnes:1,budget:45,temps:"10"};
 
@@ -460,8 +584,18 @@ function magasin(P){ const l=MAGASINS[P.region]; return l.find(m=>m[0]===P.magas
 /* ===== Prix réels : prix.json, tiré d'Open Prices par prix/maj_prix.py ===== */
 /* Ce que contient un conditionnement de l'appli, dans l'unité de prix.json (kg, litre ou pièce). */
 const CONTENU={avoine:.5,lait:1,banane:1.1,fb:1,yaourt:1,pain:.5,oeuf:12,thon:.42,maq:.13,pates:.5,riz:1,semoule:.5,lcorail:.5,lbocal:.4,
-  pchiche:.4,hrouge:.4,tomate:.4,coco:.4,surg:1,pdt:2.5,patate:1,tortilla:.32,fromage:.2,jambon:.16,steak:1,poulet:1,soupe:1,noix:.2,fruit:.15,leg:.5};
+  pchiche:.4,hrouge:.4,tomate:.4,coco:.4,surg:1,pdt:2.5,patate:1,tortilla:.32,fromage:.2,jambon:.16,steak:1,poulet:1,soupe:1,noix:.2,fruit:.15,leg:.5,
+  oignon:1,lardons:.2,creme:.2,cuisse:1,saucisse:.5,colin:.4,hblanc:.4,poiscasse:.5,pate:.23};
 const MIN_RELEVES_ENSEIGNE=8;
+/* Logos des enseignes (Open Food Facts brand-images). */
+const LOGOS={lidl:"logos/lidl.png",aldi:"logos/aldi.png",leader:"logos/leader.svg",leclerc:"logos/leclerc.png",auchan:"logos/auchan.png",
+  inter:"logos/inter.png",superu:"logos/superu.png",carrefour:"logos/carrefour.png",casino:"logos/casino.svg",monoprix:"logos/monoprix.png"};
+function logoHTML(k,petit){ const nom=(Object.values(MAGASINS).flat().find(m=>m[0]===k)||[k,k])[1];
+  return LOGOS[k]?'<span class="logo'+(petit?" sm":"")+'"><img src="'+LOGOS[k]+'" alt="" loading="lazy"></span>'
+    :'<span class="logo txt'+(petit?" sm":"")+'" aria-hidden="true">'+esc(nom.split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase())+'</span>'; }
+function uniteNom(id){ const b=(PRIX&&PRIX.ingredients&&PRIX.ingredients[id]&&PRIX.ingredients[id].base)||(id==="oeuf"?"piece":["lait","coco","soupe"].includes(id)?"l":"kg");
+  return b==="piece"?"l'unité":b==="l"?"le litre":"le kilo"; }
+function prixUnite(id,P){ return price(id,P)/CONTENU[id]; }
 let PRIX=null;
 try{ PRIX=JSON.parse(localStorage.getItem("vc_prix")||"null"); }catch(e){}
 function chargePrix(){
@@ -511,7 +645,7 @@ function interdits(P){
   const ing=new Set(), rec=new Set();
   P.allergies.forEach(a=>{ const A=ALLERGIES.find(x=>x[0]===a); if(A) A[3].forEach(i=>ing.add(i)); (ALLERGIE_RECETTE[a]||[]).forEach(r=>rec.add(r)); });
   P.degouts.forEach(d=>{ const D=DEGOUTS.find(x=>x[0]===d); if(D) D[2].forEach(i=>ing.add(i)); });
-  if(P.regime==="sansporc") ing.add("jambon");
+  if(P.regime==="sansporc") ["jambon","lardons","saucisse"].forEach(i=>ing.add(i));
   return {ing,rec,tags:P.regime==="vege"?["viande","poisson"]:[]};
 }
 function permis(r,P,I){
@@ -543,7 +677,7 @@ function generer(P,seed){
   const pick=a=>a[Math.floor(rand()*a.length)];
   const maxUse=Math.max(3,Math.ceil(14/PL.repas.length));
   let best=null;
-  for(let t=0;t<80;t++){
+  for(let t=0;t<40;t++){
     const count={}, days=[];
     for(let d=0;d<7;d++){
       const day={matin:PL.matin.length?pick(PL.matin).id:null,encas:PL.encas.length?pick(PL.encas).id:null};
@@ -607,7 +741,7 @@ function sectionLieu(P){
   return '<div class="field"><span class="lbl">Où tu vis</span><div class="opts">'+
     [["fr","Métropole"],["re","La Réunion"]].map(([v,n])=>'<button type="button" class="opt" data-set="region" data-v="'+v+'" aria-pressed="'+(P.region===v)+'">'+n+'</button>').join("")+'</div></div>'+
     '<div class="field"><span class="lbl">Ton magasin habituel</span><div class="opts">'+
-    MAGASINS[P.region].map(([v,n])=>'<button type="button" class="opt" data-set="magasin" data-v="'+v+'" aria-pressed="'+(P.magasin===v)+'">'+esc(n)+'</button>').join("")+'</div>'+
+    MAGASINS[P.region].map(([v,n])=>'<button type="button" class="opt store" data-set="magasin" data-v="'+v+'" aria-pressed="'+(P.magasin===v)+'">'+logoHTML(v)+esc(n)+'</button>').join("")+'</div>'+
     '<p class="hint">Les prix viennent de relevés réels en magasin quand il y en a assez pour ton enseigne.</p></div>'+
     '<div class="field"><span class="lbl">Fruits et légumes</span><div class="opts">'+
     '<button type="button" class="opt" data-set="marche" data-v="false" aria-pressed="'+(!P.marche)+'">Au magasin</button>'+
@@ -691,13 +825,14 @@ function renderApp(){
   ({semaine:vueSemaine,stock:vueStock,courses:vueCourses,plats:vuePlats,profil:vueProfil})[ST.onglet]($("view"),P,tk);
 }
 
+function tempsTxt(r){ return !r.t?"0 min":(r.actif&&r.actif<r.t?r.t+" min, dont "+r.actif+" actives":r.t+" min"); }
 function carteRepas(k,id,P){
   const r=RID[id]; if(!r) return "";
   const c=mealCost(r,P);
   return '<div class="meal"><button type="button" class="pic" data-open="'+id+'" data-slot="'+k+'" aria-label="Voir la recette">'+plateSVG(id)+'</button>'+
     '<div class="txt"><span class="lbl">'+SLOT_NOM[k]+(r.cook==="aucune"?' · <span class="tag">sans cuisson</span>':"")+(r.fun?' <span class="tag fun">plaisir</span>':"")+'</span>'+
     '<button type="button" class="open" data-open="'+id+'" data-slot="'+k+'">'+esc(r.n)+'</button>'+
-    '<span class="meta"><span>'+(r.t?r.t+" min":"0 min")+'</span><span class="p">'+r.p+' g prot.</span><span class="c num">'+eur(c)+(P.personnes>1?" /pers.":"")+'</span></span>'+
+    '<span class="meta"><span>'+tempsTxt(r)+'</span><span class="p">'+r.p+' g prot.</span><span class="c num">'+eur(c)+(P.personnes>1?" /pers.":"")+'</span></span>'+
     '<button type="button" class="swap" data-swap="'+k+'">Changer ce plat</button></div></div>';
 }
 
@@ -707,7 +842,7 @@ function vueSemaine(v,P,tk){
     $("goProfil").onclick=()=>{ST.onglet="profil";persist();renderApp();}; return; }
   if(ST.jour==null) ST.jour=(new Date().getDay()+6)%7;
   let kcal=0,prot=0,mins=0;
-  plan.days.forEach(d=>SLOTS.forEach(k=>{const r=RID[d[k]]; if(r){kcal+=r.kcal;prot+=r.p;mins+=r.t;}}));
+  plan.days.forEach(d=>SLOTS.forEach(k=>{const r=RID[d[k]]; if(r){kcal+=r.kcal;prot+=r.p;mins+=(r.actif||r.t);}}));
   const d=plan.days[ST.jour];
   const dayCost=SLOTS.reduce((s,k)=>s+(RID[d[k]]?mealCost(RID[d[k]],P):0),0)*P.personnes;
   const salut=P.prenom?"Salut "+esc(P.prenom)+", voici ta semaine.":"Voici ta semaine.";
@@ -716,7 +851,7 @@ function vueSemaine(v,P,tk){
     (tk.total>P.budget?'<div class="banner">Cette semaine dépasse ton budget de '+eur(tk.total-P.budget)+'. Essaie « Nouvelle semaine », autorise plus de temps de cuisine, ou monte un peu le budget.</div>':"")+
     '<div class="stats"><div class="stat"><b class="num">'+Math.round(prot/7)+' g</b><span>protéines / jour</span></div>'+
       '<div class="stat"><b class="num">≈ '+Math.round(kcal/7/50)*50+'</b><span>kcal / jour</span></div>'+
-      '<div class="stat"><b class="num">'+Math.round(mins/7)+' min</b><span>cuisine / jour</span></div></div>'+
+      '<div class="stat"><b class="num">'+Math.round(mins/7)+' min</b><span>en cuisine / jour</span></div></div>'+
     '<div class="days" role="group" aria-label="Jour">'+JOURS.map((j,i)=>'<button type="button" data-day="'+i+'" aria-pressed="'+(i===ST.jour)+'"><b>'+j.slice(0,3)+'</b><span class="num">'+
       eur(SLOTS.reduce((s,k)=>s+(RID[plan.days[i][k]]?mealCost(RID[plan.days[i][k]],P):0),0)*P.personnes).replace(" €","€")+'</span></button>').join("")+'</div>'+
     '<div class="daytotal"><h2>'+JOURS[ST.jour]+'</h2><span class="muted num">'+eur(dayCost)+(P.personnes>1?" pour "+P.personnes:"")+'</span></div>'+
@@ -749,21 +884,23 @@ function vueCourses(v,P,tk){
   const achats=tk.rows.filter(r=>r.packs>0), dispo=tk.rows.filter(r=>r.packs===0);
   const parRayon={}; achats.forEach(r=>{(parRayon[RAYON[r.id]]=parRayon[RAYON[r.id]]||[]).push(r);});
   const sansStock=ticket(ST.plan.days,P,{}).total, eco=sansStock-tk.total;
+  const u=r=>eur(prixUnite(r.id,P))+" "+uniteNom(r.id).replace("l'unité","pièce").replace("le ","le ");
   const libelle=r=>{ const g=ING[r.id];
-    if(r.id==="fruit") return [Math.ceil(r.used)+" fruits de saison","ex. "+se.fruits.slice(0,3).join(", ")];
-    if(r.id==="leg") return [String(r.packs*0.5).replace(".",",")+" kg de légumes de saison","ex. "+se.legs.slice(0,3).join(", ")];
+    if(r.id==="fruit") return [Math.ceil(r.used)+" fruits de saison","ex. "+se.fruits.slice(0,3).join(", ")+" · environ "+u(r)];
+    if(r.id==="leg") return [String(r.packs*0.5).replace(".",",")+" kg de légumes de saison","ex. "+se.legs.slice(0,3).join(", ")+" · environ "+u(r)];
     const left=r.packs*g.size+r.have-r.used;
-    return [(r.packs>1?r.packs+" × ":"")+g.n+" ("+g.pk+")", left>0.001?"il t'en restera "+(g.u==="g"||g.u==="ml"?Math.round(left)+" "+g.u:String(Math.round(left*10)/10).replace(".",",")):""]; };
+    return [(r.packs>1?r.packs+" × ":"")+g.n+" ("+g.pk+")", eur(price(r.id,P))+" l'unité · "+u(r)+(left>0.001?" · il t'en restera "+(g.u==="g"||g.u==="ml"?Math.round(left)+" "+g.u:String(Math.round(left*10)/10).replace(".",",")):"")]; };
   const reste=achats.filter(r=>!coches.has(r.id)).reduce((s,r)=>s+r.cost,0);
   const mag=magasin(P)[1];
   v.innerHTML=
-    '<div class="totalbar"><div><h2>Courses de la semaine</h2><span class="muted">Chez '+esc(mag)+(P.marche?", fruits et légumes au marché":"")+'</span></div>'+
+    '<div class="totalbar"><div><h2>Courses de la semaine</h2><span class="muted chez">'+logoHTML(P.magasin,true)+'Chez '+esc(mag)+(P.marche?", fruits et légumes au marché":"")+'</span></div>'+
       '<div style="text-align:right"><b class="num">'+eur(tk.total)+'</b><br><span class="muted num" style="font-size:12.5px">reste à prendre : '+eur(reste)+'</span></div></div>'+
     (eco>0.01?'<div class="saving">Grâce à ce que tu as déjà, tu économises '+eur(eco)+' cette semaine.</div>':
       '<p class="hint">Astuce : note ce que tu as déjà dans l\'onglet <b>Chez moi</b>, ça le retire de la liste.</p>')+
     (achats.length?"":'<div class="saving">Tu as déjà tout ce qu\'il faut pour la semaine. Pas de courses !</div>')+
     RAYONS.filter(n=>parRayon[n]).map(n=>'<div class="group"><h3>'+n+'</h3>'+parRayon[n].map(r=>{ const [a,b]=libelle(r); const on=coches.has(r.id);
       return '<label class="item'+(on?" done":"")+'"><input type="checkbox" data-coche="'+r.id+'"'+(on?" checked":"")+'><span class="nm">'+esc(a)+(b?'<small>'+esc(b)+'</small>':"")+'</span><span class="pr num">'+eur(r.cost)+'</span></label>'; }).join("")+'</div>').join("")+
+    listePrix(P)+
     (dispo.length?'<div class="card"><h3>Déjà chez toi</h3><p class="muted">'+dispo.map(r=>esc(r.id==="fruit"?"fruits de saison":r.id==="leg"?"légumes de saison":ING[r.id].n)).join(", ")+'</p></div>':"")+
     '<div class="card"><h3>Au placard (pas compté)</h3><p class="muted">Huile, vinaigre, moutarde, sel, poivre, épices (curry, paprika, cumin, herbes)'+(P.allergies.includes("soja")?"":", sauce soja")+'.</p></div>'+
     '<div class="card"><h3>De saison en '+MOIS[MOIS_COURANT]+'</h3><span class="lbl">Fruits</span><div class="season">'+se.fruits.map(f=>"<span>"+esc(f)+"</span>").join("")+'</div>'+
@@ -785,10 +922,28 @@ function vueCourses(v,P,tk){
   };
 }
 
+/* Tous les prix de l'enseigne choisie : prix du paquet, prix au kilo, et d'où vient le prix. */
+function listePrix(P){
+  const mag=magasin(P)[1], par={};
+  Object.keys(ING).forEach(id=>(par[RAYON[id]]=par[RAYON[id]]||[]).push(id));
+  const badge=id=>{ const s=sourcePrix(id,P), f=PRIX&&PRIX.ingredients&&PRIX.ingredients[id];
+    if(s==="enseigne") return '<span class="src ok">relevé '+esc(mag)+'</span>';
+    if(s==="reunion") return '<span class="src ok">relevé La Réunion</span>';
+    if(s==="national") return '<span class="src">prix France'+(f?", "+f.n+" relevés":"")+'</span>';
+    return '<span class="src">estimé</span>'; };
+  return '<details class="group plist"><summary><span class="chez">'+logoHTML(P.magasin,true)+'<b>Tous les prix chez '+esc(mag)+'</b></span><span class="muted">'+Object.keys(ING).length+' produits ▾</span></summary>'+
+    RAYONS.filter(n=>par[n]).map(n=>'<div class="prayon">'+n+'</div>'+par[n].map(id=>{ const g=ING[id];
+      const nom=id==="fruit"?"Fruits de saison (pommes, poires…)":id==="leg"?"Légumes de saison (carottes…)":g.n;
+      const pk=id==="fruit"?"à la pièce, environ 150 g":id==="leg"?"au poids":g.pk;
+      return '<div class="prow"><span class="nm">'+esc(nom)+badge(id)+'<small>'+esc(pk)+'</small></span><span class="pp num">'+
+        (id==="fruit"||id==="leg"?eur(prixUnite(id,P))+'<small>le kilo</small>':eur(price(id,P))+'<small>'+eur(prixUnite(id,P))+' '+uniteNom(id)+'</small>')+'</span></div>'; }).join("")).join("")+
+    '</details>';
+}
+
 /* ================= Chez moi : frigo, congélateur, placard ================= */
-const LIEUX=[["Frigo",["oeuf","lait","fb","yaourt","fromage","jambon"]],["Congélateur",["surg","poulet","steak"]],
-  ["Placard",["pates","riz","semoule","avoine","lcorail","lbocal","pchiche","hrouge","tomate","coco","thon","maq","soupe","noix","tortilla","pain"]],
-  ["Fruits et légumes",["banane","pdt","patate","fruit","leg"]]];
+const LIEUX=[["Frigo",["oeuf","lait","fb","yaourt","fromage","creme","jambon","lardons","saucisse","cuisse","pate"]],["Congélateur",["surg","poulet","steak","colin"]],
+  ["Placard",["pates","riz","semoule","avoine","lcorail","poiscasse","lbocal","pchiche","hrouge","hblanc","tomate","coco","thon","maq","soupe","noix","tortilla","pain"]],
+  ["Fruits et légumes",["banane","pdt","patate","oignon","fruit","leg"]]];
 function pas(id){ const g=ING[id]; if(g.u==="g"||g.u==="ml") return g.size>=1000?g.size/4:g.size/2; if(id==="oeuf"||id==="pain") return 2; return 1; }
 function stockTxt(id,q){ const g=ING[id]; if(!q) return "0";
   if(g.u==="pc") return String(q)+(id==="fruit"?" fruit"+(q>1?"s":""):id==="oeuf"?" œuf"+(q>1?"s":""):"");
@@ -883,7 +1038,7 @@ function ficheRecette(id,slot){
     '<div class="head"><h2>'+esc(r.n)+'</h2><button type="button" class="x" data-close aria-label="Fermer">×</button></div>'+
     '<div class="big">'+plateSVG(id)+'</div>'+
     '<div class="facts"><div><b class="num">'+eur(c).replace(" €","€")+'</b><span>par assiette</span></div><div><b class="num">'+r.p+' g</b><span>protéines</span></div>'+
-      '<div><b class="num">'+r.kcal+'</b><span>kcal</span></div><div><b class="num">'+(r.t||0)+' min</b><span>'+esc(r.cook==="aucune"?"sans cuisson":r.cook)+'</span></div></div>'+
+      '<div><b class="num">'+r.kcal+'</b><span>kcal</span></div><div><b class="num">'+(r.t||0)+' min</b><span>'+esc(r.actif&&r.actif<r.t?"dont "+r.actif+" actives":r.cook==="aucune"?"sans cuisson":r.cook)+'</span></div></div>'+
     '<div class="card"><h3>Ingrédients'+(P.personnes>1?" pour "+P.personnes:"")+'</h3><ul>'+ing+'</ul></div>'+
     '<div class="card"><h3>Comment faire</h3><ol>'+r.steps.map(s=>"<li>"+esc(s)+"</li>").join("")+'</ol></div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="cuisine">J\'ai cuisiné ce plat</button>'+

@@ -1,5 +1,5 @@
 /* Vite & Calé : l'appli marche hors connexion une fois ouverte une première fois. */
-const CACHE = "vite-et-cale-v3";
+const CACHE = "vite-et-cale-v4";
 const FICHIERS = ["./", "./index.html", "./prix.json", "./manifest.json", "./icon-192.png", "./icon-512.png", "./icon-maskable.png"];
 
 self.addEventListener("install", e => {
