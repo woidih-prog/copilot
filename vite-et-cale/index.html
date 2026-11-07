@@ -76,6 +76,22 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within
 .prow .pp small{display:block;color:var(--muted);font-size:11.5px}
 .src{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--line);color:var(--muted);margin-left:6px;vertical-align:1px;white-space:nowrap}
 .src.ok{background:var(--leaf-soft);color:var(--leaf)}
+.promo{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.promo.prise{border-color:var(--leaf);box-shadow:inset 0 0 0 1px var(--leaf)}
+.promo .nm{min-width:0;display:flex;flex-direction:column;gap:3px}
+.promo .nm b{font-weight:600;line-height:1.3}
+.promo .nm small{color:var(--muted);font-size:12.5px}
+.promo .px{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.promo .px b{font-family:var(--f-display);font-size:22px;font-weight:800;color:var(--squash);line-height:1}
+.promo .px s{color:var(--muted);font-size:13px}
+.promo .act{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pct{font-size:12px;font-weight:800;border-radius:999px;padding:2px 8px;background:var(--warn);color:var(--surface)}
+.chip{font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:var(--squash-soft);color:var(--squash)}
+.chip.ing{background:var(--leaf-soft);color:var(--leaf)}
+.mini{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 14px;border-top:1px solid var(--line)}
+.mini .nm small{display:block;color:var(--muted);font-size:12px}
+.mini .pp{text-align:right;font-family:var(--f-mono);font-size:13px;white-space:nowrap}
+.mini .pp s{display:block;color:var(--muted);font-size:11.5px}
 .prayon{padding:10px 14px 4px;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line)}
 .opt[aria-pressed=true]{border-color:var(--leaf);background:var(--leaf-soft);color:var(--leaf);box-shadow:inset 0 0 0 1px var(--leaf)}
 .opt.no[aria-pressed=true]{border-color:var(--warn);background:var(--warn-soft);color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
@@ -110,8 +126,8 @@ main{padding-block:16px calc(var(--nav-h) + 28px + env(safe-area-inset-bottom,0p
 /* Barre d'onglets */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);
   padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
-nav.tabs .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);height:var(--nav-h)}
-nav.tabs button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--muted)}
+nav.tabs .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(6,1fr);height:var(--nav-h)}
+nav.tabs button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10.5px;font-weight:600;color:var(--muted);padding:0;min-width:0}
 nav.tabs button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 nav.tabs button[aria-current=page]{color:var(--leaf)}
 
@@ -571,6 +587,7 @@ function load(){ try{ return JSON.parse(localStorage.getItem(K)||"null"); }catch
 function persist(){ try{ localStorage.setItem(K,JSON.stringify(ST)); }catch(e){} }
 let ST = load() || {profil:null, plan:null, coches:[], onglet:"semaine", jour:null, filtre:"tous", stock:{}};
 if(!ST.stock) ST.stock={};
+if(!ST.mesPromos) ST.mesPromos={};
 
 /* ================= Calculs ================= */
 const $ = id => document.getElementById(id);
@@ -590,7 +607,7 @@ const MIN_RELEVES_ENSEIGNE=8;
 /* Logos des enseignes (Open Food Facts brand-images). */
 const LOGOS={lidl:"logos/lidl.png",aldi:"logos/aldi.png",leader:"logos/leader.svg",leclerc:"logos/leclerc.png",auchan:"logos/auchan.png",
   inter:"logos/inter.png",superu:"logos/superu.png",carrefour:"logos/carrefour.png",casino:"logos/casino.svg",monoprix:"logos/monoprix.png"};
-function logoHTML(k,petit){ const nom=(Object.values(MAGASINS).flat().find(m=>m[0]===k)||[k,k])[1];
+function logoHTML(k,petit){ if(!k) return '<span class="logo txt'+(petit?" sm":"")+'" aria-hidden="true"></span>'; const nom=(Object.values(MAGASINS).flat().find(m=>m[0]===k)||[k,k])[1];
   return LOGOS[k]?'<span class="logo'+(petit?" sm":"")+'"><img src="'+LOGOS[k]+'" alt="" loading="lazy"></span>'
     :'<span class="logo txt'+(petit?" sm":"")+'" aria-hidden="true">'+esc(nom.split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase())+'</span>'; }
 function uniteNom(id){ const b=(PRIX&&PRIX.ingredients&&PRIX.ingredients[id]&&PRIX.ingredients[id].base)||(id==="oeuf"?"piece":["lait","coco","soupe"].includes(id)?"l":"kg");
@@ -603,8 +620,21 @@ function chargePrix(){
     if(d&&d.ingredients){ PRIX=d; try{ localStorage.setItem("vc_prix",JSON.stringify(d)); }catch(e){} return true; }
     return false; }).catch(()=>false);
 }
-/* D'où vient le prix d'un produit : "enseigne", "national", "reunion" ou "estime". */
+/* ===== Promos : promos.json (Open Prices, prix remisés des 30 derniers jours) ===== */
+let PROMOS=null;
+try{ PROMOS=JSON.parse(localStorage.getItem("vc_promos")||"null"); }catch(e){}
+function chargePromos(){
+  return fetch("./promos.json",{cache:"no-cache"}).then(r=>r.ok?r.json():null).then(d=>{
+    if(d&&d.promos){ PROMOS=d; try{ localStorage.setItem("vc_promos",JSON.stringify(d)); }catch(e){} return true; } return false; }).catch(()=>false);
+}
+const AUJ=new Date().toISOString().slice(0,10);
+/* Une promo « prise » vaut 7 jours : l'appli s'en sert pour le budget et les recettes. */
+function promoActive(id){ const m=ST.mesPromos&&ST.mesPromos[id]; return m&&m.jusqua>=AUJ?m:null; }
+function cleanPromos(){ Object.keys(ST.mesPromos||{}).forEach(k=>{ if(!promoActive(k)) delete ST.mesPromos[k]; }); }
+
+/* D'où vient le prix d'un produit : "promo", "enseigne", "national", "reunion" ou "estime". */
 function sourcePrix(id,P){
+  if(promoActive(id)) return "promo";
   const f=PRIX&&PRIX.ingredients&&PRIX.ingredients[id];
   if(!f) return "estime";
   if(P.region==="re") return f.reunion&&f.reunion.n>=MIN_RELEVES_ENSEIGNE?"reunion":"national";
@@ -615,6 +645,7 @@ function price(id,P){
   const g=ING[id], f=PRIX&&PRIX.ingredients&&PRIX.ingredients[id], src=sourcePrix(id,P);
   const local=g.kind==="saison"||g.kind==="local";
   let p;
+  if(src==="promo") return promoActive(id).unite*CONTENU[id];
   if(src==="estime"){
     p=g.price;
     if(P.region==="re") p*=local?0.9:1.3;
@@ -631,7 +662,7 @@ function price(id,P){
 }
 function resumePrix(P){
   if(!PRIX) return "Prix estimés, à vérifier en rayon.";
-  const ids=Object.keys(ING), n={enseigne:0,reunion:0,national:0,estime:0};
+  const ids=Object.keys(ING), n={enseigne:0,reunion:0,national:0,estime:0,promo:0};
   ids.forEach(id=>n[sourcePrix(id,P)]++);
   const d=new Date(PRIX.maj+"T12:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"long",year:"numeric"});
   const mag=magasin(P)[1];
@@ -733,6 +764,7 @@ const ICONES={
   courses:'<svg viewBox="0 0 24 24"><path d="M3 4h2.5l2.2 11h10.6l2-8H7"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg>',
   plats:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></svg>',
   profil:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4"/><path d="M4 20.5c1.4-3.6 4.4-5.5 8-5.5s6.6 1.9 8 5.5"/></svg>',
+  promos:'<svg viewBox="0 0 24 24"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.4 1.4 0 0 1 0 2l-6.7 6.7a1.4 1.4 0 0 1-2 0z"/><circle cx="8" cy="8" r="1.5"/></svg>',
   stock:'<svg viewBox="0 0 24 24"><rect x="5.5" y="2.5" width="13" height="19" rx="2.5"/><path d="M5.5 9.5h13M8.5 5.5v2M8.5 12.5v3"/></svg>'
 };
 
@@ -819,10 +851,10 @@ function renderApp(){
       (tk?'<span class="pill num'+(over?" over":"")+'">'+eur(tk.total)+' / '+P.budget+' €</span>':"")+'</div></header>'+
     '<main class="page" id="view"></main>'+
     '<nav class="tabs" aria-label="Sections"><div class="in">'+
-      [["semaine","Semaine"],["stock","Chez moi"],["courses","Courses"],["plats","Plats"],["profil","Profil"]].map(([v,n])=>
+      [["semaine","Semaine"],["promos","Promos"],["stock","Chez moi"],["courses","Courses"],["plats","Plats"],["profil","Profil"]].map(([v,n])=>
         '<button type="button" data-tab="'+v+'"'+(ST.onglet===v?' aria-current="page"':"")+'>'+ICONES[v]+n+'</button>').join("")+'</div></nav>';
   document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{ST.onglet=b.dataset.tab;persist();renderApp();window.scrollTo(0,0);});
-  ({semaine:vueSemaine,stock:vueStock,courses:vueCourses,plats:vuePlats,profil:vueProfil})[ST.onglet]($("view"),P,tk);
+  ({semaine:vueSemaine,promos:vuePromos,stock:vueStock,courses:vueCourses,plats:vuePlats,profil:vueProfil})[ST.onglet]($("view"),P,tk);
 }
 
 function tempsTxt(r){ return !r.t?"0 min":(r.actif&&r.actif<r.t?r.t+" min, dont "+r.actif+" actives":r.t+" min"); }
@@ -927,6 +959,7 @@ function listePrix(P){
   const mag=magasin(P)[1], par={};
   Object.keys(ING).forEach(id=>(par[RAYON[id]]=par[RAYON[id]]||[]).push(id));
   const badge=id=>{ const s=sourcePrix(id,P), f=PRIX&&PRIX.ingredients&&PRIX.ingredients[id];
+    if(s==="promo") return '<span class="src ok">ta promo</span>';
     if(s==="enseigne") return '<span class="src ok">relevé '+esc(mag)+'</span>';
     if(s==="reunion") return '<span class="src ok">relevé La Réunion</span>';
     if(s==="national") return '<span class="src">prix France'+(f?", "+f.n+" relevés":"")+'</span>';
@@ -938,6 +971,52 @@ function listePrix(P){
       return '<div class="prow"><span class="nm">'+esc(nom)+badge(id)+'<small>'+esc(pk)+'</small></span><span class="pp num">'+
         (id==="fruit"||id==="leg"?eur(prixUnite(id,P))+'<small>le kilo</small>':eur(price(id,P))+'<small>'+eur(prixUnite(id,P))+' '+uniteNom(id)+'</small>')+'</span></div>'; }).join("")).join("")+
     '</details>';
+}
+
+/* ================= Promos ================= */
+function dateCourte(iso){ return new Date(iso+"T12:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); }
+function vuePromos(v,P){
+  cleanPromos();
+  const mag=magasin(P)[1], toutes=(PROMOS&&PROMOS.promos)||[];
+  if(!ST.filtrePromo) ST.filtrePromo="enseigne";
+  const I=interdits(P);
+  const ok=p=>!(p.ing&&I.ing.has(p.ing)) && (P.region==="re"?true:!p.reunion);
+  const dansEns=toutes.filter(p=>ok(p)&&p.enseigne===P.magasin);
+  const liste=(ST.filtrePromo==="enseigne"?dansEns:toutes.filter(ok));
+  const P90={...P,temps:"90"};
+  const recettes=id=>R.filter(r=>r.ing.some(([i])=>i===id)&&permis(r,P,I)).length;
+  const recettesLongues=id=>R.filter(r=>r.ing.some(([i])=>i===id)&&permis(r,P90,I)).length;
+  const pourToi=liste.filter(p=>p.ing&&p.unite).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const autres=liste.filter(p=>!(p.ing&&p.unite));
+  const prises=Object.keys(ST.mesPromos);
+  const pct=p=>p.avant?'<span class="pct">−'+Math.round((1-p.prix/p.avant)*100)+' %</span>':"";
+  const carte=(p,i)=>{ const pris=ST.mesPromos[p.ing]&&ST.mesPromos[p.ing].nom===p.nom&&promoActive(p.ing);
+    const n=recettes(p.ing), nl=recettesLongues(p.ing), nomIng=p.ing==="fruit"?"fruits":p.ing==="leg"?"légumes":ING[p.ing].n.toLowerCase();
+    const gain=price(p.ing,P)>p.unite*CONTENU[p.ing]&&!promoActive(p.ing);
+    return '<div class="promo'+(pris?" prise":"")+'"><div class="nm"><span class="chez">'+logoHTML(p.enseigne||"",true)+'<small>'+esc((p.magasin||"Magasin")+(p.ville?", "+p.ville:""))+' · vu le '+dateCourte(p.date)+'</small></span>'+
+      '<b>'+esc(p.nom)+'</b><small>'+esc([p.qte,eur(p.unite)+" "+uniteNom(p.ing)].filter(Boolean).join(" · "))+'</small>'+
+      '<span style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip ing">'+esc(nomIng)+'</span><span class="chip">'+esc(p.type)+'</span></span></div>'+
+      '<div class="px"><b class="num">'+eur(p.prix)+'</b>'+(p.avant?'<s class="num">'+eur(p.avant)+'</s>':"")+pct(p)+'</div>'+
+      '<div class="act">'+(pris?'<button type="button" class="btn small ghost" data-lacher="'+p.ing+'">Retirer de mon budget</button><span class="hint">Prise en compte jusqu\'au '+dateCourte(ST.mesPromos[p.ing].jusqua)+'</span>'
+        :'<button type="button" class="btn small" data-prendre="'+i+'">Je la prends</button>')+
+      '<span class="hint">'+(n?n+" plat"+(n>1?"s l'utilisent":" l'utilise"):nl?nl+" plat"+(nl>1?"s":"")+" si tu acceptes plus de temps de cuisine":"aucun plat pour ton profil")+(gain&&!pris?" · moins cher que ton prix habituel":"")+'</span></div></div>'; };
+  v.innerHTML='<div><h2>Promos</h2><p class="muted" style="font-size:13.5px">Prix remisés relevés en magasin ces 30 derniers jours'+(PROMOS?", mis à jour le "+dateCourte(PROMOS.maj):"")+'. « Je la prends » l\'ajoute à ton budget et à tes recettes pendant 7 jours.</p></div>'+
+    '<div class="seg" role="group" aria-label="Magasins"><button type="button" data-fp="enseigne" aria-pressed="'+(ST.filtrePromo==="enseigne")+'">Chez '+esc(mag)+' ('+dansEns.length+')</button>'+
+      '<button type="button" data-fp="toutes" aria-pressed="'+(ST.filtrePromo==="toutes")+'">Toutes les enseignes</button></div>'+
+    (prises.length?'<div class="saving">'+prises.length+' promo'+(prises.length>1?"s prises":" prise")+' en compte dans ton budget.</div><button type="button" class="btn dark" id="refairePromo">Refaire ma semaine avec mes promos</button>':"")+
+    (!PROMOS?'<div class="banner">Promos indisponibles pour l\'instant : vérifie ta connexion.</div>':"")+
+    '<h3>Pour tes recettes</h3>'+
+    (pourToi.length?pourToi.map(p=>carte(p,toutes.indexOf(p))).join(""):'<p class="muted">Aucune promo relevée sur nos ingrédients '+(ST.filtrePromo==="enseigne"?"chez "+esc(mag)+" ces 30 derniers jours. Regarde « Toutes les enseignes ».":"ces 30 derniers jours.")+'</p>')+
+    (autres.length?'<div class="group"><h3>Autres promos ('+autres.length+')</h3>'+autres.slice(0,60).map(p=>'<div class="mini">'+logoHTML(p.enseigne||"",true)+
+      '<span class="nm">'+esc(p.nom)+'<small>'+esc([p.qte,p.type,(p.magasin||"")+(p.ville?", "+p.ville:""),"vu le "+dateCourte(p.date)].filter(Boolean).join(" · "))+'</small></span>'+
+      '<span class="pp num">'+eur(p.prix)+(p.avant?'<s>'+eur(p.avant)+'</s>':"")+'</span></div>').join("")+'</div>':"")+
+    '<p class="foot">Promos relevées par des particuliers dans un magasin précis (Open Prices). Elles peuvent être terminées ou ne valoir que dans ce magasin : vérifie en rayon avant de compter dessus.</p>';
+  v.querySelectorAll("[data-fp]").forEach(b=>b.onclick=()=>{ST.filtrePromo=b.dataset.fp;persist();vuePromos(v,P);});
+  v.querySelectorAll("[data-prendre]").forEach(b=>b.onclick=()=>{ const p=toutes[+b.dataset.prendre];
+    const fin=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
+    ST.mesPromos[p.ing]={unite:p.unite,nom:p.nom,prix:p.prix,magasin:p.magasin,jusqua:fin}; persist(); majPill(); vuePromos(v,P); toast("Promo ajoutée à ton budget."); });
+  v.querySelectorAll("[data-lacher]").forEach(b=>b.onclick=()=>{ delete ST.mesPromos[b.dataset.lacher]; persist(); majPill(); vuePromos(v,P); });
+  if($("refairePromo")) $("refairePromo").onclick=()=>{ nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Semaine refaite avec tes promos."); };
 }
 
 /* ================= Chez moi : frigo, congélateur, placard ================= */
@@ -1009,7 +1088,7 @@ function vueProfil(v){
     $("save").onclick=()=>{ ST.profil=draft; nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Profil enregistré, nouvelle semaine prête."); };
     let arm=false;
     $("reset").onclick=()=>{ if(!arm){ arm=true; $("reset").textContent="Toucher encore pour tout effacer"; return; }
-      ST={profil:null,plan:null,coches:[],onglet:"semaine",jour:null,filtre:"tous",stock:{}}; persist(); demarrer(); };
+      ST={profil:null,plan:null,coches:[],onglet:"semaine",jour:null,filtre:"tous",stock:{},mesPromos:{}}; persist(); demarrer(); };
   };
   draw();
 }
@@ -1069,6 +1148,8 @@ const majAvant=PRIX&&PRIX.maj;
 demarrer();
 /* Prix plus récents trouvés : on recalcule le menu (gardé en cache pour le hors connexion). */
 chargePrix().then(ok=>{ if(ok&&PRIX.maj!==majAvant&&ST.profil&&!$("onb")){ if(!$("scrim")) renderApp(); } });
+const promosAvant=PROMOS&&PROMOS.maj;
+chargePromos().then(ok=>{ if(ok&&PROMOS.maj!==promosAvant&&ST.onglet==="promos"&&ST.profil&&!$("onb")&&!$("scrim")) renderApp(); });
 if("serviceWorker" in navigator && location.protocol==="https:" && !/claude\.ai|claudeusercontent/.test(location.hostname)){
   try{ navigator.serviceWorker.register("./sw.js").catch(()=>{}); }catch(e){}
 }

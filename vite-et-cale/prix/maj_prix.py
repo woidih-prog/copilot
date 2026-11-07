@@ -9,7 +9,13 @@ particuliers en magasin. Pour chaque ingrédient de l'appli, le script :
   4. calcule un prix « bas » (premier quartile : les produits les moins chers du rayon),
      au niveau national et par enseigne quand elle a assez de relevés.
 
-Utilisation :  python3 vite-et-cale/prix/maj_prix.py
+Il écrit aussi vite-et-cale/promos.json : les prix remisés relevés en France ces
+30 derniers jours (promos, cartes de fidélité, lots), rattachés quand c'est possible
+à un ingrédient de l'appli.
+
+Utilisation :
+  python3 vite-et-cale/prix/maj_prix.py            # prix (quelques minutes) et promos
+  python3 vite-et-cale/prix/maj_prix.py --promos   # promos seulement (quelques secondes)
 Aucune dépendance : bibliothèque standard Python 3.9+ seulement.
 """
 import datetime as dt
@@ -25,6 +31,9 @@ from pathlib import Path
 API = "https://prices.openfoodfacts.org/api/v1"
 UA = "ViteEtCale/1.0 (+https://github.com/woidih-prog/copilot)"
 SORTIE = Path(__file__).resolve().parent.parent / "prix.json"
+SORTIE_PROMOS = Path(__file__).resolve().parent.parent / "promos.json"
+JOURS_PROMOS = 30
+MAX_PROMOS = 400
 JOURS = 365
 MIN_ENSEIGNE = 8     # relevés minimum pour donner un prix propre à une enseigne
 MIN_SURGELE = 15     # relevés minimum pour se limiter au surgelé quand on le préfère
@@ -203,7 +212,78 @@ def quartile_bas(v):
     return statistics.quantiles(v, n=4)[0] if len(v) >= 4 else min(v)
 
 
+# Noms affichés pour les promos sur des produits frais vendus au kilo (relevés par catégorie).
+NOMS_CATEGORIES = {"en:bananas": "Bananes", "en:potatoes": "Pommes de terre", "en:sweet-potatoes": "Patates douces",
+                   "en:apples": "Pommes", "en:carrots": "Carottes", "en:onions": "Oignons"}
+TYPES_REMISE = {"SALE": "Promo", "LOYALTY_PROGRAM": "Carte fidélité", "QUANTITY": "Lot ou quantité",
+                "EXPIRES_SOON": "Date courte", "SEASONAL": "Saison", "PICK_IT_YOURSELF": "Libre-service", "OTHER": "Remise"}
+
+
+def ingredient_du_nom(nom):
+    """Rattache un nom de produit à un ingrédient de l'appli, avec les mêmes recherches que les prix."""
+    n = (nom or "").lower()
+    for ing, cfg in INGREDIENTS.items():
+        if "noms" not in cfg or re.search(cfg.get("exclut", r"$^"), n):
+            continue
+        if any(x.lower() in n for x in cfg["noms"]):
+            if cfg.get("surgele") and "surgel" not in n:
+                continue
+            return ing
+    return None
+
+
+def promos():
+    depuis = (dt.date.today() - dt.timedelta(days=JOURS_PROMOS)).isoformat()
+    par_cat = {cfg["cat"]: ing for ing, cfg in INGREDIENTS.items() if "cat" in cfg}
+    vues, out = set(), []
+    for pr in pages("/prices", limite=20, price_is_discounted="true", currency="EUR", date__gte=depuis, order_by="-date"):
+        loc = pr.get("location") or {}
+        if not en_france(loc) or not pr.get("price"):
+            continue
+        prod = pr.get("product") or {}
+        if pr.get("type") == "CATEGORY":
+            cat = pr.get("category_tag")
+            ing = par_cat.get(cat)
+            nom = NOMS_CATEGORIES.get(cat) or (cat or "").split(":")[-1].replace("-", " ").capitalize()
+            unite = pr["price"] if pr.get("price_per") == "KILOGRAM" else None
+            qte_txt = "le kilo" if pr.get("price_per") == "KILOGRAM" else "la pièce"
+            cle_prod = cat
+        else:
+            nom = prod.get("product_name")
+            if not nom:
+                continue
+            ing = ingredient_du_nom(nom)
+            base = INGREDIENTS[ing]["base"] if ing else "kg"
+            q = quantite(prod, base)
+            unite = pr["price"] / q if (ing and q) else None
+            pq, pu = prod.get("product_quantity"), prod.get("product_quantity_unit")
+            qte_txt = f"{pq:g} {pu}" if pq and pu else ""
+            cle_prod = pr.get("product_code")
+        cle = (cle_prod, loc.get("id"), pr["price"])
+        if cle in vues:
+            continue
+        vues.add(cle)
+        avant = pr.get("price_without_discount")
+        out.append({
+            "nom": nom.strip()[:90], "ing": ing, "enseigne": enseigne(loc), "magasin": loc.get("osm_name"),
+            "ville": loc.get("osm_address_city"), "reunion": a_la_reunion(loc), "date": pr.get("date"),
+            "prix": pr["price"], "avant": avant if avant and avant > pr["price"] else None,
+            "type": TYPES_REMISE.get(pr.get("discount_type"), "Remise"), "qte": qte_txt,
+            "unite": round(unite, 3) if unite else None,
+        })
+        if len(out) >= MAX_PROMOS:
+            break
+    resultat = {"maj": dt.date.today().isoformat(), "depuis": depuis,
+                "source": "Open Prices (Open Food Facts), licence ODbL", "promos": out}
+    SORTIE_PROMOS.write_text(json.dumps(resultat, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    lies = sum(1 for p in out if p["ing"])
+    print(f"Écrit : {SORTIE_PROMOS} ({len(out)} promos, dont {lies} sur des ingrédients de l'appli)")
+
+
 def main():
+    if "--promos" in sys.argv:
+        promos()
+        return
     depuis = (dt.date.today() - dt.timedelta(days=JOURS)).isoformat()
     resultat = {"maj": dt.date.today().isoformat(), "depuis": depuis,
                 "source": "Open Prices (Open Food Facts), licence ODbL", "ingredients": {}}
@@ -237,6 +317,7 @@ def main():
         print(f"  {len(tous)} relevés, bas {fiche['bas']} €/{cfg['base']}, enseignes : {', '.join(fiche['enseignes']) or '-'}")
     SORTIE.write_text(json.dumps(resultat, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"Écrit : {SORTIE}")
+    promos()
 
 
 if __name__ == "__main__":
