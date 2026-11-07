@@ -651,27 +651,141 @@ $("btnSparGo").onclick = async function(){
   const c = $("coachCarte"), p = $("sparCarte");
   if(c && p && p.parentNode) p.parentNode.insertBefore(c, p);
 })();
+/* =====================================================================
+   L'ENTONNOIR DE JOSH : une seule carte du call, pour le tracking, le coach et le roleplay.
+   Le call part large et se resserre jusqu'à l'étau : un problème, une horloge qui tourne,
+   une conséquence qu'il ne veut pas vivre, et plus d'autre option que d'agir maintenant.
+   Tiré de ses revues de calls et roleplays (« Nearly Perfect Call », « Scriptless Selling »,
+   « Click Moment », « Stop Using Future Pacing »…). La même liste vit dans le serveur de suivi.
+   ===================================================================== */
+const ENTONNOIR = [
+  {k: "cadre",      nom: "Le cadre",                      jeu: true},
+  {k: "faits",      nom: "Les faits, avant le pourquoi",  jeu: true},
+  {k: "resserre",   nom: "Creusé en resserrant"},
+  {k: "cout",       nom: "Ce que ça lui a déjà coûté",    jeu: true},
+  {k: "part",       nom: "Sa part",                       jeu: true},
+  {k: "bascule",    nom: "Le moment de bascule",          jeu: true},
+  {k: "enjeu",      nom: "Ce qui est vraiment en jeu",    jeu: true},
+  {k: "etau",       nom: "L'étau",                        jeu: true},
+  {k: "recap",      nom: "Le récap avec ses mots"},
+  {k: "argent",     nom: "L'argent et le dernier doute"},
+  {k: "remontee",   nom: "La remontée avant le pitch",    jeu: true},
+  {k: "conclusion", nom: "Présentation et engagement"}
+];
+const nomEtape = k => (ENTONNOIR.find(e => e.k === k) || {}).nom || k;
+// la destination d'un call, telle que le coach la garde en tête
+const DESTINATION_JOSH = "l'étau qui se ferme : le call part large et se resserre (le cadre, les faits avant le pourquoi, ce que la situation lui a déjà coûté, sa part, le moment de bascule récent, ce qui est vraiment en jeu) jusqu'à ce qu'un problème, une horloge qui tourne et une conséquence réelle qu'il ne veut pas vivre soient reliés, dits par lui, et qu'il n'ait plus d'autre option que d'agir maintenant ; puis le récap avec ses mots, l'argent abordé avant de présenter, et la remontée (il se sent plus léger et engagé) avant le pitch";
+
+/* ---- le roleplay : un morceau par étape de l'entonnoir, à la place de l'ancienne méthode ----
+   (« Vision positive » disparaît : Josh refuse de projeter le prospect dans l'avenir.) */
+(function entonnoirRoleplay(){
+  if(typeof SEGMENTS !== "object" || !SEGMENTS) return;
+  const garde = {objection: SEGMENTS.objection, paiement: SEGMENTS.paiement, closing: SEGMENTS.closing};
+  const SANS_OBJ = "INTERDIT : tu n'as entendu ni offre ni prix. AUCUNE objection commerciale (ni prix, ni « je dois réfléchir », ni conjoint).";
+  const neufs = {
+    complet: {nom: "Call complet", court: "Tout l'entonnoir, jusqu'à l'étau", depart: "Le call commence. Le prospect vient de décrocher.",
+      objectif: "Mener tout l'entonnoir : partir large, se resserrer jusqu'à l'étau, faire remonter le prospect, puis conclure.",
+      criteres: ["A-t-il posé un cadre vrai et mené dès le début ?", "A-t-il obtenu des faits précis avant de chercher le pourquoi ?",
+        "Chaque question partait-elle de ce que le prospect venait de dire, en se resserrant ?", "A-t-il fait chiffrer ce que la situation a déjà coûté, sur le passé réel ?",
+        "Le prospect a-t-il reconnu sa part ?", "A-t-il trouvé un moment de bascule récent et précis ?", "La conséquence en jeu était-elle réelle et personnelle ?",
+        "L'étau s'est-il fermé : problème, horloge et conséquence reliés, urgence maintenant, plus d'autre option ?",
+        "A-t-il abordé l'argent et le dernier doute avant de présenter ?", "A-t-il vérifié que le prospect remontait (plus léger, engagé) avant le pitch ?", "A-t-il obtenu une décision ?"],
+      regle: "Le call se déroule normalement, dans son ordre naturel.", fin: "le call va au bout : engagement obtenu, paiement fait, ou le prospect met fin.",
+      toursMax: 60, commence: "closer", terrain: "decouverte"},
+    cadre: {nom: "Le cadre", court: "Les premières minutes : qui mène", depart: "Le call vient de commencer. Rien n'a encore été dit sur sa situation.",
+      objectif: "Poser un cadre vrai sans se presser, ouvrir sur son plus gros défi selon lui, et prendre le lead. S'il se dit indécis, lui faire dire s'il avait déjà décidé avant de réserver.",
+      criteres: ["A-t-il annoncé une conversation vraie et profonde, en le pensant ?", "S'est-il posé, sans se presser ?", "A-t-il demandé SON plus gros défi, à son avis ?",
+        "A-t-il pris le lead (ce n'est pas lui qui a besoin du prospect) ?", "Si le prospect se disait indécis, lui a-t-il fait dire s'il avait décidé avant le call ?"],
+      regle: SANS_OBJ + "\nAUTORISÉ ET SOUHAITABLE : te dire « pas sûr de vouloir y aller » ou rester poli et vague, pour tester s'il mène.",
+      fin: "le prospect a donné son plus gros défi avec ses mots et le closer mène l'échange.", toursMax: 8, commence: "closer", terrain: "cadrage"},
+    faits: {nom: "Les faits, avant le pourquoi", court: "Du précis, pas du vague", depart: "Le prospect vient de donner son plus gros défi, en une phrase. Rien n'est encore précis.",
+      objectif: "Obtenir des faits précis et vrais : ce qu'il gagne ces 30 derniers jours, tout compris, depuis combien de temps ça dure, ce qu'il fait concrètement. Le quoi avant le pourquoi.",
+      criteres: ["A-t-il demandé le quoi avant le pourquoi ?", "A-t-il obtenu un chiffre récent et précis, tout compris ?", "A-t-il obtenu depuis combien de temps ça dure ?",
+        "A-t-il laissé sentir la réalité (un « hm ») au lieu de l'adoucir ?", "S'est-il contenté de « ça avance doucement » ?"],
+      regle: SANS_OBJ + "\nTu donnes tes chiffres seulement si on te les demande précisément. Si on te demande vaguement « raconte-moi », tu restes général. Tu ne ressens encore rien : des faits, sur un ton neutre.",
+      fin: "le closer a obtenu au moins un chiffre récent et précis, tout compris, et la durée.", toursMax: 12, commence: "closer", terrain: "decouverte"},
+    resserre: {nom: "Creuser en resserrant", court: "Chaque question part de sa dernière réponse", depart: "Le prospect a donné son défi et quelques faits. Il en a dit plus qu'il ne le croit.",
+      objectif: "Creuser ce qu'il vient de donner, du général au précis, sans questions au hasard ni retour au général. Avant de passer à autre chose : « est-ce que j'ai raté quelque chose ? ».",
+      criteres: ["Chaque question partait-elle d'un mot qu'il venait de dire ?", "A-t-il creusé au lieu d'ouvrir un sujet neuf ?", "Est-il resté précis, sans revenir au général ?",
+        "A-t-il repris les mots exacts du prospect pour donner du poids à sa question ?", "A-t-il demandé s'il avait raté quelque chose avant de passer ?"],
+      regle: SANS_OBJ + "\nTu glisses au passage un détail qui compte (un mot, une gêne) sans t'y attarder. Si on ne le reprend pas, tu passes à autre chose.",
+      fin: "le closer a creusé le détail glissé jusqu'à ce qu'il compte, ou il est passé à côté.", toursMax: 12, commence: "closer", terrain: "decouverte"},
+    cout: {nom: "Ce que ça lui a déjà coûté", court: "Le passé réel, pas un futur imaginé", depart: "Le prospect a donné ses chiffres, la durée, et ce qu'il aurait pu faire. Rien n'a encore été calculé.",
+      objectif: "Calculer avec lui ce que la situation a déjà coûté, sur le passé réel et une hypothèse dont il est sûr, le faire confirmer, puis demander ce que ça lui fait et qui d'autre est touché.",
+      criteres: ["A-t-il calculé sur le passé réel, pas sur un futur souhaité ?", "A-t-il pris une hypothèse dont le prospect est sûr ?", "A-t-il fait confirmer le chiffre (« c'est juste ? ») ?",
+        "A-t-il demandé ce que ça lui fait, et qui d'autre est touché ?", "A-t-il évité de gonfler le chiffre ?"],
+      regle: SANS_OBJ + "\nAUTORISÉ : contester une hypothèse trop haute, hésiter sur un chiffre. Si on te demande « combien aimerais-tu gagner », tu réponds une généralité sans conviction.",
+      fin: "la perte a été calculée avec lui, confirmée, et il a dit ce que ça lui fait.", toursMax: 12, commence: "closer", terrain: "decouverte"},
+    part: {nom: "Sa part", court: "Ce n'est pas les autres, c'est lui", depart: "Le prospect a décrit sa situation et ce qu'elle lui coûte. Il en parle comme d'une chose qui lui arrive.",
+      objectif: "Lui faire voir et dire sa part : le décalage entre la vie qu'il veut et la personne qu'il est aujourd'hui, et le schéma qui se répète (les promesses des autres qu'il subit, celles qu'il ne se tient pas).",
+      criteres: ["A-t-il tendu le miroir sans consoler ?", "Le prospect a-t-il dit lui-même sa part ?", "A-t-il nommé un schéma qui se répète, y compris pendant le call ?",
+        "A-t-il relié les points que le prospect avait déjà reliés avant le call ?", "A-t-il évité d'agresser ou de faire la morale ?"],
+      regle: SANS_OBJ + "\nTu accuses d'abord les autres (clients, associés, le marché, un ancien programme). Tu ne reconnais ta part que si le closer te renvoie tes propres mots ou te montre le schéma.",
+      fin: "le prospect a dit lui-même sa part, ou il s'est braqué.", toursMax: 12, commence: "closer", terrain: "decouverte"},
+    bascule: {nom: "Le moment de bascule", court: "Pourquoi maintenant, pas pourquoi", depart: "Le prospect vit cette situation depuis longtemps. Il a pourtant réservé ce call cette semaine.",
+      objectif: "Trouver l'événement précis et récent (jours ou semaines) qui l'a fait passer de « ça va » à « ça ne peut plus durer », raconté par lui.",
+      criteres: ["A-t-il distingué « pourquoi » et « pourquoi maintenant » ?", "A-t-il refusé un déclencheur vieux de deux ans ?", "A-t-il utilisé le contexte (« après cinq ans, qu'est-ce qui a changé ? ») ?",
+        "A-t-il obtenu une scène précise et récente ?", "Si rien ne sortait, a-t-il continué à chercher au lieu d'abandonner ?"],
+      regle: SANS_OBJ + "\nTon vrai déclencheur est une scène récente et un peu humiliante (une remarque, une dispute, un regard). Tu donnes d'abord des raisons générales ou anciennes. Tu ne racontes la scène que si on te pousse sur le « pourquoi maintenant » avec tes propres mots.",
+      fin: "il a raconté la scène récente qui l'a fait bouger.", toursMax: 10, commence: "closer", terrain: "decouverte"},
+    enjeu: {nom: "Ce qui est vraiment en jeu", court: "Une conséquence réelle, pas « plus d'argent »", depart: "Le prospect a donné ses chiffres et ce qu'ils lui coûtent. Il dit qu'il veut « juste gagner plus ».",
+      objectif: "Trouver la chose concrète et personnelle de sa vie qu'il n'accepte plus, et vérifier qu'elle est vraiment en jeu.",
+      criteres: ["A-t-il refusé « gagner plus » comme réponse ?", "A-t-il obtenu une conséquence concrète et personnelle ?", "A-t-il vérifié qu'elle était réelle, pas théorique ?",
+        "S'il ne voyait pas de douleur, a-t-il cherché pourquoi ?", "A-t-il tenu la pression au lieu de consoler ?"],
+      regle: SANS_OBJ + "\nTa première conséquence est théorique (« ce serait dommage »). La vraie est dans ta vie (ton couple, ton logement, l'image de toi) et tu ne la dis que si le closer remarque que tu ne sembles pas souffrir et te demande pourquoi.",
+      fin: "il a dit la vraie conséquence qu'il ne veut pas vivre.", toursMax: 12, commence: "closer", terrain: "decouverte"},
+    etau: {nom: "L'étau", court: "Problème, horloge, conséquence : maintenant", depart: "Tout est posé : le problème, ce qu'il coûte, sa part, la conséquence. Mais il parle d'agir « d'ici la fin de l'année ».",
+      objectif: "Relier le problème, l'horloge et la conséquence jusqu'à ce qu'il dise lui-même que c'est maintenant et qu'il n'y a plus d'autre option.",
+      criteres: ["A-t-il refusé une urgence à six mois ?", "A-t-il relié l'urgence à la conséquence réelle ?", "Le prospect a-t-il dit lui-même qu'il n'avait plus d'autre option ?",
+        "A-t-il fait peser ce qui est en jeu plus lourd que ce qu'il doit franchir ?", "S'il n'y avait pas assez de poids, a-t-il continué à creuser ou constaté qu'on n'était pas alignés ?"],
+      regle: SANS_OBJ + "\nTu proposes d'abord une échéance lointaine et raisonnable. Tu ne lâches « c'est maintenant » que si le closer relie l'horloge à ce que tu risques de perdre.",
+      fin: "il a dit que c'était maintenant, ou il a gardé son échéance lointaine.", toursMax: 10, commence: "closer", terrain: "decouverte"},
+    recap: {nom: "Le récap, l'argent, le dernier doute", court: "Avant de présenter", depart: "La découverte est faite et l'étau est fermé. Le closer va bientôt présenter.",
+      objectif: "Récapituler avec ses mots et ses chiffres précis et le faire valider ; lui faire dire de quoi il a besoin ; demander comment il compte investir ; « y a-t-il autre chose que je devrais savoir ? ».",
+      criteres: ["Le récap reprenait-il ses mots et ses chiffres précis ?", "L'a-t-il fait valider ?", "A-t-il fait dire au prospect de quoi il a besoin ?",
+        "A-t-il osé poser la question de l'argent avant de présenter ?", "A-t-il demandé s'il y avait autre chose à savoir, sans laisser de doute en route ?"],
+      regle: "INTERDIT : le prix n'a pas été annoncé. AUTORISÉ : un petit doute glissé (« je me demande si j'aurai le temps ») qui ressortira au prix si personne ne le règle maintenant.",
+      fin: "le récap est validé, l'argent abordé, et le dernier doute sorti.", toursMax: 10, commence: "closer", terrain: "decouverte"},
+    remontee: {nom: "La remontée avant le pitch", court: "Il doit ressortir plus léger", depart: "La découverte a été dure. Le prospect est un peu sonné, la tête « partout ». Le closer s'apprête à présenter.",
+      objectif: "Avant de présenter, vérifier comment il se sent, lui faire dire ce qui a changé, et verrouiller (« tu veux continuer à te sentir comme ça ? ») avant de passer à l'offre.",
+      criteres: ["A-t-il remarqué que le prospect était confus avant de présenter ?", "A-t-il demandé comment il se sentait ?", "Le prospect a-t-il dit ce qui avait changé en lui ?",
+        "A-t-il verrouillé cet état avant de présenter ?", "A-t-il évité de pitcher sur un prospect sonné ?"],
+      regle: "INTERDIT : le prix n'a pas été annoncé. Tu es sonné et confus : si on te présente l'offre tout de suite, tu décroches et tu dis que tu dois y penser. Si on te demande comment tu te sens, tu réalises que tu te sens plus léger.",
+      fin: "il a dit qu'il se sentait plus léger et engagé, et le closer a verrouillé, ou le closer a pitché sur un prospect confus.", toursMax: 8, commence: "closer", terrain: "closing", couches: false}
+  };
+  Object.keys(SEGMENTS).forEach(k => delete SEGMENTS[k]);
+  Object.assign(SEGMENTS, neufs, garde.objection ? {objection: garde.objection} : {}, garde.paiement ? {paiement: garde.paiement} : {}, garde.closing ? {closing: garde.closing} : {});
+  // en B2B : la même carte, avec l'enjeu personnel pris par le côté (crédibilité, objectifs, charge)
+  if(typeof SEGMENTS_B2B === "object" && SEGMENTS_B2B){
+    Object.keys(SEGMENTS_B2B).forEach(k => delete SEGMENTS_B2B[k]);
+    SEGMENTS_B2B.enjeu = {objectif: "Trouver ce qui est vraiment en jeu pour LUI : sa crédibilité, ses objectifs, sa place, sa charge, et vérifier que c'est réel.",
+      criteres: ["A-t-il refusé « faire plus de chiffre » comme réponse ?", "A-t-il atteint l'enjeu personnel par le côté (crédibilité, objectifs, charge) ?", "A-t-il vérifié qu'il était réel ?", "Est-il resté au niveau d'un pair ?"]};
+  }
+  try{ SEGMENTS_CHOISIS = ["complet"]; sparSegment = "complet"; }catch(_){}
+  try{ if(typeof peupleSparring === "function") peupleSparring(); }catch(_){}
+})();
+
 /* ---- le jeu de rôle conduit comme Josh ----
-   Une carte « où on va » au-dessus du prospect : les quatre accords qui font
-   une vente (cochés au fil du jeu par le coach), et le chrono de la découverte.
+   Une carte « où on va » au-dessus du prospect : les étapes de l'entonnoir
+   jusqu'à l'étau (cochées au fil du jeu par le coach), et le chrono de la découverte.
    Le coach sait où on en est, et il t'arrête quand tu pars dans un détail
    avant d'avoir posé le problème. */
-const ACCORDS_JEU = [["probleme", "Un problème qui le brûle"], ["desir", "Un vrai désir de le régler"], ["seul", "Il ne peut pas seul"], ["confiance", "Il croit en l'offre, et pourquoi maintenant"]];
+const ACCORDS_JEU = ENTONNOIR.filter(e => e.jeu).map(e => [e.k, e.nom]);
 const minutesDeJeu = () => SPAR && SPAR.debut ? Math.max(0, Math.round((Date.now() - SPAR.debut) / 60000)) : 0;
 function conduiteJeu(prompt){
   if(!SPAR) return prompt;
   const acq = SPAR.jrAccords || {};
   const obtenus = ACCORDS_JEU.filter(([k]) => acq[k] != null).map(([, n]) => n + " (vers la minute " + acq[k] + ")");
-  const bloc = `LA DESTINATION DE CETTE DÉCOUVERTE : les quatre accords qui font une vente. Un problème qui le brûle ; un vrai désir de le régler ; il admet qu'il ne peut pas le régler seul ; il croit que l'offre peut l'aider, et il sait pourquoi maintenant.
-Déjà obtenus d'après l'échange : ${obtenus.length ? obtenus.join(" ; ") : "aucun pour l'instant"}.
-Temps de jeu : ${minutesDeJeu()} minute${minutesDeJeu() > 1 ? "s" : ""}. Une découverte complète tient en général en une vingtaine de minutes : si le closer y passe beaucoup de temps sans avancer vers ces accords, c'est un coût.
-COMME JOSH EN JEU DE RÔLE : quand le closer part dans un détail (le budget, les chiffres du business, le taux de conversion, la technique du métier) avant d'avoir posé le problème et ce qu'il lui coûte, ça coûte vraiment. Il démonte un problème dont on ne sait pas encore s'il est grave, et la conversation perd sa gravité. Quand tu l'arrêtes, ta phrase « quoi » dit ce qu'on cherche à obtenir à cet endroit du call, et « pourquoi » la relie à l'accord qui manque. Le bon coup peut être de revenir quelques questions en arrière.
+  const bloc = `LA DESTINATION DE CE CALL (l'entonnoir de Josh) : ${DESTINATION_JOSH}.
+Étapes déjà vécues par le prospect d'après l'échange : ${obtenus.length ? obtenus.join(" ; ") : "aucune pour l'instant"}.
+Temps de jeu : ${minutesDeJeu()} minute${minutesDeJeu() > 1 ? "s" : ""}. Une découverte complète tient en général en une vingtaine de minutes : si le closer y passe beaucoup de temps sans resserrer vers l'étau, c'est un coût. Les questions au hasard, les retours au général et la pression relâchée (consoler, rassurer) cassent l'entonnoir.
+COMME JOSH EN JEU DE RÔLE : quand le closer part dans un détail (le budget, les chiffres du business, le taux de conversion, la technique du métier) avant d'avoir posé les faits et ce que la situation lui a déjà coûté, ça coûte vraiment. Il démonte un problème dont on ne sait pas encore s'il est grave, et la conversation perd sa gravité. Quand tu l'arrêtes, ta phrase « quoi » dit ce qu'on cherche à obtenir à cet endroit du call, et « pourquoi » la relie à l'étape de l'entonnoir qui manque. Le bon coup peut être de revenir quelques questions en arrière.
 
 `;
   let p = prompt.replace("LE MOMENT TRAVAILLÉ", bloc + "LE MOMENT TRAVAILLÉ");
-  // le premier temps du coach dit aussi quels accords le prospect vient de donner
+  // le premier temps du coach dit aussi quelles étapes le prospect vient de vivre
   if(/\{"plan":"ou va ce closer/.test(p))
-    p = p.replace('{"plan":"ou va ce closer', '{"accords":{"probleme":true ou false,"desir":true ou false,"seul":true ou false,"confiance":true ou false} (vrai seulement si le prospect l a clairement donne, avec ses mots, a un moment de l echange),\n "plan":"ou va ce closer');
+    p = p.replace('{"plan":"ou va ce closer', '{"accords":{' + ACCORDS_JEU.map(([k]) => '"' + k + '":true ou false').join(",") + '} (les etapes de l entonnoir : ' + ACCORDS_JEU.map(([k, n]) => k + " = " + n).join(" ; ") + '. Vrai seulement si le PROSPECT l a clairement vecue et dite, avec ses mots, a un moment de l echange),\n "plan":"ou va ce closer');
   return p;
 }
 function majCarteJeu(){
@@ -686,12 +800,12 @@ function majCarteJeu(){
   if(!SPAR){ el.style.display = "none"; return; }
   el.style.display = "block";
   const acq = SPAR.jrAccords || {}, mn = minutesDeJeu(), coach = typeof sparMode !== "undefined" && sparMode === "coach";
-  const tous = ACCORDS_JEU.every(([k]) => acq[k] != null);
+  const tous = acq.etau != null;      // ce qui compte au bout de 20 minutes : l'étau est-il fermé ?
   const alerte = mn >= 20 && !tous;
   el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
       <h3 style="margin:0">Où on va</h3>
       <span style="font-size:12.5px;color:${alerte ? "var(--clay)" : "var(--muted)"}">${mn} min de jeu · une découverte tient en une vingtaine de minutes${alerte ? " : ça traîne" : ""}</span></div>
-    <p style="font-size:13px;color:var(--muted);margin:8px 0 10px">Obtenir les quatre accords qui font une vente${coach ? ". Le coach les coche quand le prospect te les donne." : ". (En mode Coaching, le coach les coche au fil du jeu.)"}</p>
+    <p style="font-size:13px;color:var(--muted);margin:8px 0 10px">Resserrer jusqu'à l'étau, puis le faire remonter avant le pitch${coach ? ". Le coach coche chaque étape quand le prospect la vit." : ". (En mode Coaching, le coach coche les étapes au fil du jeu.)"}</p>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${ACCORDS_JEU.map(([k, n]) => {
       const ok = acq[k] != null;
       return `<span style="font-size:12.5px;padding:4px 9px;border-radius:7px;border:1px solid ${ok ? "var(--amber)" : "var(--line)"};color:${ok ? "var(--amber)" : "var(--muted)"}">${ok ? "✓" : "○"} ${escapeHTML(n)}${ok ? " · " + acq[k] + " min" : ""}</span>`;
@@ -3254,7 +3368,8 @@ async function nouvelleAnalyse(c, k){
 /* ---------------------------------------------------------------------
    La carte de la séance : d'où on part, où on va, et pourquoi
    --------------------------------------------------------------------- */
-const ACCORDS = [["probleme", "Un problème qui le brûle"], ["desir", "Un vrai désir de le régler"], ["seul", "Il ne peut pas seul"], ["confiance", "Il croit en l'offre, et pourquoi maintenant"]];
+// la carte d'un vrai call : les étapes de l'entonnoir de Josh (avant : les quatre accords)
+const ACCORDS = ENTONNOIR.map(e => [e.k, e.nom]);
 const minuteOk = v => /^\d{1,3}:\d\d$/.test(String(v || "").trim()) ? String(v).trim() : null;
 function litJsonCoach(txt){
   let t = String(txt || "").replace(/```json|```/g, "").trim();
@@ -3266,17 +3381,17 @@ function litJsonCoach(txt){
 function promptPlan(s, k, fil){
   const dest = coachCourant().k === "keenan"
     ? "l'écart entre sa situation actuelle et la situation qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant"
-    : "les quatre accords qui font une vente : un problème qui le brûle ; un vrai désir de le régler ; il admet qu'il ne peut pas le régler seul ; il croit que l'offre peut l'aider, et il sait pourquoi maintenant";
+    : DESTINATION_JOSH;
   return `${texteProfil()}${fil ? "\n" + titreFil(s) + "\n" + fil + "\nSi ce call répète quelque chose de ce fil (la même faute, le même moment qui lâche), tu le relies dans ton premier message : c'est souvent là que se trouve le vrai travail.\n" : ""}${texteDuCall(s)}
 ${k ? "Il veut surtout travailler « " + nomPhase(k) + " ».\n" : ""}
 Avant de commencer la séance, tu lis tout ce call comme pour une revue de call, et tu prépares la carte de la séance : d'où il part, où vous allez, et pourquoi.
-1. La destination d'un call de vente, c'est ${dest}. Pour chacun des quatre accords : obtenu ou non dans ce call, et à quelle minute si la transcription a les minutes.
+1. La destination d'un call de vente, c'est ${dest}. Pour chaque étape de l'entonnoir (${ACCORDS.map(([a, n]) => a + " = " + n).join(" ; ")}) : vécue ou non par le PROSPECT dans ce call, avec ses mots, et à quelle minute si la transcription a les minutes. Repère surtout où l'entonnoir s'est éparpillé et si l'étau s'est fermé.
 2. Le temps : en une ou deux phrases, où le temps de ce call est passé. Par exemple : « 15 minutes sur le budget avant d'avoir compris son problème ». Une découverte complète tient en général en une vingtaine de minutes.
 3. Les 2 ou 3 moments qui ont décidé de ce call, dans l'ordre du call : ceux où le travailler changera le plus ses prochains calls. Pour chacun : la minute, un titre court, et ce qu'il doit savoir faire à la fin de ce moment.
 4. Ce qu'il saura faire à la fin de la séance, en une phrase.
 5. Ton premier message, à l'oral, en tutoyant, 5 à 8 phrases sans liste : le call en une phrase, ce que ce call devait obtenir, où ça s'est joué, les moments que vous allez faire dans l'ordre et pourquoi ceux-là, puis ta première question sur le premier moment.
 Réponds uniquement avec ce JSON :
-{"accords":{"probleme":{"ok":true,"minute":"mm:ss ou null"},"desir":{"ok":false,"minute":null},"seul":{"ok":false,"minute":null},"confiance":{"ok":false,"minute":null}},
+{"accords":{${ACCORDS.map(([a]) => `"${a}":{"ok":true ou false,"minute":"mm:ss ou null"}`).join(",")}},
  "temps":"où le temps du call est passé","moments":[{"minute":"mm:ss ou null","titre":"titre court","objectif":"ce qu'il saura faire à la fin de ce moment"}],
  "but":"ce qu'il saura faire à la fin de la séance","ouverture":"ton premier message"}`;
 }
@@ -3315,7 +3430,7 @@ function rendPlan(){
       <div class="cp-etape ${fini ? "cours" : ""}"><span class="cp-num">${p.moments.length + 1}</span><span><b>Ce que tu retiens</b><small>Puis le bilan et ton travail pour la prochaine fois.</small></span></div></div>
     ${p.accords ? `<div class="cp-btns" style="margin-top:12px;gap:6px">${ACCORDS.filter(([a]) => p.accords[a]).map(([a, nom]) => { const x = p.accords[a];
       return `<span class="cp-pastille ${x.ok ? "ok" : "ko"}">${x.ok ? "✓" : "✗"} ${escapeHTML(nom)}${x.ok && x.minute ? " · " + escapeHTML(x.minute) : ""}</span>`; }).join("")}</div>
-      <p style="font-size:12px;color:var(--muted);margin-top:6px">Les quatre accords, dans ton vrai call.</p>` : ""}
+      <p style="font-size:12px;color:var(--muted);margin-top:6px">L'entonnoir, dans ton vrai call : ce que le prospect a vraiment vécu.</p>` : ""}
     ${p.temps ? `<p style="font-size:13px;color:var(--muted);margin-top:8px">${escapeHTML(p.temps)}</p>` : ""}`;
 }
 function textePlan(s){
@@ -3379,14 +3494,19 @@ const NOMS_G = {cadrage:"cadrage", situation:"situation réelle", probleme:"prob
 function texteDuCall(s){
   if(!s || !s.call) return "";
   const c = s.call;
-  const g = c.grille ? Object.keys(NOMS_G).filter(k => c.grille[k] && c.grille[k].s !== "na")
-      .map(k => "  - " + NOMS_G[k] + " : " + c.grille[k].s + (c.grille[k].p ? " (« " + c.grille[k].p + " »)" : "")).join("\n") : "";
+  // l'entonnoir (ou l'ancienne grille, pour un call analysé avant)
+  const noms = c.grille_v ? Object.fromEntries(ENTONNOIR.map(e => [e.k, e.nom])) : NOMS_G;
+  const g = c.grille ? Object.keys(noms).filter(k => c.grille[k] && c.grille[k].s !== "na")
+      .map(k => "  - " + noms[k] + " : " + c.grille[k].s + (c.grille[k].p ? " (« " + c.grille[k].p + " »)" : "")).join("\n") : "";
+  const fo = c.forme || {}, forme = [["resserre", "ok", "le call s'est resserré", "le call s'est éparpillé"], ["etau", "ferme", "l'étau s'est fermé", "l'étau ne s'est pas fermé"],
+    ["remontee", "ok", "le prospect est remonté avant le pitch", "pas de remontée avant le pitch"], ["pression", "tenue", "la pression a tenu", "la pression a été relâchée"]]
+    .filter(([k]) => fo[k]).map(([k, b, oui, non]) => "  - " + (fo[k][b] ? oui : non) + (fo[k].minute ? " (minute " + fo[k].minute + ")" : "") + (fo[k].note ? " : " + fo[k].note : "")).join("\n");
   const j = c.joue ? `Là où tout s'est joué${c.joue.minute ? " (minute " + c.joue.minute + ")" : ""} : ${c.joue.quoi || ""}${c.joue.pourquoi ? " — " + c.joue.pourquoi : ""}${c.joue.a_dire ? " — il aurait pu dire : « " + c.joue.a_dire + " »" : ""}\n` : "";
   const d = (c.deroule || []).length ? "Le déroulé" + (c.duree_min ? " (" + c.duree_min + " min)" : "") + " :\n" + c.deroule.map(p => `  - ${p.de || "?"}${p.a ? "–" + p.a : ""} ${p.partie}${p.note ? " : " + p.note : ""}`).join("\n") + "\n" : "";
   const minutes = /^\[\d+:\d\d\]/m.test(s.texte || "");
   return `\nLE CALL DONT IL VEUT PARLER (${c.date || ""}, ${c.etape || ""}, ${c.offre || ""}, issue : ${c.issue || "?"}${c.duree_min ? ", " + c.duree_min + " minutes" : ""}) :
 Résumé : ${c.resume || "—"}
-${j}${!c.joue && c.bascule ? "Moment de bascule : " + c.bascule + "\n" : ""}${d}${g ? "Sa grille sur ce call :\n" + g + "\n" : ""}${s.texte ? "LA TRANSCRIPTION" + (minutes ? " (chaque ligne commence par sa minute [mm:ss] : cite-la quand tu parles d'un moment)" : "") + " :\n" + s.texte.slice(0, 80000) : "(transcription non disponible)"}\n`;
+${j}${!c.joue && c.bascule ? "Moment de bascule : " + c.bascule + "\n" : ""}${d}${forme ? "La forme de l'entonnoir :\n" + forme + "\n" : ""}${g ? (c.grille_v ? "L'entonnoir sur ce call (ce que le prospect a vécu) :\n" : "Sa grille sur ce call (ancienne grille) :\n") + g + "\n" : ""}${s.texte ? "LA TRANSCRIPTION" + (minutes ? " (chaque ligne commence par sa minute [mm:ss] : cite-la quand tu parles d'un moment)" : "") + " :\n" + s.texte.slice(0, 80000) : "(transcription non disponible)"}\n`;
 }
 function texteProfil(){
   const s = CP.stats; if(!s) return "";
@@ -3418,7 +3538,7 @@ ${memoire}`;
   const phase = type === "phase" && s && s.k ? `CETTE SÉANCE PORTE SUR UNE SEULE PHASE DE SES CALLS : « ${nomPhase(s.k)} ». Vous ne parlez que d'elle : pourquoi il la rate, ce qui se passe chez le prospect à ce moment-là, et la phrase juste.\n` : "";
   return `COMMENT TU CONDUIS UNE SÉANCE
 ${phase}Il doit toujours savoir d'où il part, où vous allez, et pourquoi. Dès ton premier vrai message, tu lui dis ce que vous cherchez à comprendre ou à obtenir dans cette séance.
-La destination d'un call de vente, ${c.k === "keenan" ? "c'est l'écart entre sa situation actuelle et celle qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant" : "ce sont quatre accords : un problème qui le brûle ; un vrai désir de le régler ; il admet qu'il ne peut pas le régler seul ; il croit que l'offre peut l'aider, et il sait pourquoi maintenant"}. Chaque moment que vous travaillez est relié à cette destination, et tu le lui dis.
+La destination d'un call de vente, ${c.k === "keenan" ? "c'est l'écart entre sa situation actuelle et celle qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant" : "c'est " + DESTINATION_JOSH}. Chaque moment que vous travaillez est relié à cette destination, et tu le lui dis. Un call qui s'éparpille (questions au hasard, retours au général) ou un closer qui relâche la pression pour se rassurer casse l'entonnoir : tu le lui montres.
 Un détail du call (le budget, ses chiffres, son taux de conversion, la technique de son métier) ne mérite du temps que s'il sert cette destination. Sinon tu le dis franchement, « ça, ce n'est pas là que ça s'est joué », et tu ramènes.
 Tu as le chrono du call en tête : une découverte complète tient en général en une vingtaine de minutes. Si la transcription a les minutes, tu les cites, et tu lui dis quand il a passé trop de temps sur quelque chose.
 Un point à la fois. Quand il est acquis, tu le dis, tu fais le point en une phrase (« on a ça, maintenant on va là ») et tu passes au suivant. Tu ne tournes pas plus de cinq ou six échanges sur le même point.
