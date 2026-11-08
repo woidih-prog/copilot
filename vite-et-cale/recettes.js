@@ -365,8 +365,8 @@ const DESCRIPTIONS = {
  "e05": "Une compote maison sans sucre ajouté, avec les fruits un peu trop mûrs."
 };
 
-/* Photos des plats : mets la photo dans le dossier photos/ (carrée, 800 × 800 px environ, moins de 200 Ko),
-   puis ajoute une ligne ici avec l'identifiant du plat. Sans photo, l'appli dessine l'assiette.
-   Exemple :  p08:"photos/p08.jpg",  */
+/* Photos des plats : dépose photos/<identifiant>.jpg (par exemple photos/p08.jpg), l'appli la trouve toute seule.
+   Sans photo, elle dessine l'assiette. Ici, seulement pour une photo qui porte un autre nom ou un autre format :
+   p08:"photos/poulet-roti.webp",  */
 const PHOTOS = {
 };
