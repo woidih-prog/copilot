@@ -112,6 +112,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within
 .links a{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:600}
 .links a:first-child{border-top:0}
 .links a small{color:var(--muted);font-weight:400}
+.contrib b{font-family:var(--f-display);font-size:17px}
+.jauge{height:8px;border-radius:999px;background:var(--line);overflow:hidden}
+.jauge i{display:block;height:100%;background:var(--leaf);border-radius:999px}
 .prayon{padding:10px 14px 4px;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line)}
 .opt[aria-pressed=true]{border-color:var(--leaf);background:var(--leaf-soft);color:var(--leaf);box-shadow:inset 0 0 0 1px var(--leaf)}
 .opt.no[aria-pressed=true]{border-color:var(--warn);background:var(--warn-soft);color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
@@ -501,6 +504,7 @@ function persist(){ try{ localStorage.setItem(K,JSON.stringify(ST)); }catch(e){}
 let ST = load() || {profil:null, plan:null, coches:[], onglet:"semaine", jour:null, filtre:"tous", stock:{}};
 if(!ST.stock) ST.stock={};
 if(!ST.mesPromos) ST.mesPromos={};
+if(!ST.contrib) ST.contrib={prix:0,photos:0};
 
 /* ================= Calculs ================= */
 const $ = id => document.getElementById(id);
@@ -644,40 +648,52 @@ function ticket(days,P,stock){
 /* Pas plus de 12 œufs par personne et par semaine : l'optimiseur de prix en mettrait partout. */
 const OEUFS_MAX=12;
 function oeufs(days){ let n=0; days.forEach(d=>SLOTS.forEach(k=>{ const r=RID[d[k]]; if(r) r.ing.forEach(([id,q])=>{ if(id==="oeuf") n+=q; }); })); return n; }
+/* La semaine : 7 jours × (matin, midi, soir, goûter).
+   Règles : un plat de midi ou du soir au plus une fois par semaine quand le choix le permet (deux fois sinon),
+   jamais le même plat deux jours de suite, matin et goûter variés. On cherche ensuite à faire baisser le prix
+   en échangeant des plats, sans jamais casser ces règles. */
 function generer(P,seed){
   const PL=pools(P);
-  if(PL.repas.length<2) return {err:"Avec tes allergies, ton régime, tes goûts et ton temps de cuisine, il reste moins de 2 plats pour midi et soir. Autorise 20 minutes de cuisine ou retire un « je n'aime pas »."};
+  if(PL.repas.length<2) return {err:"Avec tes allergies, ton régime, tes goûts, ton équipement et ton temps de cuisine, il reste moins de 2 plats pour midi et soir. Autorise plus de temps de cuisine, coche un appareil de plus ou retire un « je n'aime pas »."};
   const rand=rng(seed*7919+MOIS_COURANT*31);
   const pick=a=>a[Math.floor(rand()*a.length)];
-  const maxUse=Math.max(3,Math.ceil(14/PL.repas.length));
-  let best=null;
-  for(let t=0;t<20;t++){
-    const count={}, days=[];
+  const plafond=k=>k==="midi"||k==="soir"?null:Math.max(2,Math.ceil(7/Math.max(1,PL[k].length)));
+  const groupe=k=>k==="midi"||k==="soir"?"repas":k;
+  const essai=(maxRepas,t)=>{
+    const max={repas:maxRepas,matin:plafond("matin"),encas:plafond("encas")};
+    const count={repas:{},matin:{},encas:{}}, days=[];
+    const voisin=(i,id)=>[i-1,i+1].some(j=>days[j]&&(days[j].midi===id||days[j].soir===id));
+    const libre=(g,i,k,id,day)=>{ if((count[g][id]||0)>=max[g]) return false;
+      if(g==="repas"){ const r=RID[id]; if(r.fun&&(count.repas[id]||0)>=1) return false; if(id===day[k==="midi"?"soir":"midi"]) return false; if(voisin(i,id)) return false; }
+      else if(days[i-1]&&days[i-1][k]===id) return false;
+      return true; };
     for(let d=0;d<7;d++){
-      const day={matin:PL.matin.length?pick(PL.matin).id:null,encas:PL.encas.length?pick(PL.encas).id:null};
-      for(const k of ["midi","soir"]){
-        let c=PL.repas.filter(r=>(count[r.id]||0)<maxUse && r.id!==day.midi && !(r.fun&&(count[r.id]||0)>=1));
-        if(!c.length) c=PL.repas.filter(r=>r.id!==day.midi);
-        const r=pick(c); day[k]=r.id; count[r.id]=(count[r.id]||0)+1;
-      }
-      days.push(day);
+      const day={}; days.push(day);
+      for(const k of SLOTS){ const g=groupe(k), pl=g==="repas"?PL.repas:PL[k]; if(!pl.length){ day[k]=null; continue; }
+        let c=pl.filter(r=>libre(g,d,k,r.id,day)); if(!c.length) c=pl.filter(r=>r.id!==day[k==="midi"?"soir":"midi"]);
+        const r=pick(c); day[k]=r.id; count[g][r.id]=(count[g][r.id]||0)+1; }
     }
-    {
-      for(let pass=0;pass<2;pass++) for(let i=0;i<7;i++) for(const k of SLOTS){
-        const pl=(k==="midi"||k==="soir")?PL.repas:PL[k]; if(!days[i][k]) continue;
-        let cur=ticket(days,P).total; const oeufs0=oeufs(days);
-        for(const r of pl){
-          const old=days[i][k]; if(r.id===old) continue;
-          if(k==="midi"||k==="soir"){ if(r.id===days[i][k==="midi"?"soir":"midi"]) continue; if((count[r.id]||0)>=maxUse||(r.fun&&(count[r.id]||0)>=1)) continue; }
-          days[i][k]=r.id; const c=ticket(days,P).total;
-          if(c<cur-0.01 && oeufs(days)<=Math.max(OEUFS_MAX,oeufs0)){ cur=c; if(k==="midi"||k==="soir"){ count[old]--; count[r.id]=(count[r.id]||0)+1; } } else days[i][k]=old;
-        }
-      }
+    /* Descente sur le prix, en respectant les règles. */
+    for(let pass=0;pass<2;pass++) for(let i=0;i<7;i++) for(const k of SLOTS){
+      const g=groupe(k), pl=g==="repas"?PL.repas:PL[k], old=days[i][k]; if(!old) continue;
+      let cur=ticket(days,P).total; const oeufs0=oeufs(days);
+      count[g][old]--; days[i][k]=null;
+      let garde=old;
+      for(const r of pl){ if(r.id===old||!libre(g,i,k,r.id,days[i])) continue;
+        days[i][k]=r.id; const c=ticket(days,P).total;
+        if(c<cur-0.01&&oeufs(days)<=Math.max(OEUFS_MAX,oeufs0)){ cur=c; garde=r.id; } }
+      days[i][k]=garde; count[g][garde]=(count[g][garde]||0)+1;
     }
-    const tk=ticket(days,P); const distinct=new Set(days.flatMap(d=>[d.midi,d.soir])).size;
-    const ok=tk.total<=P.budget; const trop=oeufs(days)>OEUFS_MAX;
-    const score=(trop?-1e7:0)+(ok?1e6+distinct*100-tk.total:-tk.total);
-    if(!best||score>best.score) best={days,score};
+    const tk=ticket(days,P), distinct=new Set(days.flatMap(d=>[d.midi,d.soir])).size;
+    const ok=tk.total<=P.budget, trop=oeufs(days)>OEUFS_MAX, depasse=Math.max(0,tk.total-P.budget);
+    /* La variété d'abord : un plat de plus vaut jusqu'à 1,50 € de dépassement du budget. */
+    return {days,score:(trop?-1e7:0)+distinct*60-depasse*40-tk.total,ok,total:tk.total};
+  };
+  let best=null;
+  const maxs=PL.repas.length>=14?[1,2]:[Math.ceil(14/PL.repas.length)];
+  for(const m of maxs){
+    for(let t=0;t<14;t++){ const e=essai(m,t); if(!best||e.score>best.score) best=e; }
+    if(best.total<=P.budget+5) break;  // chaque plat une seule fois et le budget tient à peu près : on s'arrête là
   }
   return {days:best.days};
 }
@@ -986,21 +1002,150 @@ function opConnexion(user,pass){
   return fetch(OP_API+"/auth",{method:"POST",body}).then(r=>r.json().then(d=>{ if(!r.ok||!d.access_token) throw new Error(r.status===401||r.status===400?"Identifiant ou mot de passe incorrect.":"Connexion refusée ("+r.status+").");
     ST.op={user,token:d.access_token}; persist(); return ST.op; }));
 }
-function opEnvoi(promo,photo){
-  const osm=ST.profil.osm, h={Authorization:"Bearer "+ST.op.token}, jour=AUJ;
-  const fd=new FormData(); fd.append("file",photo); fd.append("type","PRICE_TAG"); fd.append("location_osm_id",String(osm.id));
-  fd.append("location_osm_type",osm.type); fd.append("date",jour); fd.append("currency","EUR");
-  const echec=r=>r.json().catch(()=>({})).then(d=>{ if(r.status===401){ ST.op=null; persist(); throw new Error("Ta connexion à Open Prices a expiré : reconnecte-toi dans Profil."); }
-    throw new Error("Open Prices a refusé l'envoi ("+r.status+")"+(d&&d.detail?" : "+JSON.stringify(d.detail).slice(0,160):"")+"."); });
-  return fetch(OP_API+"/proofs/upload",{method:"POST",headers:h,body:fd}).then(r=>r.ok?r.json():echec(r)).then(proof=>{
-    const prix={price:promo.prix,currency:"EUR",date:jour,location_osm_id:osm.id,location_osm_type:osm.type,proof_id:proof.id,
-      price_is_discounted:true,discount_type:promo.typeOP};
-    if(promo.avant) prix.price_without_discount=promo.avant;
-    if(promo.categorie){ prix.type="CATEGORY"; prix.category_tag=promo.categorie; prix.price_per="KILOGRAM"; }
-    else { prix.type="PRODUCT"; prix.product_code=promo.code; if(promo.nom) prix.product_name=promo.nom; }
-    return fetch(OP_API+"/prices",{method:"POST",headers:{...h,"Content-Type":"application/json"},body:JSON.stringify(prix)}).then(r=>r.ok?r.json():echec(r));
+function opEchec(r){ return r.json().catch(()=>({})).then(d=>{ if(r.status===401){ ST.op=null; persist(); throw new Error("Ta connexion à Open Prices a expiré : reconnecte-toi dans Profil."); }
+  throw new Error("Open Prices a refusé l'envoi ("+r.status+")"+(d&&d.detail?" : "+JSON.stringify(d.detail).slice(0,160):"")+"."); }); }
+const PREUVES=new Map();   // une même photo n'est envoyée qu'une fois, même pour plusieurs prix
+function opPreuve(photo,lireEtiquettes){
+  const cle=photo.name+"|"+photo.size+"|"+photo.lastModified+"|"+!!lireEtiquettes;
+  if(PREUVES.has(cle)) return Promise.resolve(PREUVES.get(cle));
+  const osm=ST.profil.osm, fd=new FormData();
+  fd.append("file",photo); fd.append("type","PRICE_TAG"); fd.append("location_osm_id",String(osm.id)); fd.append("location_osm_type",osm.type);
+  fd.append("date",AUJ); fd.append("currency","EUR");
+  if(lireEtiquettes) fd.append("ready_for_price_tag_validation","true");
+  return fetch(OP_API+"/proofs/upload",{method:"POST",headers:{Authorization:"Bearer "+ST.op.token},body:fd}).then(r=>r.ok?r.json():opEchec(r))
+    .then(p=>{ PREUVES.set(cle,p.id); return p.id; });
+}
+function opPrix(promo,proofId){
+  const osm=ST.profil.osm;
+  const prix={price:promo.prix,currency:"EUR",date:AUJ,location_osm_id:osm.id,location_osm_type:osm.type,proof_id:proofId,price_is_discounted:!!promo.typeOP};
+  if(promo.typeOP) prix.discount_type=promo.typeOP;
+  if(promo.avant) prix.price_without_discount=promo.avant;
+  if(promo.categorie){ prix.type="CATEGORY"; prix.category_tag=promo.categorie; prix.price_per="KILOGRAM"; }
+  else { prix.type="PRODUCT"; prix.product_code=promo.code; if(promo.nom) prix.product_name=promo.nom; }
+  return fetch(OP_API+"/prices",{method:"POST",headers:{Authorization:"Bearer "+ST.op.token,"Content-Type":"application/json"},body:JSON.stringify(prix)}).then(r=>r.ok?r.json():opEchec(r));
+}
+function opEnvoi(promo,photo){ return opPreuve(photo).then(id=>opPrix(promo,id)).then(r=>{ ST.contrib.prix++; persist(); return r; }); }
+
+/* ===== Lecture des codes-barres sur une photo : le navigateur s'il sait faire, sinon ZXing (licence MIT) ===== */
+let zxingCharge=null;
+function chargeZXing(){
+  if(window.ZXing) return Promise.resolve(window.ZXing);
+  return zxingCharge=zxingCharge||new Promise((ok,ko)=>{ const sc=document.createElement("script");
+    sc.src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"; sc.onload=()=>ok(window.ZXing); sc.onerror=()=>{ zxingCharge=null; ko(new Error("zxing")); };
+    document.head.appendChild(sc); });
+}
+function litCodeBarres(fichier){
+  const essaiNatif=()=>("BarcodeDetector" in window)?createImageBitmap(fichier).then(img=>new BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e"]}).detect(img))
+    .then(l=>l&&l[0]?l[0].rawValue:null).catch(()=>null):Promise.resolve(null);
+  return essaiNatif().then(code=>{ if(code) return code;
+    return chargeZXing().then(Z=>{ const url=URL.createObjectURL(fichier); const lecteur=new Z.BrowserMultiFormatReader();
+      return lecteur.decodeFromImageUrl(url).then(r=>{ URL.revokeObjectURL(url); return r.getText(); }).catch(()=>{ URL.revokeObjectURL(url); return null; }); }).catch(()=>null); });
+}
+/* Fiche produit Open Food Facts : nom, marque, contenance. */
+function ficheProduit(code){
+  return fetch("https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(code)+".json?fields=product_name,product_name_fr,brands,quantity,product_quantity,product_quantity_unit")
+    .then(r=>r.ok?r.json():null).then(d=>d&&d.status===1?d.product:null).catch(()=>null);
+}
+/* Rattache un produit à un ingrédient de l'appli (même logique que prix/maj_prix.py, en plus simple). */
+const MOTS=[["pate",/p[âa]te bris[ée]e/],["lasagne",/lasagne/],["lcorail",/lentilles? corail/],["lbocal",/lentille/],["pchiche",/pois chiche/],["hrouge",/haricots? rouge/],
+  ["hblanc",/haricots? blanc|lingot/],["poiscasse",/pois cass/],["coco",/lait de coco/],["tomate",/tomates? (concass|pel)|pulpe de tomate/],["thon",/\bthon\b/],["maq",/sardine|maquereau/],
+  ["cacahuete",/cacahu.*(beurre|p[âa]te)|beurre de cacahu|arachide/],["noix",/cacahu/],["fb",/fromage blanc|faisselle/],["yaourt",/yaourt|yoghourt/],["reblochon",/reblochon/],
+  ["fromage",/emmental|r[âa]p[ée]|gruy[èe]re|comt[ée]/],["creme",/cr[èe]me fra[îi]che|cr[èe]me [ée]paisse/],["beurre",/\bbeurre\b/],["lait",/\blait\b/],["oeuf",/\b(œ|oe)ufs?\b/],
+  ["lardons",/lardon/],["jambon",/jambon/],["merguez",/merguez/],["saucisse",/saucisse|chipolata/],["steak",/steak|hach[ée]/],["poulet",/(filet|escalope|blanc|aiguillette)s? de poulet/],
+  ["cuisse",/cuisse|pilon/],["boeuf",/b(œ|oe)uf|paleron|bourguignon/],["colin",/colin|merlu|cabillaud|\blieu\b/],["moules",/moules/],["farine",/farine/],["painburger",/burger|buns?\b/],
+  ["baguette",/baguette/],["pain",/pain de mie|pain complet/],["tortilla",/tortilla|wrap/],["confiture",/confiture/],["cereales",/c[ée]r[ée]ales|corn ?flakes|p[ée]tales/],
+  ["biere",/bi[èe]re/],["soupe",/soupe|velout[ée]|moulin[ée]/],["semoule",/semoule|couscous/],["riz",/\briz\b/],["avoine",/avoine/],
+  ["pates",/spaghetti|penne|torsade|coquillette|fusilli|macaroni|tagliatelle|p[âa]tes/],["surg",/surgel/]];
+function ingredientDuNom(nom){ const n=(nom||"").toLowerCase(); const m=MOTS.find(([,re])=>re.test(n)); return m?m[0]:null; }
+function contenuProduit(prod,ing){
+  if(!prod) return null;
+  const base=(PRIX&&PRIX.ingredients&&PRIX.ingredients[ing]&&PRIX.ingredients[ing].base)||(ing==="oeuf"?"piece":["lait","coco","soupe","biere"].includes(ing)?"l":"kg");
+  if(base==="piece"){ const m=((prod.product_name||"")+" "+(prod.quantity||"")).match(/(\d{1,2})\s*(?:x|œufs|oeufs|pi[èe]ces)/i); return m?+m[1]:null; }
+  const q=+prod.product_quantity, u=(prod.product_quantity_unit||"").toLowerCase();
+  if(!(q>0)) return null; return u==="kg"||u==="l"?q:q/1000;
+}
+
+/* Les badges des contributeurs. */
+const NIVEAUX=[[0,"Nouveau"],[1,"Premier prix partagé"],[5,"Chasseur de promos"],[20,"Éclaireur du quartier"],[50,"Pilier du rayon"],[100,"Légende des promos"]];
+function niveau(n){ let i=0; NIVEAUX.forEach((x,k)=>{ if(n>=x[0]) i=k; }); return {nom:NIVEAUX[i][1],suivant:NIVEAUX[i+1]||null,i}; }
+function blocContrib(){
+  const n=ST.contrib.prix, nv=niveau(n), sv=nv.suivant;
+  const pct=sv?Math.round((n-NIVEAUX[nv.i][0])/(sv[0]-NIVEAUX[nv.i][0])*100):100;
+  return '<div class="card contrib"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b>'+esc(nv.nom)+'</b><span class="muted num" style="font-size:13px">'+n+' prix partagé'+(n>1?"s":"")+(ST.contrib.photos?" · "+ST.contrib.photos+" photo"+(ST.contrib.photos>1?"s":"")+" de rayon":"")+'</span></div>'+
+    '<div class="jauge"><i style="width:'+pct+'%"></i></div>'+
+    '<span class="hint">'+(sv?"Encore "+(sv[0]-n)+" prix pour devenir « "+esc(sv[1])+" ». ":"")+'Chaque prix partagé aide les gens de '+esc(ST.profil.ville?ST.profil.ville.nom:"ta ville")+' à payer moins cher.</span></div>';
+}
+
+/* ================= Le scanner : photo de l'étiquette, code-barres, prix ================= */
+function ficheScanner(){
+  const P=ST.profil, peutEnvoyer=!!(ST.op&&P.osm);
+  let photo=null, produit=null, code="";
+  const ids=Object.keys(ING).filter(id=>id!=="fruit"&&id!=="leg");
+  ouvrirPanneau('<div class="head"><div><span class="lbl">'+esc(P.osm?P.osm.nom:magasin(P)[1])+'</span><h2>Scanner un prix</h2></div><button type="button" class="x" data-close aria-label="Fermer">×</button></div>'+
+    (peutEnvoyer?"":'<div class="etat err">Pour partager tes prix avec les autres, connecte ton compte Open Food Facts et choisis ton magasin exact dans Profil. Tu peux quand même scanner tes promos pour ton budget.</div>')+
+    '<form class="form" id="fScan" novalidate>'+
+    '<div class="f"><label for="sPhoto">1. Photo de l\'étiquette en rayon</label><input type="file" id="sPhoto" accept="image/*" capture="environment">'+
+      '<span class="hint" id="sPhotoH">Prends l\'étiquette de prix avec son code-barres, ou le produit.</span></div>'+
+    '<div class="f"><label for="sCode">2. Code-barres</label><div style="display:flex;gap:8px"><input type="text" id="sCode" inputmode="numeric" placeholder="lu sur la photo, ou tape-le">'+
+      '<label class="btn small ghost" style="white-space:nowrap;display:flex;align-items:center">Photo du code<input type="file" id="sCodePhoto" accept="image/*" capture="environment" hidden></label></div>'+
+      '<span class="hint" id="sProduit"></span></div>'+
+    '<div class="f"><label for="sIng">Ingrédient dans l\'appli</label><select class="in" id="sIng"><option value="">Autre produit (pas dans nos recettes)</option>'+
+      ids.map(id=>'<option value="'+id+'">'+esc(ING[id].n)+'</option>').join("")+'</select></div>'+
+    '<div class="row2"><div class="f"><label for="sPrix">3. Prix (€)</label><input type="number" id="sPrix" inputmode="decimal" step="0.01" min="0.01"></div>'+
+      '<div class="f"><label for="sQte" id="sQteL">Contenu</label><input type="number" id="sQte" inputmode="decimal" step="0.001" min="0.001"></div></div>'+
+    '<label class="check"><input type="checkbox" id="sPromo"><span>C\'est une promo</span></label>'+
+    '<div class="row2" id="sPromoF" hidden><div class="f"><label for="sAvant">Prix normal (€)</label><input type="number" id="sAvant" inputmode="decimal" step="0.01" min="0"></div>'+
+      '<div class="f"><label for="sType">Type</label><select class="in" id="sType">'+TYPES_PROMO.map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join("")+'</select></div></div>'+
+    '<div id="sMsg"></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="submit" class="btn" id="sOk">Enregistrer et scanner le suivant</button><button type="button" class="btn ghost" id="sFin">Terminer</button></div>'+
+    (peutEnvoyer?'<div class="card" style="padding:12px 14px"><b>Juste une photo du rayon ?</b><span class="hint">Envoie la photo telle quelle : Open Prices lit les étiquettes automatiquement, puis la communauté vérifie. Les prix apparaîtront dans la base après vérification.</span>'+
+      '<button type="button" class="btn small dark" id="sRayon" style="margin-top:6px;align-self:flex-start">Envoyer la photo à lire</button></div>':"")+
+    '</form>',
+  sh=>{
+    const msg=(t,err)=>{ $("sMsg").innerHTML=t?'<div class="etat'+(err?" err":"")+'">'+esc(t)+'</div>':""; };
+    const majQte=()=>{ const id=$("sIng").value; const b=id?((PRIX&&PRIX.ingredients&&PRIX.ingredients[id]&&PRIX.ingredients[id].base)||"kg"):"kg";
+      $("sQteL").textContent=b==="piece"?"Nombre de pièces":b==="l"?"Contenu (litres)":"Contenu (kg)";
+      const c=id?contenuProduit(produit,id):null; $("sQte").value=c?String(+c.toFixed(3)):(id?String(CONTENU[id]):""); };
+    const chercheProduit=c=>{ code=c; $("sCode").value=c; $("sProduit").textContent="Recherche du produit…";
+      ficheProduit(c).then(pr=>{ produit=pr;
+        if(!pr){ $("sProduit").textContent="Produit pas encore dans Open Food Facts : choisis l'ingrédient à la main."; return; }
+        const nom=pr.product_name_fr||pr.product_name||"";
+        $("sProduit").textContent=[nom,pr.brands,pr.quantity].filter(Boolean).join(" · ");
+        const ing=ingredientDuNom(nom); if(ing&&ids.includes(ing)) $("sIng").value=ing; majQte(); }); };
+    const lit=(f,quoi)=>{ $("sPhotoH").textContent="Lecture du code-barres…";
+      litCodeBarres(f).then(c=>{ if(c){ $("sPhotoH").textContent="Code-barres lu sur la "+quoi+"."; chercheProduit(c); }
+        else $("sPhotoH").textContent="Pas de code-barres lisible sur la "+quoi+" : prends le code du produit en photo, ou tape-le."; }); };
+    $("sPhoto").onchange=()=>{ photo=$("sPhoto").files[0]||null; if(photo) lit(photo,"photo"); };
+    $("sCodePhoto").onchange=()=>{ const f=$("sCodePhoto").files[0]; if(f) lit(f,"photo du code"); };
+    $("sCode").onchange=()=>{ const c=$("sCode").value.replace(/\D/g,""); if(/^(\d{8}|\d{12,14})$/.test(c)) chercheProduit(c); };
+    $("sIng").onchange=majQte;
+    $("sPromo").onchange=()=>{ $("sPromoF").hidden=!$("sPromo").checked; };
+    $("sFin").onclick=()=>{ fermerPanneau(); renderApp(); };
+    if($("sRayon")) $("sRayon").onclick=()=>{ if(!photo){ msg("Prends d'abord la photo du rayon (étape 1).",true); return; }
+      msg("Envoi de la photo…"); opPreuve(photo,true).then(()=>{ ST.contrib.photos++; persist(); msg("Photo envoyée : Open Prices va lire les étiquettes. Merci !"); })
+        .catch(e=>msg(e&&e.message&&!/fetch|network|Failed/i.test(e.message)?e.message:"Envoi impossible : vérifie ta connexion.",true)); };
+    $("fScan").onsubmit=e=>{ e.preventDefault();
+      const prix=parseFloat(($("sPrix").value||"").replace(",",".")), promo=$("sPromo").checked, avant=promo?parseFloat(($("sAvant").value||"").replace(",","."))||null:null;
+      const id=$("sIng").value, q=parseFloat(($("sQte").value||"").replace(",",".")), c=($("sCode").value||"").replace(/\D/g,"");
+      if(!(prix>0)){ msg("Indique le prix.",true); return; }
+      if(avant&&avant<=prix){ msg("Le prix normal doit être plus élevé que le prix promo.",true); return; }
+      const nom=produit?(produit.product_name_fr||produit.product_name||""):(id?ING[id].n:"");
+      if(promo&&id&&q>0){ ST.mesPromos[id]={unite:prix/q,nom:nom||ING[id].n,prix,avant,magasin:(P.osm&&P.osm.nom)||magasin(P)[1],
+        jusqua:new Date(Date.now()+7*864e5).toISOString().slice(0,10),perso:true,type:(TYPES_PROMO.find(t=>t[0]===$("sType").value)||[0,"Promo"])[1]}; persist(); majPill(); }
+      const suivant=t=>{ msg(t); $("sPrix").value=""; $("sAvant").value=""; $("sCode").value=""; $("sProduit").textContent=""; $("sIng").value=""; $("sPromo").checked=false; $("sPromoF").hidden=true;
+        produit=null; code=""; $("sOk").disabled=false; $("sPhotoH").textContent="Même étiquette ou nouvelle photo : à toi de voir."; };
+      if(!peutEnvoyer){ suivant(promo&&id?"Promo enregistrée dans ton budget. Au suivant !":"Enregistré. Connecte-toi dans Profil pour partager tes prix."); return; }
+      if(!/^(\d{8}|\d{12,14})$/.test(c)){ msg("Pour partager ce prix, il faut le code-barres (8 ou 13 chiffres).",true); return; }
+      if(!photo){ msg("Pour partager ce prix, ajoute la photo de l'étiquette (étape 1).",true); return; }
+      $("sOk").disabled=true; msg("Envoi à Open Prices…");
+      opPreuve(photo).then(pid=>opPrix({prix,avant,nom,code:c,typeOP:promo?$("sType").value:null},pid))
+        .then(()=>{ ST.contrib.prix++; persist(); const nv=niveau(ST.contrib.prix);
+          suivant("Merci ! "+ST.contrib.prix+" prix partagé"+(ST.contrib.prix>1?"s":"")+" · "+nv.nom+". Au suivant !"); })
+        .catch(e=>{ $("sOk").disabled=false; msg((e&&e.message&&!/fetch|network|Failed/i.test(e.message)?e.message:"Envoi impossible : vérifie ta connexion. Depuis l'aperçu claude.ai, l'envoi ne marche pas.")+(promo&&id?" La promo reste dans ton budget.":""),true); });
+    };
   });
 }
+
 /* Magasin exact sur OpenStreetMap (Nominatim), pour qu'Open Prices sache où la promo a été vue. */
 function chercheMagasinsOSM(q){
   return fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&countrycodes=fr,re&accept-language=fr&q="+encodeURIComponent(q))
@@ -1162,7 +1307,8 @@ function vuePromos(v,P){
     (V&&ST.filtrePromo!=="toutes"&&!liste.length?'<div class="banner">Aucune promo relevée à moins de '+rayon+' km de '+esc(V.nom)+' ces 30 derniers jours'+
       (plusProche?' : la plus proche est à '+Math.round(plusProche._d)+' km ('+esc(plusProche.ville||plusProche.magasin||"")+')':"")+
       '. Les relevés Open Prices viennent de particuliers et restent rares hors des grandes villes.</div>':"")+
-    '<button type="button" class="btn" id="nouvellePromo">+ J\'ai vu une promo</button>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button type="button" class="btn" id="scanner">Scanner un prix</button><button type="button" class="btn ghost" id="nouvellePromo">+ J\'ai vu une promo</button></div>'+
+    blocContrib()+
     (prises.length?'<div class="group"><h3>Tes promos en cours ('+prises.length+')</h3>'+prises.map(k=>{ const m=ST.mesPromos[k];
         return '<div class="mini">'+logoHTML(P.magasin,true)+'<span class="nm">'+esc(m.nom)+'<small>'+esc([(m.type||"Promo"),m.magasin,"jusqu'au "+dateCourte(m.jusqua)].filter(Boolean).join(" · "))+'</small></span>'+
           '<span class="pp num">'+(m.prix?eur(m.prix):"")+(m.avant?'<s>'+eur(m.avant)+'</s>':"")+'<button type="button" class="btn small ghost" data-lacher="'+k+'" style="margin-top:4px;font-family:var(--f-body);padding:5px 10px">Retirer</button></span></div>'; }).join("")+
@@ -1177,6 +1323,7 @@ function vuePromos(v,P){
     '<p class="foot">Promos relevées par des particuliers dans un magasin précis (Open Prices). Elles peuvent être terminées ou ne valoir que dans ce magasin : vérifie en rayon avant de compter dessus.</p>';
   v.querySelectorAll("[data-fp]").forEach(b=>b.onclick=()=>{ST.filtrePromo=b.dataset.fp;persist();vuePromos(v,P);});
   $("nouvellePromo").onclick=ficheNouvellePromo;
+  $("scanner").onclick=ficheScanner;
   if($("choisirVille")) $("choisirVille").onclick=()=>{ ST.onglet="profil"; persist(); renderApp(); setTimeout(()=>{ const q=$("villeQ"); if(q){ q.scrollIntoView({block:"center"}); q.focus(); } },50); };
   v.querySelectorAll("[data-prendre]").forEach(b=>b.onclick=()=>{ const p=toutes[+b.dataset.prendre];
     const fin=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
