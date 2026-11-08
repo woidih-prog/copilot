@@ -88,6 +88,10 @@ INGREDIENTS = {
     "hblanc":   {"base": "kg", "noms": ["haricots blancs", "haricots lingots"], "exclut": r"tomate|sauce|cuisin|v[ée]g[ée]|tranche|cassoulet|salade|pur[ée]e|sec|secs"},
     "poiscasse": {"base": "kg", "noms": ["pois cassés"], "exclut": r"soupe|velout|cuisin|pur[ée]e"},
     "pate":     {"base": "kg", "noms": ["pâte brisée"], "exclut": r"sans gluten|no gluten|sucr|feuillet"},
+    "farine":   {"base": "kg", "noms": ["farine de blé", "farine t45", "farine t55", "farine fluide"], "exclut": r"sarrasin|seigle|ma[ïi]s|riz|ch[âa]taigne|pois|g[âa]teau|cr[êe]pe|levure|pain|pizza|brioche|gluten|épeautre|complète|t80|t110|t150|bio"},
+    "beurre":   {"base": "kg", "noms": ["beurre doux", "beurre demi-sel", "beurre gastronomique", "beurre pâtissier"], "exclut": r"cacahu|spray|sauce|ail|escargot|cacao|karit|allég|tartin|biscuit|galette|sablé|croissant|fondu"},
+    "lasagne":  {"base": "kg", "noms": ["lasagnes", "plaques de lasagnes", "feuilles de lasagnes"], "exclut": r"bolognaise|saumon|cuisin|surgel|légume|épinard|ch[èe]vre|plat|b[oœ]uf|v[ée]g[ée]|ricotta|poulet|thon|fromage|chorizo|courgette|potiron"},
+    "biere":    {"base": "l", "noms": ["bière blonde", "biere blonde"], "exclut": r"sans alcool|panach|ambr|brune|blanche|ipa|aromatis|citron|p[êe]che|fruit|bo[îi]te cadeau|coffret"},
 }
 
 
