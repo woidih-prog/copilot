@@ -92,6 +92,16 @@ INGREDIENTS = {
     "beurre":   {"base": "kg", "noms": ["beurre doux", "beurre demi-sel", "beurre gastronomique", "beurre pâtissier"], "exclut": r"cacahu|spray|sauce|ail|escargot|cacao|karit|allég|tartin|biscuit|galette|sablé|croissant|fondu"},
     "lasagne":  {"base": "kg", "noms": ["lasagnes", "plaques de lasagnes", "feuilles de lasagnes"], "exclut": r"bolognaise|saumon|cuisin|surgel|légume|épinard|ch[èe]vre|plat|b[oœ]uf|v[ée]g[ée]|ricotta|poulet|thon|fromage|chorizo|courgette|potiron"},
     "biere":    {"base": "l", "noms": ["bière blonde", "biere blonde"], "exclut": r"sans alcool|panach|ambr|brune|blanche|ipa|aromatis|citron|p[êe]che|fruit|bo[îi]te cadeau|coffret"},
+    "merguez":  {"base": "kg", "noms": ["merguez"], "exclut": r"v[ée]g[ée]|volaille|poulet|sandwich|cuisin|couscous|sauce|chips"},
+    "boeuf":    {"base": "kg", "noms": ["bœuf à braiser", "boeuf à braiser", "bœuf bourguignon", "boeuf bourguignon", "pot-au-feu", "paleron", "joue de bœuf", "bœuf à mijoter"], "exclut": r"cuisin|plat|sauce|carottes|pur[ée]e|surgel|conserve|bo[îi]te|v[ée]g[ée]|fond|bouillon"},
+    "moules":   {"base": "kg", "noms": ["moules de bouchot", "moules", "moules de corde"], "exclut": r"cuisin|marini|sauce|cr[èe]me|surgel|d[ée]coquill|bo[îi]te|conserve|escab|frites|paella|curry"},
+    "reblochon": {"base": "kg", "noms": ["reblochon"], "exclut": r"tartiflette|cuisin|pizza|sauce|chips|croziflette"},
+    "painburger": {"base": "kg", "noms": ["pains à burger", "pain à burger", "pains burger", "buns"], "exclut": r"cuisin|steak|cheese|poulet|pr[eê]t"},
+    "confiture": {"base": "kg", "noms": ["confiture"], "exclut": r"lait|allég|sans sucre|bio"},
+    "cereales": {"base": "kg", "noms": ["corn flakes", "pétales de maïs", "céréales"], "exclut": r"barre|chocolat|miel|fourr|muesli|granola|bébé|infantile|riz souffl|fruits rouges|biscuit"},
+    "baguette": {"base": "kg", "noms": ["baguette"], "exclut": r"viennoise|surgel|sandwich|garnie|pizza|chocolat|précuite|ail"},
+    "citron":   {"base": "kg", "cat": "en:lemons"},
+    "cacahuete": {"base": "kg", "noms": ["beurre de cacahuète", "beurre de cacahuètes", "pâte d'arachide", "beurre d'arachide"], "exclut": r"chocolat|barre|biscuit|crunchy bar|sauce satay|cuisin"},
 }
 
 
