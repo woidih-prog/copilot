@@ -99,6 +99,43 @@ Si la phrase de la fiche colle déjà, reprends-la telle quelle. Ta phrase reste
 Donne toujours le numéro de la fiche dont tu es parti. Si aucune ne s'applique vraiment, mets numero à null et dis-le : c'est un trou dans sa base, et c'est une information utile.`;
 
 /* =====================================================================
+   LE FIL : ce que les coachs gardent en tête de tout votre travail.
+   Les roleplays y sont écrits à leur débrief ; les séances de coaching
+   (analyses, questions, phases) sont relues depuis leur propre mémo.
+   ===================================================================== */
+const DEPART_FIL = new Date(2026, 9, 19, 11, 0).getTime();   // nouveau départ : le nouveau cerveau de Josh
+function cleFil(){
+  let p = "woidih";
+  try{ p = localStorage.getItem("woidih_profil_actif") || "woidih"; }catch(_){}
+  if(modeTesteur()) p = "t";
+  return "coach_fil" + (p === "woidih" ? "" : "__" + p);
+}
+async function filLit(){ const l = await Store.get(cleFil()); return Array.isArray(l) ? l : []; }
+async function filEcrit(e){
+  const l = await filLit();
+  const i = l.findIndex(x => x.id === e.id);
+  if(i >= 0) Object.assign(l[i], e); else l.push(e);
+  await Store.set(cleFil(), l.slice(-200));
+}
+// une ligne de roleplay, telle que le coach la relira
+function ligneRoleplay(e){
+  return [e.vu, e.joue ? "Là où ça a basculé : " + e.joue : "", e.faute ? "Sa faute : " + e.faute : "",
+          e.aurait_du ? "Il fallait dire : « " + e.aurait_du + " »" : "", e.a_travailler ? "À corriger : " + e.a_travailler : "",
+          e.note != null ? "Note " + e.note + "/10." : ""].filter(Boolean).join(" ").slice(0, 700);
+}
+let filSeances = null;      // la section 7 y branche les séances de coaching : (sauf) => [{t, txt}]
+let FIL_DEBRIEF = "";       // le fil lu juste avant un débrief de roleplay
+// le travail déjà fait, du plus ancien au plus récent (les n derniers), sauf la séance en cours.
+// Cloisonné : quoi === "roleplay" → seulement les roleplays ; sinon → seulement les séances du même type que « sauf »
+async function texteFil(n, sauf, quoi){
+  const rp = quoi !== "roleplay" ? [] : (await filLit()).filter(e => e.type === "roleplay" && (e.t || 0) > DEPART_FIL)
+    .map(e => ({t: e.t, txt: e.titre + (e.coach ? " (avec " + e.coach + ")" : "") + " : " + ligneRoleplay(e)}));
+  let se = []; if(quoi !== "roleplay"){ try{ se = filSeances ? filSeances(sauf) : []; }catch(_){} }
+  return rp.concat(se).sort((a, b) => a.t - b.t).slice(-n)
+    .map(x => "  - " + new Date(x.t).toLocaleDateString("fr-FR", {weekday: "long", day: "numeric", month: "long"}) + " · " + x.txt).join("\n");
+}
+
+/* =====================================================================
    1A. LE DÉBRIEF DU ROLEPLAY / SPARRING
    ===================================================================== */
 const REQUIS_SPAR = ["lecture","note","faute","trouve","criteres","une_chose"];
@@ -140,6 +177,10 @@ JUGE-LE SUR CES CRITÈRES-LÀ, ET SUR RIEN D'AUTRE :
 ${criteres}
 
 ${notesDuCoach()}
+${FIL_DEBRIEF ? `SES ROLEPLAYS PRÉCÉDENTS (le plus récent en dernier) :
+${FIL_DEBRIEF}
+C'est un fil, pas un exercice isolé. Si sa faute d'aujourd'hui est déjà apparue là-dedans, dis-le-lui clairement dans "lecture" (« c'est la même chose que sur… »). S'il a corrigé quelque chose qui revenait, dis-le aussi. La note, elle, ne juge que cet exercice.
+` : ""}
 ${SPAR.finRaison ? "L'EXERCICE S'EST TERMINÉ : " + SPAR.finRaison + "." : ""}
 ${sparMode === "coach" ? `MODE COACHING : le coach a dû l'arrêter ${SPAR.arrets||0} fois pendant l'exercice.` : ""}
 ${(SPAR.silencesTotal||0) > 0 ? `Il a tenu le silence ${SPAR.silencesTotal} fois après ses questions.` : "Il n'a jamais tenu le silence après une question forte."}
@@ -385,6 +426,7 @@ $("btnSparFin").onclick = async () => {
   $("sparDebrief").scrollIntoView({block:"start"});
 
   let j;
+  try{ FIL_DEBRIEF = await texteFil(8, null, "roleplay"); }catch(_){ FIL_DEBRIEF = ""; }
   try{
     j = await appelJson(promptDebrief1(), 2800, REQUIS_SPAR, optsDebrief());
   }catch(e){
@@ -411,6 +453,11 @@ $("btnSparFin").onclick = async () => {
   if(HISTO.length > 300) HISTO = HISTO.slice(-300);
   Store.set("historique", HISTO);
   if(note !== null) majSession(SPAR.debut, s => { if(!s.notes.length) s.notes.push(note); });
+  // le fil : ce roleplay restera en tête du coach pour les séances suivantes
+  const idFil = "r" + SPAR.debut;
+  filEcrit({id: idFil, t: Date.now(), type: "roleplay", coach: manniereDuCoach().nom,
+            titre: "Roleplay « " + segmentCourant().nom + " »" + (SPAR.p.metier ? " contre un prospect " + SPAR.p.metier : "") + (SPAR.reel ? " (rejeu d'un vrai call)" : ""),
+            vu: j.lecture || "", joue: j.bascule || "", faute: j.faute || "", a_travailler: j.une_chose || "", note, trouve: j.trouve}).catch(() => {});
 
   // Deuxième temps : il va chercher dans ta méthode ce qui répond à SA lecture.
   let m;
@@ -419,6 +466,7 @@ $("btnSparFin").onclick = async () => {
     const r = await appelJson(promptDebrief2(j, fiches), 1800, ["exercice","exercices"], optsDebrief());
     m = Object.assign({}, r, {fiche: ficheParNumero(fiches, r.numero)});
   }catch(e){ m = {erreur: e.message}; }
+  if(m && m.aurait_du) filEcrit({id: idFil, aurait_du: m.aurait_du}).catch(() => {});
   DEBRIEF_EN_COURS = false; boutonFinAppuye(false);
   if(SPAR && SPAR.dernierDebrief === j){
     SPAR.dernierMethode = m;
@@ -559,6 +607,7 @@ Si les réglages plus bas (profil, couleur, température) contredisent sa descri
     }
     // Le coach du roleplay raisonne avec le cerveau de tes coachs, sur le modèle 5.5
     if(/Tu observes un entraînement en direct/.test(prompt)){
+      prompt = conduiteJeu(prompt);
       const marche = (SPAR && SPAR.marche) || sparMarche, seg = segmentCourant();
       const sys = doctrinePour([seg.terrain], marche);
       const recent = ((SPAR && SPAR.tours) || []).slice(-4).map(t => t.txt).join(" ");
@@ -572,6 +621,12 @@ Si les réglages plus bas (profil, couleur, température) contredisent sa descri
     }
   }
   return callClaudeOrigine(prompt, max);
+};
+// un testeur : aucun nom de coach réel dans ce qui part, ni dans ce qui revient
+const callClaudeNomme = callClaude;
+callClaude = async function(prompt, max){
+  if(!modeTesteur()) return callClaudeNomme(prompt, max);
+  return anonymise(await callClaudeNomme(anonymise(prompt), max));
 };
 
 const lancerOrigine = $("btnSparGo").onclick;
@@ -596,6 +651,191 @@ $("btnSparGo").onclick = async function(){
   const c = $("coachCarte"), p = $("sparCarte");
   if(c && p && p.parentNode) p.parentNode.insertBefore(c, p);
 })();
+/* =====================================================================
+   L'ENTONNOIR DE JOSH : une seule carte du call, pour le tracking, le coach et le roleplay.
+   Le call part large et se resserre jusqu'à l'étau : un problème, une horloge qui tourne,
+   une conséquence qu'il ne veut pas vivre, et plus d'autre option que d'agir maintenant.
+   Tiré de ses revues de calls et roleplays (« Nearly Perfect Call », « Scriptless Selling »,
+   « Click Moment », « Stop Using Future Pacing »…). La même liste vit dans le serveur de suivi.
+   ===================================================================== */
+const ENTONNOIR = [
+  {k: "cadre",      nom: "Le cadre",                      jeu: true},
+  {k: "faits",      nom: "Les faits, avant le pourquoi",  jeu: true},
+  {k: "resserre",   nom: "Creusé en resserrant"},
+  {k: "cout",       nom: "Ce que ça lui a déjà coûté",    jeu: true},
+  {k: "part",       nom: "Sa part",                       jeu: true},
+  {k: "bascule",    nom: "Le moment de bascule",          jeu: true},
+  {k: "enjeu",      nom: "Ce qui est vraiment en jeu",    jeu: true},
+  {k: "etau",       nom: "L'étau",                        jeu: true},
+  {k: "recap",      nom: "Le récap avec ses mots"},
+  {k: "argent",     nom: "L'argent et le dernier doute"},
+  {k: "remontee",   nom: "La remontée avant le pitch",    jeu: true},
+  {k: "conclusion", nom: "Présentation et engagement"}
+];
+const nomEtape = k => (ENTONNOIR.find(e => e.k === k) || {}).nom || k;
+// la destination d'un call, telle que le coach la garde en tête
+const DESTINATION_JOSH = "l'étau qui se ferme : le call part large et se resserre (le cadre, les faits avant le pourquoi, ce que la situation lui a déjà coûté, sa part, le moment de bascule récent, ce qui est vraiment en jeu) jusqu'à ce qu'un problème, une horloge qui tourne et une conséquence réelle qu'il ne veut pas vivre soient reliés, dits par lui, et qu'il n'ait plus d'autre option que d'agir maintenant ; puis le récap avec ses mots, l'argent abordé avant de présenter, et la remontée (il se sent plus léger et engagé) avant le pitch";
+
+/* ---- le roleplay : un morceau par étape de l'entonnoir, à la place de l'ancienne méthode ----
+   (« Vision positive » disparaît : Josh refuse de projeter le prospect dans l'avenir.) */
+(function entonnoirRoleplay(){
+  if(typeof SEGMENTS !== "object" || !SEGMENTS) return;
+  const garde = {objection: SEGMENTS.objection, paiement: SEGMENTS.paiement, closing: SEGMENTS.closing};
+  const SANS_OBJ = "INTERDIT : tu n'as entendu ni offre ni prix. AUCUNE objection commerciale (ni prix, ni « je dois réfléchir », ni conjoint).";
+  const neufs = {
+    complet: {nom: "Call complet", court: "Tout l'entonnoir, jusqu'à l'étau", depart: "Le call commence. Le prospect vient de décrocher.",
+      objectif: "Mener tout l'entonnoir : partir large, se resserrer jusqu'à l'étau, faire remonter le prospect, puis conclure.",
+      criteres: ["A-t-il posé un cadre vrai et mené dès le début ?", "A-t-il obtenu des faits précis avant de chercher le pourquoi ?",
+        "Chaque question partait-elle de ce que le prospect venait de dire, en se resserrant ?", "A-t-il fait chiffrer ce que la situation a déjà coûté, sur le passé réel ?",
+        "Le prospect a-t-il reconnu sa part ?", "A-t-il trouvé un moment de bascule récent et précis ?", "La conséquence en jeu était-elle réelle et personnelle ?",
+        "L'étau s'est-il fermé : problème, horloge et conséquence reliés, urgence maintenant, plus d'autre option ?",
+        "A-t-il abordé l'argent et le dernier doute avant de présenter ?", "A-t-il vérifié que le prospect remontait (plus léger, engagé) avant le pitch ?", "A-t-il obtenu une décision ?"],
+      regle: "Le call se déroule normalement, dans son ordre naturel.", fin: "le call va au bout : engagement obtenu, paiement fait, ou le prospect met fin.",
+      toursMax: 60, commence: "closer", terrain: "decouverte"},
+    cadre: {nom: "Le cadre", court: "Les premières minutes : qui mène", depart: "Le call vient de commencer. Rien n'a encore été dit sur sa situation.",
+      objectif: "Poser un cadre vrai sans se presser, ouvrir sur son plus gros défi selon lui, et prendre le lead. S'il se dit indécis, lui faire dire s'il avait déjà décidé avant de réserver.",
+      criteres: ["A-t-il annoncé une conversation vraie et profonde, en le pensant ?", "S'est-il posé, sans se presser ?", "A-t-il demandé SON plus gros défi, à son avis ?",
+        "A-t-il pris le lead (ce n'est pas lui qui a besoin du prospect) ?", "Si le prospect se disait indécis, lui a-t-il fait dire s'il avait décidé avant le call ?"],
+      regle: SANS_OBJ + "\nAUTORISÉ ET SOUHAITABLE : te dire « pas sûr de vouloir y aller » ou rester poli et vague, pour tester s'il mène.",
+      fin: "le prospect a donné son plus gros défi avec ses mots et le closer mène l'échange.", toursMax: 8, commence: "closer", terrain: "cadrage"},
+    faits: {nom: "Les faits, avant le pourquoi", court: "Du précis, pas du vague", depart: "Le prospect vient de donner son plus gros défi, en une phrase. Rien n'est encore précis.",
+      objectif: "Obtenir des faits précis et vrais : ce qu'il gagne ces 30 derniers jours, tout compris, depuis combien de temps ça dure, ce qu'il fait concrètement. Le quoi avant le pourquoi.",
+      criteres: ["A-t-il demandé le quoi avant le pourquoi ?", "A-t-il obtenu un chiffre récent et précis, tout compris ?", "A-t-il obtenu depuis combien de temps ça dure ?",
+        "A-t-il laissé sentir la réalité (un « hm ») au lieu de l'adoucir ?", "S'est-il contenté de « ça avance doucement » ?"],
+      regle: SANS_OBJ + "\nTu donnes tes chiffres seulement si on te les demande précisément. Si on te demande vaguement « raconte-moi », tu restes général. Tu ne ressens encore rien : des faits, sur un ton neutre.",
+      fin: "le closer a obtenu au moins un chiffre récent et précis, tout compris, et la durée.", toursMax: 12, commence: "closer", terrain: "decouverte"},
+    resserre: {nom: "Creuser en resserrant", court: "Chaque question part de sa dernière réponse", depart: "Le prospect a donné son défi et quelques faits. Il en a dit plus qu'il ne le croit.",
+      objectif: "Creuser ce qu'il vient de donner, du général au précis, sans questions au hasard ni retour au général. Avant de passer à autre chose : « est-ce que j'ai raté quelque chose ? ».",
+      criteres: ["Chaque question partait-elle d'un mot qu'il venait de dire ?", "A-t-il creusé au lieu d'ouvrir un sujet neuf ?", "Est-il resté précis, sans revenir au général ?",
+        "A-t-il repris les mots exacts du prospect pour donner du poids à sa question ?", "A-t-il demandé s'il avait raté quelque chose avant de passer ?"],
+      regle: SANS_OBJ + "\nTu glisses au passage un détail qui compte (un mot, une gêne) sans t'y attarder. Si on ne le reprend pas, tu passes à autre chose.",
+      fin: "le closer a creusé le détail glissé jusqu'à ce qu'il compte, ou il est passé à côté.", toursMax: 12, commence: "closer", terrain: "decouverte"},
+    cout: {nom: "Ce que ça lui a déjà coûté", court: "Le passé réel, pas un futur imaginé", depart: "Le prospect a donné ses chiffres, la durée, et ce qu'il aurait pu faire. Rien n'a encore été calculé.",
+      objectif: "Calculer avec lui ce que la situation a déjà coûté, sur le passé réel et une hypothèse dont il est sûr, le faire confirmer, puis demander ce que ça lui fait et qui d'autre est touché.",
+      criteres: ["A-t-il calculé sur le passé réel, pas sur un futur souhaité ?", "A-t-il pris une hypothèse dont le prospect est sûr ?", "A-t-il fait confirmer le chiffre (« c'est juste ? ») ?",
+        "A-t-il demandé ce que ça lui fait, et qui d'autre est touché ?", "A-t-il évité de gonfler le chiffre ?"],
+      regle: SANS_OBJ + "\nAUTORISÉ : contester une hypothèse trop haute, hésiter sur un chiffre. Si on te demande « combien aimerais-tu gagner », tu réponds une généralité sans conviction.",
+      fin: "la perte a été calculée avec lui, confirmée, et il a dit ce que ça lui fait.", toursMax: 12, commence: "closer", terrain: "decouverte"},
+    part: {nom: "Sa part", court: "Ce n'est pas les autres, c'est lui", depart: "Le prospect a décrit sa situation et ce qu'elle lui coûte. Il en parle comme d'une chose qui lui arrive.",
+      objectif: "Lui faire voir et dire sa part : le décalage entre la vie qu'il veut et la personne qu'il est aujourd'hui, et le schéma qui se répète (les promesses des autres qu'il subit, celles qu'il ne se tient pas).",
+      criteres: ["A-t-il tendu le miroir sans consoler ?", "Le prospect a-t-il dit lui-même sa part ?", "A-t-il nommé un schéma qui se répète, y compris pendant le call ?",
+        "A-t-il relié les points que le prospect avait déjà reliés avant le call ?", "A-t-il évité d'agresser ou de faire la morale ?"],
+      regle: SANS_OBJ + "\nTu accuses d'abord les autres (clients, associés, le marché, un ancien programme). Tu ne reconnais ta part que si le closer te renvoie tes propres mots ou te montre le schéma.",
+      fin: "le prospect a dit lui-même sa part, ou il s'est braqué.", toursMax: 12, commence: "closer", terrain: "decouverte"},
+    bascule: {nom: "Le moment de bascule", court: "Pourquoi maintenant, pas pourquoi", depart: "Le prospect vit cette situation depuis longtemps. Il a pourtant réservé ce call cette semaine.",
+      objectif: "Trouver l'événement précis et récent (jours ou semaines) qui l'a fait passer de « ça va » à « ça ne peut plus durer », raconté par lui.",
+      criteres: ["A-t-il distingué « pourquoi » et « pourquoi maintenant » ?", "A-t-il refusé un déclencheur vieux de deux ans ?", "A-t-il utilisé le contexte (« après cinq ans, qu'est-ce qui a changé ? ») ?",
+        "A-t-il obtenu une scène précise et récente ?", "Si rien ne sortait, a-t-il continué à chercher au lieu d'abandonner ?"],
+      regle: SANS_OBJ + "\nTon vrai déclencheur est une scène récente et un peu humiliante (une remarque, une dispute, un regard). Tu donnes d'abord des raisons générales ou anciennes. Tu ne racontes la scène que si on te pousse sur le « pourquoi maintenant » avec tes propres mots.",
+      fin: "il a raconté la scène récente qui l'a fait bouger.", toursMax: 10, commence: "closer", terrain: "decouverte"},
+    enjeu: {nom: "Ce qui est vraiment en jeu", court: "Une conséquence réelle, pas « plus d'argent »", depart: "Le prospect a donné ses chiffres et ce qu'ils lui coûtent. Il dit qu'il veut « juste gagner plus ».",
+      objectif: "Trouver la chose concrète et personnelle de sa vie qu'il n'accepte plus, et vérifier qu'elle est vraiment en jeu.",
+      criteres: ["A-t-il refusé « gagner plus » comme réponse ?", "A-t-il obtenu une conséquence concrète et personnelle ?", "A-t-il vérifié qu'elle était réelle, pas théorique ?",
+        "S'il ne voyait pas de douleur, a-t-il cherché pourquoi ?", "A-t-il tenu la pression au lieu de consoler ?"],
+      regle: SANS_OBJ + "\nTa première conséquence est théorique (« ce serait dommage »). La vraie est dans ta vie (ton couple, ton logement, l'image de toi) et tu ne la dis que si le closer remarque que tu ne sembles pas souffrir et te demande pourquoi.",
+      fin: "il a dit la vraie conséquence qu'il ne veut pas vivre.", toursMax: 12, commence: "closer", terrain: "decouverte"},
+    etau: {nom: "L'étau", court: "Problème, horloge, conséquence : maintenant", depart: "Tout est posé : le problème, ce qu'il coûte, sa part, la conséquence. Mais il parle d'agir « d'ici la fin de l'année ».",
+      objectif: "Relier le problème, l'horloge et la conséquence jusqu'à ce qu'il dise lui-même que c'est maintenant et qu'il n'y a plus d'autre option.",
+      criteres: ["A-t-il refusé une urgence à six mois ?", "A-t-il relié l'urgence à la conséquence réelle ?", "Le prospect a-t-il dit lui-même qu'il n'avait plus d'autre option ?",
+        "A-t-il fait peser ce qui est en jeu plus lourd que ce qu'il doit franchir ?", "S'il n'y avait pas assez de poids, a-t-il continué à creuser ou constaté qu'on n'était pas alignés ?"],
+      regle: SANS_OBJ + "\nTu proposes d'abord une échéance lointaine et raisonnable. Tu ne lâches « c'est maintenant » que si le closer relie l'horloge à ce que tu risques de perdre.",
+      fin: "il a dit que c'était maintenant, ou il a gardé son échéance lointaine.", toursMax: 10, commence: "closer", terrain: "decouverte"},
+    recap: {nom: "Le récap, l'argent, le dernier doute", court: "Avant de présenter", depart: "La découverte est faite et l'étau est fermé. Le closer va bientôt présenter.",
+      objectif: "Récapituler avec ses mots et ses chiffres précis et le faire valider ; lui faire dire de quoi il a besoin ; demander comment il compte investir ; « y a-t-il autre chose que je devrais savoir ? ».",
+      criteres: ["Le récap reprenait-il ses mots et ses chiffres précis ?", "L'a-t-il fait valider ?", "A-t-il fait dire au prospect de quoi il a besoin ?",
+        "A-t-il osé poser la question de l'argent avant de présenter ?", "A-t-il demandé s'il y avait autre chose à savoir, sans laisser de doute en route ?"],
+      regle: "INTERDIT : le prix n'a pas été annoncé. AUTORISÉ : un petit doute glissé (« je me demande si j'aurai le temps ») qui ressortira au prix si personne ne le règle maintenant.",
+      fin: "le récap est validé, l'argent abordé, et le dernier doute sorti.", toursMax: 10, commence: "closer", terrain: "decouverte"},
+    remontee: {nom: "La remontée avant le pitch", court: "Il doit ressortir plus léger", depart: "La découverte a été dure. Le prospect est un peu sonné, la tête « partout ». Le closer s'apprête à présenter.",
+      objectif: "Avant de présenter, vérifier comment il se sent, lui faire dire ce qui a changé, et verrouiller (« tu veux continuer à te sentir comme ça ? ») avant de passer à l'offre.",
+      criteres: ["A-t-il remarqué que le prospect était confus avant de présenter ?", "A-t-il demandé comment il se sentait ?", "Le prospect a-t-il dit ce qui avait changé en lui ?",
+        "A-t-il verrouillé cet état avant de présenter ?", "A-t-il évité de pitcher sur un prospect sonné ?"],
+      regle: "INTERDIT : le prix n'a pas été annoncé. Tu es sonné et confus : si on te présente l'offre tout de suite, tu décroches et tu dis que tu dois y penser. Si on te demande comment tu te sens, tu réalises que tu te sens plus léger.",
+      fin: "il a dit qu'il se sentait plus léger et engagé, et le closer a verrouillé, ou le closer a pitché sur un prospect confus.", toursMax: 8, commence: "closer", terrain: "closing", couches: false}
+  };
+  Object.keys(SEGMENTS).forEach(k => delete SEGMENTS[k]);
+  Object.assign(SEGMENTS, neufs, garde.objection ? {objection: garde.objection} : {}, garde.paiement ? {paiement: garde.paiement} : {}, garde.closing ? {closing: garde.closing} : {});
+  // en B2B : la même carte, avec l'enjeu personnel pris par le côté (crédibilité, objectifs, charge)
+  if(typeof SEGMENTS_B2B === "object" && SEGMENTS_B2B){
+    Object.keys(SEGMENTS_B2B).forEach(k => delete SEGMENTS_B2B[k]);
+    SEGMENTS_B2B.enjeu = {objectif: "Trouver ce qui est vraiment en jeu pour LUI : sa crédibilité, ses objectifs, sa place, sa charge, et vérifier que c'est réel.",
+      criteres: ["A-t-il refusé « faire plus de chiffre » comme réponse ?", "A-t-il atteint l'enjeu personnel par le côté (crédibilité, objectifs, charge) ?", "A-t-il vérifié qu'il était réel ?", "Est-il resté au niveau d'un pair ?"]};
+  }
+  try{ SEGMENTS_CHOISIS = ["complet"]; sparSegment = "complet"; }catch(_){}
+  try{ if(typeof peupleSparring === "function") peupleSparring(); }catch(_){}
+})();
+
+/* ---- le jeu de rôle conduit comme Josh ----
+   Une carte « où on va » au-dessus du prospect : les étapes de l'entonnoir
+   jusqu'à l'étau (cochées au fil du jeu par le coach), et le chrono de la découverte.
+   Le coach sait où on en est, et il t'arrête quand tu pars dans un détail
+   avant d'avoir posé le problème. */
+const ACCORDS_JEU = ENTONNOIR.filter(e => e.jeu).map(e => [e.k, e.nom]);
+const minutesDeJeu = () => SPAR && SPAR.debut ? Math.max(0, Math.round((Date.now() - SPAR.debut) / 60000)) : 0;
+function conduiteJeu(prompt){
+  if(!SPAR) return prompt;
+  const acq = SPAR.jrAccords || {};
+  const obtenus = ACCORDS_JEU.filter(([k]) => acq[k] != null).map(([, n]) => n + " (vers la minute " + acq[k] + ")");
+  const bloc = `LA DESTINATION DE CE CALL (l'entonnoir de Josh) : ${DESTINATION_JOSH}.
+Étapes déjà vécues par le prospect d'après l'échange : ${obtenus.length ? obtenus.join(" ; ") : "aucune pour l'instant"}.
+Temps de jeu : ${minutesDeJeu()} minute${minutesDeJeu() > 1 ? "s" : ""}. Une découverte complète tient en général en une vingtaine de minutes : si le closer y passe beaucoup de temps sans resserrer vers l'étau, c'est un coût. Les questions au hasard, les retours au général et la pression relâchée (consoler, rassurer) cassent l'entonnoir.
+COMME JOSH EN JEU DE RÔLE : quand le closer part dans un détail (le budget, les chiffres du business, le taux de conversion, la technique du métier) avant d'avoir posé les faits et ce que la situation lui a déjà coûté, ça coûte vraiment. Il démonte un problème dont on ne sait pas encore s'il est grave, et la conversation perd sa gravité. Quand tu l'arrêtes, ta phrase « quoi » dit ce qu'on cherche à obtenir à cet endroit du call, et « pourquoi » la relie à l'étape de l'entonnoir qui manque. Le bon coup peut être de revenir quelques questions en arrière.
+
+`;
+  let p = prompt.replace("LE MOMENT TRAVAILLÉ", bloc + "LE MOMENT TRAVAILLÉ");
+  // le premier temps du coach dit aussi quelles étapes le prospect vient de vivre
+  if(/\{"plan":"ou va ce closer/.test(p))
+    p = p.replace('{"plan":"ou va ce closer', '{"accords":{' + ACCORDS_JEU.map(([k]) => '"' + k + '":true ou false').join(",") + '} (les etapes de l entonnoir : ' + ACCORDS_JEU.map(([k, n]) => k + " = " + n).join(" ; ") + '. Vrai seulement si le PROSPECT l a clairement vecue et dite, avec ses mots, a un moment de l echange),\n "plan":"ou va ce closer');
+  return p;
+}
+function majCarteJeu(){
+  const jeu = $("sparJeu"); if(!jeu) return;
+  let el = $("jrCarte");
+  if(!el){
+    el = document.createElement("div"); el.id = "jrCarte"; el.className = "block";
+    el.style.cssText = "border-left:2px solid var(--amber);padding-top:14px;padding-bottom:14px";
+    const rap = $("sparRappel");
+    if(rap && rap.parentNode === jeu) rap.insertAdjacentElement("afterend", el); else jeu.insertBefore(el, jeu.firstChild);
+  }
+  if(!SPAR){ el.style.display = "none"; return; }
+  el.style.display = "block";
+  const acq = SPAR.jrAccords || {}, mn = minutesDeJeu(), coach = typeof sparMode !== "undefined" && sparMode === "coach";
+  const tous = acq.etau != null;      // ce qui compte au bout de 20 minutes : l'étau est-il fermé ?
+  const alerte = mn >= 20 && !tous;
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
+      <h3 style="margin:0">Où on va</h3>
+      <span style="font-size:12.5px;color:${alerte ? "var(--clay)" : "var(--muted)"}">${mn} min de jeu · une découverte tient en une vingtaine de minutes${alerte ? " : ça traîne" : ""}</span></div>
+    <p style="font-size:13px;color:var(--muted);margin:8px 0 10px">Resserrer jusqu'à l'étau, puis le faire remonter avant le pitch${coach ? ". Le coach coche chaque étape quand le prospect la vit." : ". (En mode Coaching, le coach coche les étapes au fil du jeu.)"}</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${ACCORDS_JEU.map(([k, n]) => {
+      const ok = acq[k] != null;
+      return `<span style="font-size:12.5px;padding:4px 9px;border-radius:7px;border:1px solid ${ok ? "var(--amber)" : "var(--line)"};color:${ok ? "var(--amber)" : "var(--muted)"}">${ok ? "✓" : "○"} ${escapeHTML(n)}${ok ? " · " + acq[k] + " min" : ""}</span>`;
+    }).join("")}</div>
+    ${SPAR.jrPiste ? `<p style="font-size:12.5px;color:var(--muted);margin-top:10px">Là, tu creuses : ${escapeHTML(SPAR.jrPiste)}</p>` : ""}`;
+}
+// on récupère ce que le coach a vu à chaque tour, pour la carte
+const coachAnalyseOrigine = coachAnalyse;
+coachAnalyse = async function(m){
+  const a = await coachAnalyseOrigine(m);
+  try{
+    if(a && SPAR){
+      SPAR.jrAccords = SPAR.jrAccords || {};
+      if(a.accords && typeof a.accords === "object")
+        ACCORDS_JEU.forEach(([k]) => { if(a.accords[k] === true && SPAR.jrAccords[k] == null) SPAR.jrAccords[k] = minutesDeJeu(); });
+      if(a.piste) SPAR.jrPiste = String(a.piste).slice(0, 140);
+      majCarteJeu();
+    }
+  }catch(_){}
+  return a;
+};
+// la carte apparaît dès que le jeu démarre, et le chrono avance tout seul
+setInterval(() => { const j = $("sparJeu"); if(j && j.style.display !== "none" && SPAR) majCarteJeu(); }, 20000);
+const lancerAvecCarte = $("btnSparGo").onclick;
+$("btnSparGo").onclick = async function(){
+  const r = await lancerAvecCarte.apply(this, arguments);
+  majCarteJeu();
+  return r;
+};
+
 const coachParleOrigine = faisParlerCoach;
 faisParlerCoach = function(txt, apres){
   const carte = $("coachCarte");
@@ -1167,6 +1407,40 @@ async function rendCalibration(){
    des transcripts, puis donnée en entier au coach à chaque analyse.
    ===================================================================== */
 const MODELE_COACH = "claude-sonnet-5-5";
+
+/* ---- les testeurs ----
+   Un testeur entre avec un code d'accès (ni clé API, ni ton ?moncoach=1). Il a son propre
+   espace, et ses coachs s'appellent Coach Vérité et Coach Objections : la méthode est la même,
+   mais ni le nom ni l'histoire des coachs dont elle vient n'apparaissent. */
+const DOCS_TESTEURS = ["verite"];
+function modeTesteur(){
+  try{
+    const q = new URLSearchParams(location.search).get("moncoach");
+    if(q === "1" || localStorage.getItem("woidih_coach_perso") === "1") return false;
+    return !API_KEY && !!codeAcces();
+  }catch(_){ return false; }
+}
+const docVisible = k => modeTesteur() ? DOCS_TESTEURS.includes(k) : !DOCS_TESTEURS.includes(k);
+// filet de sécurité : aucun nom de coach réel ne passe, ni à l'aller ni au retour
+function anonymise(t){
+  if(typeof t !== "string" || !modeTesteur()) return t;
+  return t.replace(/josh lyons/gi, "Coach Vérité").replace(/\bJosh\b/g, "Coach Vérité")
+          .replace(/bill walsh/gi, "Coach Objections").replace(/\bBill\b/g, "Coach Objections")
+          .replace(/ben byrne/gi, "ton coach").replace(/\bkeenan\b/gi, "ton coach").replace(/gap selling/gi, "ta méthode")
+          .replace(/unicorn closers?( mastermind)?/gi, "le programme");
+}
+function habilleTesteur(){
+  if(!modeTesteur()) return;
+  try{
+    Object.keys(ECOLES).forEach(k => { if(!DOCS_TESTEURS.includes(k) && !["moi", "sami"].includes(k)) delete ECOLES[k]; });
+    ECOLES.verite = {nom: "Coach Vérité", terrains: ["cadrage", "decouverte", "objection", "closing"], marches: ["b2c", "b2b"]};
+    if(typeof MANIERE_COACH === "object"){
+      MANIERE_COACH.verite = {nom: "Coach Vérité", ton: "Tu reprends ton élève avec franchise et chaleur. Tu tutoies. Tu ne fais pas de leçon : tu nommes ce qu'il vient de faire, ce que ça coûte, et ce qu'on cherche à obtenir à cet endroit du call. Tu le ramènes toujours à la vérité de la situation du prospect, jamais à une technique."};
+      const b = MANIERE_COACH["bill walsh"];
+      MANIERE_COACH.objections = {nom: "Coach Objections", ton: b ? anonymise(b.ton).replace(/comme Coach Objections reprend ses élèves/g, "tes élèves") : "Direct, sec, chaleureux quand même. Des phrases très courtes. Tu ramènes tout à la vraie objection."};
+    }
+  }catch(_){}
+}
 let SERVEUR_INFO = null;
 async function infoServeur(){
   if(SERVEUR_INFO) return SERVEUR_INFO;
@@ -1183,6 +1457,12 @@ async function infoServeur(){
 /* Une seule porte vers le cerveau 5.5, avec la doctrine en consignes mises en cache.
    Sur un ancien serveur, on retombe sur l'ancien chemin sans rien casser. */
 async function appelCerveau(prompt, o){
+  if(!modeTesteur()) return appelCerveauBrut(prompt, o);
+  const o2 = Object.assign({}, o || {});
+  if(o2.systeme) o2.systeme = anonymise(o2.systeme);
+  return anonymise(await appelCerveauBrut(anonymise(prompt), o2));
+}
+async function appelCerveauBrut(prompt, o){
   o = o || {};
   const max = o.max || 1500;
   await pretOuTantPis();
@@ -1263,6 +1543,7 @@ async function chargeDoctrines(){
       if(change){ await Store.set(CLE_DOCTRINES, DOCTRINES); await Store.set("ecoles", ECOLES); }
     }
   }catch(e){}
+  habilleTesteur();
   rendDoctrines();
 }
 const sauveDoctrines = () => Store.set(CLE_DOCTRINES, DOCTRINES);
@@ -1272,7 +1553,7 @@ function doctrinePour(terrains, marche, maxChars){
   const t = [].concat(terrains || []);
   const l = Object.keys(DOCTRINES).sort().map(k => {
     const d = DOCTRINES[k], e = ECOLES[k] || {};
-    if(!d || !d.cerveau) return null;
+    if(!d || !d.cerveau || !docVisible(k)) return null;
     if(e.marches && marche && !e.marches.includes(marche)) return null;
     const terrain = !t.length || !e.terrains || e.terrains.some(x => t.includes(x));
     return {k, d, e, sc: terrain ? 2 : 1};
@@ -1305,10 +1586,10 @@ const texteItem = (cat, x) => {
 };
 let INDEX_MEMOIRE = null, CLE_INDEX_MEMOIRE = "";
 function indexMemoire(){
-  const cle = Object.keys(DOCTRINES).sort().map(k => k + ":" + (DOCTRINES[k].maj || 0) + ":" + Object.values(DOCTRINES[k].items || {}).reduce((s,a) => s + a.length, 0)).join("|");
+  const cle = (modeTesteur() ? "t|" : "") + Object.keys(DOCTRINES).sort().map(k => k + ":" + (DOCTRINES[k].maj || 0) + ":" + Object.values(DOCTRINES[k].items || {}).reduce((s,a) => s + a.length, 0)).join("|");
   if(INDEX_MEMOIRE && cle === CLE_INDEX_MEMOIRE) return INDEX_MEMOIRE;
   const docs = [];
-  Object.keys(DOCTRINES).forEach(k => CATS_MEMOIRE.forEach(cat => (DOCTRINES[k].items[cat] || []).forEach(x => {
+  Object.keys(DOCTRINES).filter(docVisible).forEach(k => CATS_MEMOIRE.forEach(cat => (DOCTRINES[k].items[cat] || []).forEach(x => {
     const t = texteItem(cat, x), mots = motsDe(t), tf = {};
     mots.forEach(m => tf[m] = (tf[m] || 0) + 1);
     docs.push({k, cat, x, t, tf, n: mots.length || 1});
@@ -2205,7 +2486,47 @@ const actif = () => { try{ return localStorage.getItem(CLE_ACTIF) === "1"; }catc
   $("reactiveSouffleur").onclick = e => { e.preventDefault(); try{ localStorage.setItem(CLE_SOUFFLEUR, "1"); }catch(_){} location.reload(); };
 })();
 
-if(!actif()) return;
+/* --- un nouveau testeur : la première chose qu'il voit, c'est où taper son code --- */
+(function porteDuCode(){
+  if(actif() || modeTesteur() || API_KEY) return;
+  const h = $("home"); if(!h) return;
+  const d = document.createElement("div");
+  d.className = "block";
+  d.style.cssText = "width:100%;max-width:520px;margin:0 auto 18px;border-left:2px solid var(--amber)";
+  d.innerHTML = `<h3>Ton accès d'essai</h3>
+    <p style="font-size:13.5px;color:var(--muted);margin:6px 0 12px">Entre le code que Woidih t'a envoyé, du genre ABCD-EFGH.</p>
+    <input id="porteCode" placeholder="ABCD-EFGH" autocomplete="off" style="background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:11px 14px;border-radius:9px;font-size:16px;width:100%;font-family:inherit;letter-spacing:.08em;text-transform:uppercase">
+    <div style="margin-top:10px"><button class="pill" id="porteOk" style="border-color:var(--amber);color:var(--amber)">Entrer</button></div>
+    <p id="porteEtat" style="font-size:13px;color:var(--muted);margin-top:9px"></p>`;
+  h.insertBefore(d, h.firstChild);
+  const go = async () => {
+    const c = $("porteCode").value.trim().toUpperCase(); if(!c) return;
+    $("porteEtat").textContent = "Vérification…";
+    try{
+      const r = await fetch(srvCopilote() + "/api/ping", {headers: {"x-code": c}});
+      if(r.status === 401){ $("porteEtat").innerHTML = '<span style="color:var(--clay)">Ce code n\'existe pas. Vérifie-le, ou demande-le à Woidih.</span>'; return; }
+      if(!r.ok) throw new Error();
+      try{ localStorage.setItem("woidih_code_acces", c); }catch(_){}
+      $("porteEtat").innerHTML = '<span style="color:var(--sage)">C\'est bon. J\'ouvre ton espace…</span>';
+      setTimeout(() => location.reload(), 700);
+    }catch(_){ $("porteEtat").innerHTML = '<span style="color:var(--clay)">Le serveur ne répond pas. Réessaie dans un instant.</span>'; }
+  };
+  $("porteOk").onclick = go;
+  $("porteCode").onkeydown = e => { if(e.key === "Enter") go(); };
+})();
+
+// l'app de base affiche « Il manque ta clé » dès qu'il n'y a pas de clé API, même avec un code :
+// un testeur n'a pas de clé à avoir, ce message ne ferait que l'inquiéter
+if(!actif()){
+  const enleve = () => document.querySelectorAll("#home .block").forEach(b => { const t = b.querySelector("h3"); if(t && /Il manque ta clé/.test(t.textContent)) b.remove(); });
+  try{ (typeof PRET !== "undefined" && PRET ? PRET : Promise.resolve()).then(() => setTimeout(enleve, 0)); }catch(_){}
+  setTimeout(enleve, 1500);
+}
+
+const TESTEUR = modeTesteur();
+if(!actif() && !TESTEUR) return;
+// un testeur ne voit pas les outils de réglage, ni « Ma méthode » (elle montre les fiches et leurs auteurs)
+if(TESTEUR){ const st = document.createElement("style"); st.textContent = "#btnMaMethode{display:none!important}"; document.head.appendChild(st); }
 
 /* ---------------------------------------------------------------------
    L'habillage : sobre, neutre, une seule couleur d'accent
@@ -2295,6 +2616,14 @@ html.perso #home{display:flex;padding:0;align-items:stretch;text-align:left;just
 .cp-devoir{display:flex;gap:9px;align-items:flex-start;font-size:14px;padding:6px 0;border-top:1px solid var(--line)}
 .cp-devoir:first-child{border-top:0}
 .cp-devoir.fait span{text-decoration:line-through;color:var(--muted)}
+.cp-etape{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--line);font-size:14px}
+.cp-etape:first-child{border-top:0}
+.cp-etape small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.cp-etape .cp-num{flex:none;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)}
+.cp-etape.cours .cp-num{border-color:var(--amber);color:var(--amber)}
+.cp-etape.cours b{color:var(--ink)}
+.cp-etape.fait .cp-num{border-color:var(--sage);color:var(--sage)}
+.cp-etape.fait b{color:var(--muted);font-weight:500}
 .cp-graph svg{width:100%;height:auto;display:block}
 .cp-legende{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:8px}
 .cp-legende i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
@@ -2339,6 +2668,7 @@ const sec = ecran("coachPerso", `<div class="cp-wrap">
   <div class="cp-carte" id="cpDevoirsBloc" style="margin-top:16px;display:none">
     <h4>Ton travail en cours</h4><div id="cpDevoirs"></div>
   </div>
+  <div class="cp-carte" id="cpPlan" style="margin-top:16px;display:none"></div>
   <div id="cpFil"></div>
   <div id="cpEntrainer" style="display:none;margin-top:10px"></div>
   <div class="cp-saisie">
@@ -2366,7 +2696,11 @@ function montre(el){
   home.style.display = el ? "none" : "flex";
   if(el) el.scrollTop = 0;
 }
-function accueil(){ arreteVoix(); ancien.classList.remove("on"); accueilEl.style.display = ""; montre(null); rendAccueil(); }
+function accueil(){
+  arreteVoix(); ancien.classList.remove("on"); accueilEl.style.display = ""; montre(null); rendAccueil();
+  // un testeur revient d'un jeu de rôle ou d'une séance : son essai a bougé
+  if(TESTEUR) majEssai().then(() => { if(home.style.display !== "none" && accueilEl.style.display !== "none") rendAccueil(); });
+}
 $("cpAncienRetour").onclick = () => { ancien.classList.remove("on"); accueilEl.style.display = ""; home.scrollTop = 0; };
 
 /* ---------------------------------------------------------------------
@@ -2384,6 +2718,12 @@ const PROFILS_DEFAUT = [
 let PROFILS = PROFILS_DEFAUT.map(p => Object.assign({}, p));
 let PROFIL = "woidih";
 try{ PROFIL = localStorage.getItem("woidih_profil_actif") || "woidih"; }catch(_){}
+// un testeur : un seul espace, le sien, avec Coach Vérité et Coach Objections
+if(TESTEUR){
+  PROFILS = [{id: "t", nom: "", feminin: false, desc: "un closer francophone qui vend en high ticket", coachs: ["verite", "objections"]}];
+  PROFIL = "t";
+}
+const COACHS_TESTEUR = [{k: "verite", nom: "Coach Vérité", court: "Coach Vérité"}, {k: "objections", nom: "Coach Objections", court: "Coach Objections", src: "bill walsh"}];
 const profil = () => PROFILS.find(p => p.id === PROFIL) || PROFILS[0];
 const nomProfil = () => profil().nom || "Toi";
 const K = base => base + (PROFIL === "woidih" ? "" : "__" + PROFIL);   // tes données gardent leurs anciens noms
@@ -2404,8 +2744,12 @@ async function chargeProfil(){
   if(autorises && !autorises.includes(CP.qui)) CP.qui = autorises[0];
   const s = (await Store.get(K("coach_perso_suivi"))) || {};
   let defaut = "";
-  if(PROFIL === "woidih"){ try{ defaut = srvCopilote().replace(/\/copilot\/?$/, "") + "/suivi"; }catch(_){} }
-  CP.suivi = {url: s.url || defaut, mdp: s.mdp || ""};
+  try{ defaut = srvCopilote().replace(/\/copilot\/?$/, "") + "/suivi"; }catch(_){}
+  // un testeur entre dans son suivi avec son code d'accès : rien à taper.
+  // L'espace de ta femme aussi passe par un code (le sien, créé dans ta page des accès) : ses calls à elle, séparés des tiens.
+  CP.suivi = TESTEUR ? {url: defaut, mdp: "", code: codeAcces()}
+           : PROFIL === "woidih" || s.mdp ? {url: s.url || defaut, mdp: s.mdp || ""}
+           : {url: defaut, mdp: "", code: s.code || ""};
 }
 async function changeProfil(id){
   arreteVoix();
@@ -2421,9 +2765,10 @@ const aujourdhui = () => new Date().toISOString().slice(0, 10);
 
 /* --- les coachs disponibles --- */
 function coachs(){
+  if(TESTEUR) return COACHS_TESTEUR;
   const l = [{k: "mix", nom: "Ton coach", court: "Ton coach"}];
   Object.keys(DOCTRINES).sort().forEach(k => {
-    if(!DOCTRINES[k] || !DOCTRINES[k].cerveau) return;
+    if(!DOCTRINES[k] || !DOCTRINES[k].cerveau || !docVisible(k)) return;
     const nom = (ECOLES[k] && ECOLES[k].nom) || k;
     l.push({k, nom, court: nom.split(" ")[0]});
   });
@@ -2450,7 +2795,9 @@ const VISAGES = {
   "keenan":      {peau: "#D4AE93", cheveux: "#6B5B4E", coupe: "rase",  barbe: true,  lunettes: false},
   "bill walsh":  {peau: "#C99878", cheveux: "#9C9890", coupe: "court", barbe: false, lunettes: true},
   "ben byrne":   {peau: "#D8B49A", cheveux: "#5A4130", coupe: "haut",  barbe: false, lunettes: false},
-  "sami":        {peau: "#A97B5E", cheveux: "#1E1A18", coupe: "court", barbe: true,  lunettes: false}
+  "sami":        {peau: "#A97B5E", cheveux: "#1E1A18", coupe: "court", barbe: true,  lunettes: false},
+  "verite":      {peau: "#C9A487", cheveux: "#2F2722", coupe: "court", barbe: false, lunettes: false},
+  "objections":  {peau: "#C49676", cheveux: "#6E6A64", coupe: "rase",  barbe: true,  lunettes: true}
 };
 function visage(k, idBouche){
   const v = VISAGES[k] || Object.assign({}, VISAGES.mix, {peau: ["#C29A7E", "#B0856A", "#D6B092"][String(k).length % 3]});
@@ -2561,17 +2908,43 @@ async function parle(txt){
 /* ---------------------------------------------------------------------
    Ton suivi de calls
    --------------------------------------------------------------------- */
-async function suivi(chemin){
-  const s = CP.suivi; if(!s.url || !s.mdp) throw new Error("suivi non connecté");
-  const r = await fetch(s.url.replace(/\/+$/, "") + chemin, {headers: {"x-mot-de-passe": s.mdp}});
-  if(r.status === 401) throw new Error("mot de passe du suivi refusé");
+/* un testeur : son prénom et où en est son essai, d'après le Serveur Copilot */
+async function majEssai(){
+  if(!TESTEUR) return;
+  try{
+    const r = await fetch(srvCopilote() + "/api/ping", {headers: {"x-code": codeAcces()}});
+    if(r.status === 401){ CP.essaiRefuse = true; return; }
+    const d = await r.json().catch(() => ({}));
+    if(d.compte){
+      CP.essai = d.compte; CP.essaiEtat = d.essai || {ok: true};
+      const p = PROFILS[0];
+      p.nom = d.compte.nom || ""; p.feminin = !!d.compte.feminin;
+      p.desc = (p.feminin ? "une closeuse francophone" : "un closer francophone") + " qui vend en high ticket";
+    }
+  }catch(_){}
+}
+const ligneEssai = () => !CP.essai ? "" : `Ton essai : ${CP.essai.call.fait}/${CP.essai.call.max} calls analysés · ${CP.essai.roleplay.fait}/${CP.essai.roleplay.max} jeux de rôle · ${CP.essai.coaching.fait}/${CP.essai.coaching.max} séances de coaching`;
+const suiviConnecte = () => !!(CP.suivi.url && (CP.suivi.mdp || CP.suivi.code));
+// un suivi par code (testeur, ou l'espace de ta femme) : sa clé Fathom est gardée dans son espace sur le serveur
+const parCode = () => TESTEUR || (PROFIL !== "woidih" && !CP.suivi.mdp);
+async function suivi(chemin, methode, corps){
+  const s = CP.suivi; if(!suiviConnecte()) throw new Error("suivi non connecté");
+  const h = s.code ? {"x-code": s.code} : {"x-mot-de-passe": s.mdp};
+  if(corps) h["Content-Type"] = "application/json";
+  const r = await fetch(s.url.replace(/\/+$/, "") + chemin, {method: methode || "GET", headers: h, body: corps ? JSON.stringify(corps) : undefined});
+  if(r.status === 401) throw new Error(s.code ? "ton code d'accès est refusé par le suivi" : "mot de passe du suivi refusé");
   if(!r.ok){ const d = await r.json().catch(() => ({})); throw new Error(d.erreur || ("suivi : erreur " + r.status)); }
   return chemin.endsWith("/transcript") ? r.text() : r.json();
 }
 function chargeSuivi(force){
   if(CP.charge && !force) return CP.charge;
   CP.charge = (async () => {
-    if(!CP.suivi.url || !CP.suivi.mdp){ CP.suiviErreur = "non connecté"; return; }
+    if(!suiviConnecte()){ CP.suiviErreur = "non connecté"; return; }
+    // un testeur sans clé Fathom : on le lui demande, plutôt que d'afficher un suivi vide
+    if(parCode()){
+      try{ const c = await suivi("/api/compte"); CP.fathomOk = !!c.fathom; }catch(e){ CP.suiviErreur = e.message; return; }
+      if(!CP.fathomOk){ CP.suiviErreur = "fathom"; return; }
+    }
     try{
       const depuis = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
       const [st, tout, ca] = await Promise.all([suivi("/api/stats?depuis=" + depuis), suivi("/api/stats"), suivi("/api/calls")]);
@@ -2610,8 +2983,11 @@ function rendAccueil(){
   const heure = new Date().getHours();
   accueilEl.innerHTML = `<div class="cp-page">
     <div class="cp-haut"><span class="cp-marque">Closing Copilot</span>
-      <button class="cp-lien" id="cpVersReglages">Réglages et outils</button></div>
-    <div class="cp-onglets" style="margin-bottom:22px">${PROFILS.map(p => `<button data-espace="${p.id}" class="${p.id === PROFIL ? "on" : ""}">${p.nom ? "Espace de " + escapeHTML(p.nom) : "Créer l'espace de ta femme"}</button>`).join("")}</div>
+      ${TESTEUR ? "" : '<button class="cp-lien" id="cpVersReglages">Réglages et outils</button>'}</div>
+    ${TESTEUR && CP.essaiRefuse ? `<div class="cp-carte" style="border-color:var(--clay)"><h4>Ton code n'est plus valide</h4><p class="cp-vide">Demande un nouveau code à Woidih.</p>
+      <div class="cp-btns" style="margin-top:10px"><button class="cp-btn plein" id="cpChangeCode">Entrer un autre code</button></div></div>` : ""}
+    ${TESTEUR && CP.essaiEtat && !CP.essaiEtat.ok ? `<div class="cp-carte" style="border-color:var(--clay)"><p class="cp-vide" style="color:var(--ink)">${escapeHTML(CP.essaiEtat.raison || "Ton essai est arrivé au bout.")}</p></div>` : ""}
+    <div class="cp-onglets" style="margin-bottom:22px;${TESTEUR ? "display:none" : ""}">${PROFILS.map(p => `<button data-espace="${p.id}" class="${p.id === PROFIL ? "on" : ""}">${p.nom ? "Espace de " + escapeHTML(p.nom) : "Créer l'espace de ta femme"}</button>`).join("")}</div>
     <div class="cp-carte" id="cpNouveauProfil" style="display:none"><h4>Son espace</h4>
       <p class="cp-vide">Son prénom, et en une phrase ce qu'elle vend. Ses coachs : Josh et Bill. Elle aura ses propres séances, devoirs et calls.</p>
       <input class="cp-champ" id="cpProfilNom" placeholder="Son prénom">
@@ -2619,6 +2995,7 @@ function rendAccueil(){
       <div class="cp-btns" style="margin-top:10px"><button class="cp-btn plein" id="cpProfilOk">Créer son espace</button></div></div>
     <h1 class="cp-titre">${heure < 18 ? "Bonjour" : "Bonsoir"} ${escapeHTML(nomProfil())}.</h1>
     <p class="cp-sous">${prio ? "En ce moment, ce qui te coûte le plus : <b style='color:var(--ink)'>" + escapeHTML(prio.nom) + "</b>, réussi dans " + prio.taux + " % de tes calls." : "Tes calls d'un côté, ton travail de l'autre. Les deux sont reliés."}</p>
+    ${TESTEUR && CP.essai ? `<p style="font-size:13px;color:var(--muted);margin:-10px 0 22px">${escapeHTML(ligneEssai())}</p>` : ""}
     <div class="cp-portes">
       <button class="cp-porte" id="cpPorteTracking"><div class="cp-ico">${ICO.suivi}</div><h3>Tracking</h3>
         <p>Tes vrais calls, ta grille, ta progression semaine après semaine.</p>
@@ -2633,7 +3010,8 @@ function rendAccueil(){
   </div>`;
   $("cpPorteTracking").onclick = ouvreTracking;
   $("cpPorteCoaching").onclick = ouvreCoaching;
-  $("cpVersReglages").onclick = () => { accueilEl.style.display = "none"; ancien.classList.add("on"); home.scrollTop = 0; };
+  if($("cpVersReglages")) $("cpVersReglages").onclick = () => { accueilEl.style.display = "none"; ancien.classList.add("on"); home.scrollTop = 0; };
+  if($("cpChangeCode")) $("cpChangeCode").onclick = () => { try{ localStorage.removeItem("woidih_code_acces"); }catch(_){} location.reload(); };
   accueilEl.querySelectorAll("[data-reprendre]").forEach(b => b.onclick = () => reprend(b.dataset.reprendre));
   accueilEl.querySelectorAll("[data-espace]").forEach(b => b.onclick = () => {
     const p = PROFILS.find(x => x.id === b.dataset.espace);
@@ -2662,6 +3040,23 @@ async function ouvreTracking(){
   rendTracking();
 }
 function formulaireSuivi(){
+  // l'espace de ta femme, pas encore relié : d'abord son code d'accès
+  if(parCode() && !CP.suivi.code){
+    return `<div class="cp-carte"><h4>Relier les calls de ${escapeHTML(nomProfil())}</h4>
+      <p class="cp-vide">${CP.suiviErreur && CP.suiviErreur !== "non connecté" ? "<span style='color:var(--clay)'>" + escapeHTML(CP.suiviErreur) + "</span><br>" : ""}Ses calls ont leur propre espace sur ton serveur, séparé du tien. Crée-lui un accès dans ta page des accès (ton adresse + /copilot/admin), avec de grandes limites, puis colle son code ici. La clé Fathom viendra juste après.</p>
+      <input class="cp-champ" id="cpSuiviCode" placeholder="son code d'accès (ex. ABCD-EFGH)" autocomplete="off">
+      <div class="cp-btns" style="margin-top:12px"><button class="cp-btn plein" id="cpSuiviCodeOk">Relier</button></div></div>`;
+  }
+  if(parCode()){
+    const err = CP.suiviErreur && !["non connecté", "fathom"].includes(CP.suiviErreur) ? "<span style='color:var(--clay)'>" + escapeHTML(CP.suiviErreur) + "</span><br>" : "";
+    return `<div class="cp-carte"><h4>Connecter tes calls Fathom</h4>
+      <p class="cp-vide">${err}Colle ta clé Fathom une seule fois. Tes calls seront ensuite récupérés et analysés tout seuls${CP.essai ? ", dans la limite de ton essai (" + CP.essai.call.max + " calls)" : ""}.</p>
+      <p class="cp-vide" style="font-size:13px;margin-top:8px">Où la trouver : dans Fathom, ouvre <b style="color:var(--ink)">Réglages</b>, puis <b style="color:var(--ink)">API</b>, et crée une clé.</p>
+      <input class="cp-champ" id="cpFathomCle" type="password" placeholder="ta clé Fathom" autocomplete="off">
+      ${TESTEUR ? `<p style="font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.5">Bon à savoir : tes calls (leur transcription et leur analyse) sont stockés sur le serveur de Woidih, uniquement pour ton coaching. Il les supprime dès que tu le lui demandes.</p>` : ""}
+      <div class="cp-btns" style="margin-top:12px"><button class="cp-btn plein" id="cpFathomOk">Connecter mes calls</button></div>
+      <p id="cpFathomEtat" style="font-size:13px;color:var(--muted);margin-top:8px"></p></div>`;
+  }
   return `<div class="cp-carte"><h4>Connecter ton suivi</h4>
     <p class="cp-vide">${CP.suiviErreur && CP.suiviErreur !== "non connecté" ? "<span style='color:var(--clay)'>" + escapeHTML(CP.suiviErreur) + "</span><br>" : ""}Une seule fois : ta page « Mon suivi » s'ouvre un instant et passe elle-même ton mot de passe. Tu n'as rien à taper.</p>
     <div class="cp-btns" style="margin-top:12px"><button class="cp-btn plein" id="cpSuiviAuto">Connecter mon suivi</button></div>
@@ -2681,7 +3076,52 @@ window.addEventListener("message", async e => {
   toast(CP.suiviErreur ? "Suivi : " + CP.suiviErreur : "Ton suivi est connecté.");
   if(APRES_LIEN) APRES_LIEN();
 });
+// un testeur : sa clé Fathom, puis la première relève de ses calls
+async function releveTesteur(etat){
+  const dit = t => { if(etat) etat.innerHTML = t; };
+  dit("Je récupère tes calls et je les analyse. Compte une minute environ par call, tu peux attendre ici…");
+  try{
+    await suivi("/api/fathom", "POST", {});
+    // l'analyse tourne sur le serveur : on suit son avancement
+    let r = {};
+    for(let i = 0; i < 180; i++){
+      await new Promise(ok => setTimeout(ok, 5000));
+      const p = await suivi("/api/ping").catch(() => null);
+      if(p && p.releve && !p.releve.en_cours){ r = p.releve; break; }
+      if(i % 6 === 5) dit("Toujours en train d'analyser tes calls… (" + Math.round((i + 1) * 5 / 60) + " min)");
+    }
+    const err = (r.erreurs || []).filter(Boolean);
+    dit(r.nouveaux ? `<span style="color:var(--sage)">${r.nouveaux} call${r.nouveaux > 1 ? "s" : ""} analysé${r.nouveaux > 1 ? "s" : ""}.</span>` + (err.length ? " " + escapeHTML(err[0]) : "")
+                   : (err.length ? '<span style="color:var(--clay)">' + escapeHTML(err[0]) + "</span>" : "Pas de nouveau call pour l'instant."));
+  }catch(e){ dit('<span style="color:var(--clay)">' + escapeHTML(e.message) + "</span>"); }
+  await majEssai();
+}
 function brancheFormulaireSuivi(apres){
+  const co = $("cpSuiviCodeOk");
+  if(co) co.onclick = async () => {
+    const code = $("cpSuiviCode").value.trim().toUpperCase();
+    if(!code) return toast("Colle son code d'accès.");
+    co.disabled = true; co.textContent = "Je vérifie…";
+    CP.suivi = {url: CP.suivi.url, mdp: "", code};
+    await Store.set(K("coach_perso_suivi"), {code});
+    await chargeSuivi(true);
+    if(/code d'accès est refusé/.test(CP.suiviErreur)){
+      CP.suivi.code = ""; await Store.set(K("coach_perso_suivi"), {});
+      toast("Ce code est refusé : vérifie-le dans ta page des accès.");
+    }
+    apres();
+  };
+  const fo = $("cpFathomOk");
+  if(fo) fo.onclick = async () => {
+    const cle = $("cpFathomCle").value.trim(), etat = $("cpFathomEtat");
+    if(!cle) return toast("Colle ta clé Fathom.");
+    fo.disabled = true; etat.textContent = "Je vérifie ta clé auprès de Fathom…";
+    try{ await suivi("/api/compte", "PUT", {fathom: cle}); }
+    catch(e){ fo.disabled = false; etat.innerHTML = '<span style="color:var(--clay)">' + escapeHTML(e.message) + "</span>"; return; }
+    CP.fathomOk = true;
+    await releveTesteur(etat);
+    await chargeSuivi(true); apres();
+  };
   const a = $("cpSuiviAuto");
   if(a) a.onclick = () => {
     APRES_LIEN = apres;
@@ -2702,8 +3142,10 @@ function brancheFormulaireSuivi(apres){
 function rendTracking(){
   const el = $("cpTrackingIn"), st = CP.stats;
   let h = `<div class="cp-haut"><button class="cp-lien" id="cpTrRetour">← Accueil</button>
-    <div class="cp-btns"><button class="cp-btn" id="cpTrMaj">Actualiser</button>${CP.suivi.url ? `<a class="cp-btn" style="text-decoration:none" target="_blank" rel="noopener" href="${escapeHTML(CP.suivi.url)}">Page complète du suivi</a>` : ""}</div></div>
-    <h1 class="cp-titre">Tracking</h1><p class="cp-sous">Les 45 derniers jours, analysés avec ta grille. La courbe montre toute ta progression.</p>`;
+    <div class="cp-btns"><button class="cp-btn" id="cpTrMaj">Actualiser</button>${parCode() ? (CP.fathomOk ? '<button class="cp-btn" id="cpTrReleve">Relever mes nouveaux calls</button>' : "")
+      : (CP.suivi.url ? `<a class="cp-btn" style="text-decoration:none" target="_blank" rel="noopener" href="${escapeHTML(CP.suivi.url)}">Page complète du suivi</a>` : "")}</div></div>
+    <h1 class="cp-titre">Tracking</h1><p class="cp-sous">Les 45 derniers jours, analysés avec ta grille. La courbe montre toute ta progression.</p>
+    ${TESTEUR ? `<p id="cpTrEtat" style="font-size:13px;color:var(--muted);margin:-8px 0 16px">${CP.essai ? "Ton essai : " + CP.essai.call.fait + "/" + CP.essai.call.max + " calls analysés. Tes nouveaux calls sont relevés tout seuls toutes les heures." : ""}</p>` : ""}`;
   if(!st){ el.innerHTML = h + formulaireSuivi(); branche(); brancheFormulaireSuivi(rendTracking); return; }
   const scoreMoy = (() => { const v = CP.calls.filter(c => String(c.date || "") >= new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10)).map(scoreCall).filter(x => x !== null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; })();
   h += `<div class="cp-kpis">
@@ -2730,6 +3172,7 @@ function rendTracking(){
   function branche(){
     $("cpTrRetour").onclick = accueil;
     if($("cpTrMaj")) $("cpTrMaj").onclick = async () => { $("cpTrMaj").textContent = "…"; await chargeSuivi(true); rendTracking(); };
+    if($("cpTrReleve")) $("cpTrReleve").onclick = async () => { $("cpTrReleve").disabled = true; await releveTesteur($("cpTrEtat")); await chargeSuivi(true); rendTracking(); };
     el.querySelectorAll("[data-analyser]").forEach(b => b.onclick = () => nouvelleAnalyse(CP.calls.find(c => c.id === b.dataset.analyser)));
     el.querySelectorAll("[data-travailler]").forEach(b => b.onclick = () => { CP.onglet = "phases"; ouvreCoaching(b.dataset.travailler); });
   }
@@ -2806,18 +3249,20 @@ function rendCoaching(phaseOuverte){
     h += `<div class="cp-carte"><h4>Questions-réponses</h4><p class="cp-vide" style="margin-bottom:14px">Raconte un call, une situation, un doute. Il te fera chercher avant de te répondre.</p>
       <button class="cp-btn plein" id="cpNouvelleQR">Nouvelle séance avec ${escapeHTML(coachCourant().nom)}</button></div>`;
   }
+  h += `<div class="cp-carte" id="cpMemoire" style="display:none"></div>`;
   const finies = CP.seances.filter(s => s.etat === "terminee").sort((a, b) => b.maj - a.maj).slice(0, 6);
   if(finies.length) h += `<div class="cp-carte"><h4>Tes dernières séances</h4>${finies.map(s => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(s.titre)}</b>
       <small>${jour(s.maj)} · ${escapeHTML(coachDe(s.qui).nom)}${s.bilan ? " · " + escapeHTML(s.bilan.slice(0, 140)) + (s.bilan.length > 140 ? "…" : "") : ""}</small></div>
       <button class="cp-btn" data-relire="${s.id}">Relire</button></div>`).join("")}</div>`;
   el.innerHTML = h;
+  rendMemoire();
   $("cpCoRetour").onclick = accueil;
   brancheFormulaireSuivi(() => rendCoaching());
   el.querySelectorAll("[data-coach]").forEach(b => b.onclick = () => { CP.qui = b.dataset.coach; sauve(); rendCoaching(phaseOuverte); });
   el.querySelectorAll("[data-onglet]").forEach(b => b.onclick = () => { CP.onglet = b.dataset.onglet; rendCoaching(); });
   el.querySelectorAll("[data-reprendre]").forEach(b => b.onclick = () => reprend(b.dataset.reprendre));
   el.querySelectorAll("[data-relire]").forEach(b => b.onclick = () => reprend(b.dataset.relire));
-  el.querySelectorAll("[data-clore]").forEach(b => b.onclick = () => { const s = CP.seances.find(x => x.id === b.dataset.clore); if(s){ s.etat = "terminee"; s.maj = Date.now(); sauve(); rendCoaching(); } });
+  el.querySelectorAll("[data-clore]").forEach(b => b.onclick = () => { const s = CP.seances.find(x => x.id === b.dataset.clore); if(s){ s.etat = "terminee"; s.maj = Date.now(); sauve(); memoSeance(s); rendCoaching(); } });
   el.querySelectorAll("[data-entrainer]").forEach(b => b.onclick = () => entrainePhase(b.dataset.entrainer, b));
   el.querySelectorAll("[data-comprendre]").forEach(b => b.onclick = () => nouvelleSeance({type: "phase", k: b.dataset.comprendre, titre: "Comprendre : " + nomPhase(b.dataset.comprendre),
       ouverture: "Je veux travailler « " + nomPhase(b.dataset.comprendre) + " ». D'après ma grille, je le réussis dans " + ((lignesGrille().find(l => l.k === b.dataset.comprendre) || {}).taux ?? "?") + " % de mes calls. Aide-moi à comprendre ce que je rate."}));
@@ -2825,6 +3270,22 @@ function rendCoaching(phaseOuverte){
   el.querySelectorAll("[data-analyser]").forEach(b => b.onclick = () => nouvelleAnalyse(CP.calls.find(c => c.id === b.dataset.analyser), b.dataset.phase));
   if($("cpRpLibre")) $("cpRpLibre").onclick = () => lanceRoleplay("");
   if($("cpNouvelleQR")) $("cpNouvelleQR").onclick = () => nouvelleSeance({type: "qr", titre: "Questions-réponses"});
+}
+
+/* ce que tes coachs ont en tête : le même fil que celui qu'ils relisent */
+async function rendMemoire(){
+  let rp = []; try{ rp = (await filLit()).filter(e => e.type === "roleplay" && (e.t || 0) > DEPART_FIL); }catch(_){}
+  const el = $("cpMemoire"); if(!el) return;
+  const l = rp.map(e => ({t: e.t, titre: e.titre, txt: e.a_travailler || e.faute || e.vu || ""}))
+    .concat(CP.seances.filter(s => (s.maj || 0) > DEPART_FIL && (s.conv.some(m => m.role === "moi") || s.plan))
+      .map(s => ({t: s.maj, titre: s.titre, txt: (s.memo && s.memo.txt) || s.bilan || (s.call && s.call.joue && s.call.joue.quoi) || ""})))
+    .sort((a, b) => b.t - a.t);
+  if(!l.length) return;
+  el.style.display = "block";
+  el.innerHTML = `<h4>Ce que tes coachs ont en mémoire</h4>
+    <p class="cp-vide" style="font-size:12.5px;margin-bottom:8px">${l.length} moment${l.length > 1 ? "s" : ""} de travail gardé${l.length > 1 ? "s" : ""} (analyses de calls, séances, roleplays). Chaque façon de travailler a sa propre mémoire : une analyse relit tes analyses, une question-réponse tes questions-réponses, un roleplay tes roleplays.</p>
+    ${l.slice(0, 6).map(x => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(x.titre)}</b>
+      <small>${jour(x.t)}${x.txt ? " · " + escapeHTML(x.txt.slice(0, 150)) + (x.txt.length > 150 ? "…" : "") : ""}</small></div></div>`).join("")}`;
 }
 
 /* un prospect construit pour la phase que tu rates, à partir de tes vrais calls */
@@ -2837,7 +3298,7 @@ async function entrainePhase(k, bouton){
   try{
     desc = await appelCerveau(`${nomProfil()}, ${profil().feminin ? "closeuse" : "closer"} high ticket, veut s'entraîner en roleplay sur une phase précise de son call : « ${l.nom} ». Il la réussit dans ${l.taux ?? "?"} % de ses calls.
 ${ex && ex.exercice ? "Exercice conseillé : " + ex.exercice + "\n" : ""}${rates ? "Ses vrais calls où il l'a ratée :\n" + rates + "\n" : ""}
-Écris la description du prospect qu'une IA va jouer, en 4 à 6 phrases : qui il est, son activité, sa situation en chiffres, son caractère, ce qu'il cache.
+Écris la description du prospect qu'une IA va jouer, en 4 à 6 phrases : qui il est, sa situation (avec des chiffres seulement s'il en a de vrais), ce qu'il vit au quotidien, son caractère, ce qu'il cache.
 Il doit ressembler aux prospects réels ci-dessus (même type de marché, même offre), et rendre cette phase difficile à réussir sans la rendre impossible : il ne donne l'information que si ${nomProfil()} pose la bonne question et creuse.
 Termine par une phrase « Objectif de l'exercice : … » qui dit précisément ce que ${nomProfil()} doit obtenir. Réponds avec la description seule, sans titre ni liste.`, {max: 600, effort: "low"});
   }catch(e){ toast("Je n'ai pas pu préparer le prospect : " + e.message); }
@@ -2860,29 +3321,134 @@ function lanceRoleplay(scenario){
 /* ---------------------------------------------------------------------
    Les séances : on s'arrête, on reprend un autre jour
    --------------------------------------------------------------------- */
-function nouvelleSeance(o){
+// un testeur : chaque nouvelle séance compte dans son essai (le serveur refuse au bout)
+async function annonceCoaching(){
+  if(!TESTEUR) return true;
+  try{
+    const r = await fetch(srvCopilote() + "/api/exercice", {method: "POST", headers: {"Content-Type": "application/json", "x-code": codeAcces()}, body: JSON.stringify({type: "coaching"})});
+    const d = await r.json().catch(() => ({}));
+    if(d.essai) CP.essai = d.essai;
+    if(r.status === 402){ toast(d.erreur || "Ton essai est arrivé au bout."); return false; }
+    return true;
+  }catch(_){ return true; }          // réseau capricieux : on ne bloque pas la séance
+}
+async function nouvelleSeance(o){
+  if(!(await annonceCoaching())) return false;
+  rattrapeMemos();
   const s = {id: "s" + Date.now(), titre: o.titre || "Séance", type: o.type || "qr", k: o.k || null, call: o.call || null,
              qui: CP.qui, conv: [], etat: "en_cours", debut: Date.now(), maj: Date.now(), texte: o.texte || ""};
   CP.seances.push(s); CP.actuelle = s.id;
   if(s.k) CP.entrainements.push({t: Date.now(), k: s.k, type: s.type});
   sauve(); ouvreSeance();
   if(o.ouverture){ $("cpMoi").value = o.ouverture; envoie(); }
-  else if(!o.silence){ s.conv.push({role: "coach", nom: coachDe(s.qui).court, t: Date.now(), txt: ouvertureCoach()}); sauve(); rendFil(); }
+  else if(!o.silence){ s.conv.push({role: "coach", nom: coachDe(s.qui).court, t: Date.now(), txt: ouvertureCoach(s)}); sauve(); rendFil(); }
+  return true;
 }
-function ouvertureCoach(){
-  const d = devoirsOuverts().slice(-1)[0];
-  return d ? "Avant tout : la dernière fois, je t'ai demandé ça. « " + d.txt + " » Tu l'as fait ? Raconte-moi ce que ça a donné."
-           : "Salut. Raconte-moi ton dernier call, ou ce qui te bloque en ce moment. On part de là.";
+function ouvertureCoach(s){
+  // le devoir redemandé vient du même type de travail : une question-réponse ne ressort pas un devoir d'analyse de call
+  const d = devoirsPour(s).slice(-1)[0];
+  if(d) return "Avant tout : la dernière fois, je t'ai demandé ça. « " + d.txt + " » Tu l'as fait ? Raconte-moi ce que ça a donné.";
+  return typeSeance(s) === "qr"
+    ? "Salut. De quoi tu veux qu'on parle ? Un call, ton état d'esprit, ton organisation, une offre, un doute… Vas-y, je t'écoute."
+    : "Salut. Raconte-moi ton dernier call, ou ce qui te bloque en ce moment. On part de là.";
 }
 async function nouvelleAnalyse(c, k){
   if(!c) return;
-  nouvelleSeance({type: "analyse", titre: "Analyse : " + nomCall(c) + " (" + (c.date || "") + ")", call: c, k: k || null, silence: true});
+  if(!(await nouvelleSeance({type: "analyse", titre: "Analyse : " + nomCall(c) + " (" + (c.date || "") + ")", call: c, k: k || null, silence: true}))) return;
   const s = seance();
   $("cpCallJoint").textContent = "Je récupère la transcription…";
   try{ s.texte = await suivi("/api/call/" + encodeURIComponent(c.id) + "/transcript"); }catch(e){ toast("Transcription non récupérée : " + e.message); }
   majCallJoint();
+  // comme Josh avant une revue : il lit tout le call, puis il annonce où on va
+  if(await preparePlan(s, k)) return;
   $("cpMoi").value = k ? "Analyse ce call avec moi, surtout « " + nomPhase(k) + " »." : "Analyse ce call avec moi.";
   envoie();
+}
+
+/* ---------------------------------------------------------------------
+   La carte de la séance : d'où on part, où on va, et pourquoi
+   --------------------------------------------------------------------- */
+// la carte d'un vrai call : les étapes de l'entonnoir de Josh (avant : les quatre accords)
+const ACCORDS = ENTONNOIR.map(e => [e.k, e.nom]);
+const minuteOk = v => /^\d{1,3}:\d\d$/.test(String(v || "").trim()) ? String(v).trim() : null;
+function litJsonCoach(txt){
+  let t = String(txt || "").replace(/```json|```/g, "").trim();
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if(a < 0 || b < a) return null;
+  t = t.slice(a, b + 1);
+  try{ return JSON.parse(t); }catch(_){ try{ return JSON.parse(t.replace(/,(\s*[}\]])/g, "$1")); }catch(__){ return null; } }
+}
+function promptPlan(s, k, fil){
+  const dest = coachCourant().k === "keenan"
+    ? "l'écart entre sa situation actuelle et la situation qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant"
+    : DESTINATION_JOSH;
+  return `${texteProfil()}${fil ? "\n" + titreFil(s) + "\n" + fil + "\nSi ce call répète quelque chose de ce fil (la même faute, le même moment qui lâche), tu le relies dans ton premier message : c'est souvent là que se trouve le vrai travail.\n" : ""}${texteDuCall(s)}
+${k ? "Il veut surtout travailler « " + nomPhase(k) + " ».\n" : ""}
+Avant de commencer la séance, tu lis tout ce call comme pour une revue de call, et tu prépares la carte de la séance : d'où il part, où vous allez, et pourquoi.
+1. La destination d'un call de vente, c'est ${dest}. Pour chaque étape de l'entonnoir (${ACCORDS.map(([a, n]) => a + " = " + n).join(" ; ")}) : vécue ou non par le PROSPECT dans ce call, avec ses mots, et à quelle minute si la transcription a les minutes. Repère surtout où l'entonnoir s'est éparpillé et si l'étau s'est fermé.
+2. Le temps : en une ou deux phrases, où le temps de ce call est passé. Par exemple : « 15 minutes sur le budget avant d'avoir compris son problème ». Une découverte complète tient en général en une vingtaine de minutes.
+3. Les 2 ou 3 moments qui ont décidé de ce call, dans l'ordre du call : ceux où le travailler changera le plus ses prochains calls. Pour chacun : la minute, un titre court, et ce qu'il doit savoir faire à la fin de ce moment.
+4. Ce qu'il saura faire à la fin de la séance, en une phrase.
+5. Ton premier message, à l'oral, en tutoyant, 5 à 8 phrases sans liste : le call en une phrase, ce que ce call devait obtenir, où ça s'est joué, les moments que vous allez faire dans l'ordre et pourquoi ceux-là, puis ta première question sur le premier moment.
+Réponds uniquement avec ce JSON :
+{"accords":{${ACCORDS.map(([a]) => `"${a}":{"ok":true ou false,"minute":"mm:ss ou null"}`).join(",")}},
+ "temps":"où le temps du call est passé","moments":[{"minute":"mm:ss ou null","titre":"titre court","objectif":"ce qu'il saura faire à la fin de ce moment"}],
+ "but":"ce qu'il saura faire à la fin de la séance","ouverture":"ton premier message"}`;
+}
+async function preparePlan(s, k){
+  const c = coachCourant();
+  CP.enCours = true; $("cpEtat").textContent = c.court + " lit tout ton call et prépare la séance…";
+  try{
+    let fil = ""; try{ fil = await texteFil(14, s); }catch(_){}
+    const j = litJsonCoach(await appelCerveau(promptPlan(s, k, fil), {systeme: systemeCoach(), max: 1800, effort: "medium"}));
+    const moments = (j && Array.isArray(j.moments) ? j.moments : []).filter(m => m && m.titre).slice(0, 3)
+      .map(m => ({minute: minuteOk(m.minute), titre: String(m.titre).slice(0, 90), objectif: m.objectif ? String(m.objectif).slice(0, 200) : ""}));
+    if(!moments.length || !j.ouverture) throw new Error("carte illisible");
+    const accords = {};
+    ACCORDS.forEach(([a]) => { const v = j.accords && j.accords[a]; if(v && typeof v.ok === "boolean") accords[a] = {ok: v.ok, minute: minuteOk(v.minute)}; });
+    const ouverture = String(j.ouverture).replace(/<<[\s\S]*?>>/g, "").trim();
+    s.conv.push({role: "coach", nom: c.court, txt: ouverture, t: Date.now()});
+    s.plan = {moments, courant: 0, debut: s.conv.length, but: j.but ? String(j.but).slice(0, 220) : "", temps: j.temps ? String(j.temps).slice(0, 300) : "",
+              accords: Object.keys(accords).length ? accords : null};
+    s.maj = Date.now(); sauve(); rendFil(); rendPlan();
+    $("cpEtat").textContent = "";
+    await parle(ouverture);
+    return true;
+  }catch(e){
+    $("cpEtat").textContent = "";
+    return false;
+  }finally{ CP.enCours = false; }
+}
+function rendPlan(){
+  const s = seance(), el = $("cpPlan");
+  if(!s || !s.plan){ el.style.display = "none"; el.innerHTML = ""; return; }
+  const p = s.plan, fini = p.courant >= p.moments.length;
+  el.style.display = "block";
+  el.innerHTML = `<h4>Où on va</h4>${p.but ? `<p style="font-size:14px;margin-bottom:8px">${escapeHTML(p.but)}</p>` : ""}
+    <div>${p.moments.map((m, i) => `<div class="cp-etape ${i < p.courant ? "fait" : i === p.courant ? "cours" : ""}"><span class="cp-num">${i < p.courant ? "✓" : i + 1}</span>
+      <span><b>${m.minute ? "Minute " + escapeHTML(m.minute) + " · " : ""}${escapeHTML(m.titre)}</b>${m.objectif ? `<small>${escapeHTML(m.objectif)}</small>` : ""}</span></div>`).join("")}
+      <div class="cp-etape ${fini ? "cours" : ""}"><span class="cp-num">${p.moments.length + 1}</span><span><b>Ce que tu retiens</b><small>Puis le bilan et ton travail pour la prochaine fois.</small></span></div></div>
+    ${p.accords ? `<div class="cp-btns" style="margin-top:12px;gap:6px">${ACCORDS.filter(([a]) => p.accords[a]).map(([a, nom]) => { const x = p.accords[a];
+      return `<span class="cp-pastille ${x.ok ? "ok" : "ko"}">${x.ok ? "✓" : "✗"} ${escapeHTML(nom)}${x.ok && x.minute ? " · " + escapeHTML(x.minute) : ""}</span>`; }).join("")}</div>
+      <p style="font-size:12px;color:var(--muted);margin-top:6px">L'entonnoir, dans ton vrai call : ce que le prospect a vraiment vécu.</p>` : ""}
+    ${p.temps ? `<p style="font-size:13px;color:var(--muted);margin-top:8px">${escapeHTML(p.temps)}</p>` : ""}`;
+}
+function textePlan(s){
+  if(!s || !s.plan) return "";
+  const p = s.plan, n = p.moments.length;
+  const ech = s.conv.slice(p.debut || 0).filter(m => m.role === "moi" && !m.question).length;
+  const liste = p.moments.map((m, i) => `  ${i + 1}. ${m.minute ? "[" + m.minute + "] " : ""}${m.titre}${m.objectif ? " — à la fin, il sait : " + m.objectif : ""} (${i < p.courant ? "fait" : i === p.courant ? "EN COURS" : "à venir"})`).join("\n");
+  const ou = p.courant >= n
+    ? "Tous les moments sont faits. Demande-lui ce qu'il retient de la séance, une ou deux choses avec ses mots, réagis-y, puis propose-lui de terminer la séance pour avoir son bilan."
+    : `Vous travaillez le moment ${p.courant + 1} sur ${n}. Ça fait ${ech} échange${ech > 1 ? "s" : ""} sur ce moment.` +
+      (ech >= 6 ? " C'est trop long : conclus ce moment maintenant (donne-lui la phrase juste s'il ne l'a pas trouvée) et passe au suivant." : "");
+  return `\nLA CARTE DE CETTE SÉANCE (il la voit à l'écran) :
+Ce qu'il saura faire à la fin : ${p.but || "—"}
+${liste}
+${ou}
+Sur un moment, tu fais comme en revue de call : tu le replaces dans le call (la minute, ce qui s'est dit), tu lui demandes ce qu'il cherchait à obtenir à cet endroit, tu lui montres pourquoi ça n'a pas marché en le reliant à la destination du call, et tu lui fais refaire sa phrase (deux essais, puis tu donnes la tienne et il la redit avec ses mots). Tu ne pars pas dans un détail qui ne sert pas ce moment.
+Quand le moment est réglé (il a compris pourquoi et il a dit une phrase juste), tu fais le point en une phrase (« on a ça, maintenant on va là »), tu ouvres directement le moment suivant dans le même message, et tu écris <<MOMENT_FAIT>> seul sur la dernière ligne.
+`;
 }
 async function reprend(id){
   const s = CP.seances.find(x => x.id === id); if(!s) return;
@@ -2902,21 +3468,21 @@ function ouvreSeance(){
   const s = seance(); if(!s) return;
   montre(sec);
   $("cpTitreSeance").textContent = s.titre;
-  majQui(); rendAvatar(); majVoixChoix(); rendFil(); rendDevoirs(); majCallJoint();
+  majQui(); rendAvatar(); majVoixChoix(); rendFil(); rendDevoirs(); majCallJoint(); rendPlan();
   $("cpEntrainer").style.display = "none";
   setTimeout(() => { sec.scrollTop = sec.scrollHeight; }, 50);
 }
 function majCallJoint(){ const s = seance(); $("cpCallJoint").textContent = s && s.call ? "On parle du call : " + nomCall(s.call) + " (" + (s.call.date || "") + ")" + (s.texte ? "" : " · sans transcription") : ""; }
-$("cpPause").onclick = () => { const s = seance(); if(s){ s.maj = Date.now(); sauve(); } arreteVoix(); toast("Séance gardée. Tu la retrouves dans Coaching, « À reprendre »."); ouvreCoaching(); };
+$("cpPause").onclick = () => { const s = seance(); if(s){ s.maj = Date.now(); sauve(); memoSeance(s); } arreteVoix(); toast("Séance gardée. Tu la retrouves dans Coaching, « À reprendre »."); ouvreCoaching(); };
 $("cpRetour").onclick = $("cpPause").onclick;
 $("cpTerminer").onclick = async () => {
   const s = seance(); if(!s) return;
-  if(s.conv.filter(m => m.role === "moi").length < 2){ s.etat = "terminee"; s.maj = Date.now(); sauve(); return ouvreCoaching(); }
+  if(s.conv.filter(m => m.role === "moi").length < 2){ s.etat = "terminee"; s.maj = Date.now(); sauve(); memoSeance(s); return ouvreCoaching(); }
   $("cpMoi").value = "On s'arrête là pour cette séance. Fais-moi le bilan : ce que j'ai compris, ce qui reste fragile, et ce que je dois travailler d'ici la prochaine fois.";
   await envoie(true);
   s.etat = "terminee"; s.maj = Date.now();
   const der = [...s.conv].reverse().find(m => m.role === "coach"); if(der) s.bilan = der.txt;
-  sauve();
+  sauve(); memoSeance(s);
   $("cpEtat").innerHTML = 'Séance terminée. <a href="#" id="cpVersCoaching" style="color:var(--ink)">Retour au coaching</a>';
   $("cpVersCoaching").onclick = e => { e.preventDefault(); ouvreCoaching(); };
 };
@@ -2924,15 +3490,23 @@ $("cpTerminer").onclick = async () => {
 /* ---------------------------------------------------------------------
    Le cerveau du coach
    --------------------------------------------------------------------- */
-const NOMS_G = {cadrage:"cadrage", situation:"situation en chiffres", probleme:"problème creusé", impact:"impact chiffré", cause:"cause et tentatives", vise:"objectif et pourquoi", ecart:"écart validé", enjeu:"enjeu personnel", declencheur:"pourquoi maintenant", responsabilite:"sa responsabilité", plan_b:"plan B fermé", decision:"circuit de décision", presentation:"présentation au bon moment", objections:"objections ramenées à son but", engagement:"engagement verrouillé"};
+const NOMS_G = {cadrage:"cadrage", situation:"situation réelle", probleme:"problème creusé", impact:"ce que ça lui coûte (vécu ou chiffré)", cause:"cause et tentatives", vise:"objectif et pourquoi", ecart:"écart ressenti (émotionnel ou chiffré)", enjeu:"enjeu personnel", declencheur:"pourquoi maintenant", responsabilite:"sa responsabilité", plan_b:"plan B fermé", decision:"circuit de décision", presentation:"présentation au bon moment", objections:"objections ramenées à son but", engagement:"engagement verrouillé"};
 function texteDuCall(s){
   if(!s || !s.call) return "";
   const c = s.call;
-  const g = c.grille ? Object.keys(NOMS_G).filter(k => c.grille[k] && c.grille[k].s !== "na")
-      .map(k => "  - " + NOMS_G[k] + " : " + c.grille[k].s + (c.grille[k].p ? " (« " + c.grille[k].p + " »)" : "")).join("\n") : "";
-  return `\nLE CALL DONT IL VEUT PARLER (${c.date || ""}, ${c.etape || ""}, ${c.offre || ""}, issue : ${c.issue || "?"}) :
+  // l'entonnoir (ou l'ancienne grille, pour un call analysé avant)
+  const noms = c.grille_v ? Object.fromEntries(ENTONNOIR.map(e => [e.k, e.nom])) : NOMS_G;
+  const g = c.grille ? Object.keys(noms).filter(k => c.grille[k] && c.grille[k].s !== "na")
+      .map(k => "  - " + noms[k] + " : " + c.grille[k].s + (c.grille[k].p ? " (« " + c.grille[k].p + " »)" : "")).join("\n") : "";
+  const fo = c.forme || {}, forme = [["resserre", "ok", "le call s'est resserré", "le call s'est éparpillé"], ["etau", "ferme", "l'étau s'est fermé", "l'étau ne s'est pas fermé"],
+    ["remontee", "ok", "le prospect est remonté avant le pitch", "pas de remontée avant le pitch"], ["pression", "tenue", "la pression a tenu", "la pression a été relâchée"]]
+    .filter(([k]) => fo[k]).map(([k, b, oui, non]) => "  - " + (fo[k][b] ? oui : non) + (fo[k].minute ? " (minute " + fo[k].minute + ")" : "") + (fo[k].note ? " : " + fo[k].note : "")).join("\n");
+  const j = c.joue ? `Là où tout s'est joué${c.joue.minute ? " (minute " + c.joue.minute + ")" : ""} : ${c.joue.quoi || ""}${c.joue.pourquoi ? " — " + c.joue.pourquoi : ""}${c.joue.a_dire ? " — il aurait pu dire : « " + c.joue.a_dire + " »" : ""}\n` : "";
+  const d = (c.deroule || []).length ? "Le déroulé" + (c.duree_min ? " (" + c.duree_min + " min)" : "") + " :\n" + c.deroule.map(p => `  - ${p.de || "?"}${p.a ? "–" + p.a : ""} ${p.partie}${p.note ? " : " + p.note : ""}`).join("\n") + "\n" : "";
+  const minutes = /^\[\d+:\d\d\]/m.test(s.texte || "");
+  return `\nLE CALL DONT IL VEUT PARLER (${c.date || ""}, ${c.etape || ""}, ${c.offre || ""}, issue : ${c.issue || "?"}${c.duree_min ? ", " + c.duree_min + " minutes" : ""}) :
 Résumé : ${c.resume || "—"}
-${c.bascule ? "Moment de bascule : " + c.bascule + "\n" : ""}${g ? "Sa grille sur ce call :\n" + g + "\n" : ""}${s.texte ? "LA TRANSCRIPTION :\n" + s.texte.slice(0, 60000) : "(transcription non disponible)"}\n`;
+${j}${!c.joue && c.bascule ? "Moment de bascule : " + c.bascule + "\n" : ""}${d}${forme ? "La forme de l'entonnoir :\n" + forme + "\n" : ""}${g ? (c.grille_v ? "L'entonnoir sur ce call (ce que le prospect a vécu) :\n" : "Sa grille sur ce call (ancienne grille) :\n") + g + "\n" : ""}${s.texte ? "LA TRANSCRIPTION" + (minutes ? " (chaque ligne commence par sa minute [mm:ss] : cite-la quand tu parles d'un moment)" : "") + " :\n" + s.texte.slice(0, 80000) : "(transcription non disponible)"}\n`;
 }
 function texteProfil(){
   const s = CP.stats; if(!s) return "";
@@ -2942,36 +3516,79 @@ function texteProfil(){
   return `\nSES CHIFFRES DES 45 DERNIERS JOURS (depuis son suivi) : ${s.calls} calls, ${s.signes} signés, taux par prospect ${s.taux_prospect ?? "?"} %.
 ${lignes ? "Sa grille, point par point :\n" + lignes : ""}
 ${(g.faiblesses || []).length ? "Ses points faibles prioritaires : " + g.faiblesses.map(f => f.nom).join(", ") + "." : ""}
+(Cette grille mesure la structure du call, pas la qualité humaine de l'écoute. Si d'anciens calls ont été notés avec l'ancienne grille, un écart ou un impact « raté » veut peut-être seulement dire « pas chiffré » : vérifie dans le call si le prospect a ressenti son écart avant de lui reprocher quoi que ce soit.)
 ${trav ? "Ce qu'il a déjà travaillé avec toi, et l'effet sur ses vrais calls :\n" + trav : ""}\n`;
 }
-function systemeCoach(){
+/* chaque type de séance a sa conduite : une analyse de call vise la destination du call,
+   une question-réponse reste sur le sujet qu'il apporte (mindset, organisation, carrière…) */
+function conduiteSeance(c){
+  const s = seance(), type = typeSeance(s);
+  const memoire = `TA MÉMOIRE
+Plus bas, sous « ${titreFil(s).split(" (")[0]} », tu as ce que vous avez déjà fait dans ce même type de travail, même avec un autre coach ou laissé en pause. Tu fais les liens toi-même : quand la même chose revient, tu le lui dis, et quand il a corrigé quelque chose, tu le remarques.
+S'il te parle d'une séance d'avant, tu la cherches là et tu t'en sers. Si elle n'y est pas, tu lui demandes de te la rappeler en une phrase.
+Tu ne fais pas entrer un autre type de travail dans cette séance : pas ses calls dans une question-réponse, pas ses roleplays dans une analyse de call, sauf s'il en parle lui-même.
+`;
+  if(type === "qr") return `CETTE SÉANCE : QUESTIONS-RÉPONSES
+Il vient avec SON sujet : ça peut être un call, mais aussi son état d'esprit, sa confiance, sa motivation, son organisation, ses offres, sa carrière, une situation précise ou une question de technique. Tu restes sur ce sujet-là.
+Tu ne le ramènes pas à ses calls, à ses chiffres ou à sa grille. Tu ne les as pas sous les yeux, et ce n'est pas le moment. S'il en parle lui-même, tu le suis.
+Si c'est de l'état d'esprit, tu coaches l'homme, pas la technique de vente : ce qu'il vit, ce qu'il se raconte, ce qu'il évite, et ce qu'il va faire concrètement.
+Tu commences par bien comprendre sa question, puis tu l'aides à avancer. Un point à la fois. Quand vous avez fait le tour, tu lui demandes ce qu'il retient, avec ses mots.
+
+${memoire}`;
+  const phase = type === "phase" && s && s.k ? `CETTE SÉANCE PORTE SUR UNE SEULE PHASE DE SES CALLS : « ${nomPhase(s.k)} ». Vous ne parlez que d'elle : pourquoi il la rate, ce qui se passe chez le prospect à ce moment-là, et la phrase juste.\n` : "";
+  return `COMMENT TU CONDUIS UNE SÉANCE
+${phase}Il doit toujours savoir d'où il part, où vous allez, et pourquoi. Dès ton premier vrai message, tu lui dis ce que vous cherchez à comprendre ou à obtenir dans cette séance.
+La destination d'un call de vente, ${c.k === "keenan" ? "c'est l'écart entre sa situation actuelle et celle qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant" : "c'est " + DESTINATION_JOSH}. Chaque moment que vous travaillez est relié à cette destination, et tu le lui dis. Un call qui s'éparpille (questions au hasard, retours au général) ou un closer qui relâche la pression pour se rassurer casse l'entonnoir : tu le lui montres.
+Un détail du call (le budget, ses chiffres, son taux de conversion, la technique de son métier) ne mérite du temps que s'il sert cette destination. Sinon tu le dis franchement, « ça, ce n'est pas là que ça s'est joué », et tu ramènes.
+Tu as le chrono du call en tête : une découverte complète tient en général en une vingtaine de minutes. Si la transcription a les minutes, tu les cites, et tu lui dis quand il a passé trop de temps sur quelque chose.
+Un point à la fois. Quand il est acquis, tu le dis, tu fais le point en une phrase (« on a ça, maintenant on va là ») et tu passes au suivant. Tu ne tournes pas plus de cinq ou six échanges sur le même point.
+Quand ce n'est pas évident, ta question dit pourquoi tu la poses.
+Quand vous avez fait le tour, tu lui demandes ce qu'il retient, avec ses mots, avant de conclure.
+
+${memoire}`;
+}function systemeCoach(){
   const c = coachCourant();
   const maniere = (typeof MANIERE_COACH === "object" && MANIERE_COACH[c.k]) ? MANIERE_COACH[c.k].ton : "";
-  let cerveau = "";
-  if(c.k === "mix") cerveau = doctrinePour([], "b2b", 45000);
-  else if(DOCTRINES[c.k] && DOCTRINES[c.k].cerveau) cerveau = "### LE CERVEAU DE " + c.nom.toUpperCase() + "\n" + DOCTRINES[c.k].cerveau;
+  let cerveau = "", vraieTete = false;
+  if(c.k === "mix"){
+    // Josh d'abord : c'est sa façon de penser qui guide. Keenan ne sert que de complément sur la structure B2B.
+    const josh = DOCTRINES["josh lyons"], keenan = DOCTRINES["keenan"];
+    if(josh && josh.cerveau){
+      vraieTete = true;
+      cerveau = "### TA TÊTE\n" + josh.cerveau +
+        (keenan && keenan.cerveau ? "\n\n### CE QUE TU AS AUSSI APPRIS D'UN AUTRE COACH (Keenan, Gap Selling) : une structure, à n'utiliser que pour organiser une découverte B2B quand le prospect raisonne lui-même en entreprise et en chiffres. Elle ne remplace jamais ta façon d'écouter l'humain.\n" + keenan.cerveau : "");
+    }
+    else cerveau = doctrinePour([], "", 45000);
+  }
+  else if(DOCTRINES[c.k] && DOCTRINES[c.k].cerveau){ vraieTete = true; cerveau = "### TA TÊTE\n" + DOCTRINES[c.k].cerveau; }
   else {
-    const f = (FICHES || []).filter(x => x.ecole === c.k).slice(0, 60);
+    const f = (FICHES || []).filter(x => x.ecole === (c.src || c.k)).slice(0, 60);
     cerveau = "### CE QUE " + c.nom.toUpperCase() + " ENSEIGNE (ses principes et ses phrases, à faire passer par ta propre réflexion, jamais à réciter)\n" +
       f.map(x => "- " + (x.situation ? x.situation + " → " : "") + "« " + x.phrase + " »" + (x.pourquoi ? " (" + x.pourquoi + ")" : "")).join("\n");
   }
+  const quiTuEs = vraieTete
+    ? `Le texte en bas de ce message, c'est ta propre tête : ce que tu as vécu, ta façon de voir les gens, d'écouter un call et de coacher un closer. Tu penses avec, comme un homme pense avec son expérience. Tu ne le récites pas, tu n'en cites pas de passages, tu ne nommes pas de méthode.
+Les scènes qui y sont racontées sont des souvenirs de vrais calls : elles t'aident à reconnaître ce qui se passe, tu ne les plaques pas sur une situation qui ne leur ressemble pas. Chaque prospect est une personne différente, et ce qui compte pour lui peut être de l'argent, son couple, sa santé, ses enfants, l'image qu'il a de lui ou tout autre chose.`
+    : `Tu as passé des années au téléphone avec des prospects, puis à former des closers. Ce qui est en bas de ce message, c'est ce que ce coach enseigne : tu le fais passer par ta propre réflexion, comme quelqu'un qui l'a longtemps écouté, et tu ne le récites jamais. Chaque prospect est une personne différente, et ce qui compte pour lui peut être de l'argent, son couple, sa santé, ses enfants, l'image qu'il a de lui ou tout autre chose.`;
   return `Tu es ${c.k === "mix" ? "le coach personnel" : c.nom + ", le coach personnel"} de ${nomProfil()}, ${profil().desc}. ${profil().feminin ? "Elle" : "Il"} te parle en dehors de ses calls : pour comprendre ce qui s'est passé, et pour progresser.${profil().feminin ? "\nC'est une femme : tu lui parles au féminin. Dans les consignes ci-dessous, « il » désigne " + nomProfil() + "." : ""}
 
 QUI TU ES
-Tu n'es pas un assistant et tu ne fais pas de fiches. Tu es un coach humain qui le suit depuis des mois, qui connaît son métier et qui tient à ce qu'il réussisse. Tu raisonnes avec le cerveau ci-dessous : tu lis sa situation, tu reconnais ce que tu y vois, tu décides de ce qui l'aidera le plus maintenant. Tu ne récites jamais ce texte, tu ne cites pas de méthode par son nom.
+Tu n'es pas un assistant, tu ne remplis pas de grille et tu ne récites rien. ${quiTuEs}
+${c.k !== "keenan" ? "Un écart peut être chiffré ou simplement vécu. Si le prospect a dit, avec ses mots, ce que sa situation lui fait vivre, l'écart est posé, même sans un seul chiffre : tu ne reproches pas à ton élève de ne pas avoir chiffré.\n" : ""}
+COMMENT TU PENSES AVANT DE RÉPONDRE
+Avant chaque réponse, tu te demandes en silence : qu'est-ce qui se passe vraiment chez ce prospect, sous ce qu'il dit ? Qu'est-ce que mon élève n'a pas entendu ? Qu'est-ce que j'aurais vu, moi, à cet endroit du call ? Et de quoi mon élève a besoin maintenant : comprendre, essayer, ou se faire secouer ?
+Tu ne prends pas un chemin tout fait. Tu réagis à ce qui est dit, comme dans une vraie conversation.
 
 COMMENT TU COACHES
-- D'abord tu comprends. Si tu ne sais pas ce qui s'est vraiment passé dans son call, tu demandes (ce qu'il a dit, ce que le prospect a répondu, à quel moment ça a tourné). Une seule question à la fois.
-- Tu le fais trouver avant de donner la réponse. Tu lui demandes ce qu'il aurait pu faire, puis tu le corriges ou tu complètes. Tu ne donnes la réponse tout de suite que s'il bloque vraiment ou s'il te la demande deux fois.
-- Quand il te propose une phrase ou une question qu'il dirait en call, tu la lui fais refaire tant qu'elle n'est pas juste : tu dis précisément ce qui cloche, et tu lui demandes une nouvelle version. Tu ne la réécris à sa place qu'après deux essais ratés, puis tu lui fais redire ta version avec ses mots.
-- Tu t'appuies sur le réel : ses mots, ceux du prospect, ses chiffres. Si tu as la transcription, tu cites le moment exact.
-- Tu es franc. Tu nommes ce qu'il évite. Dur quand il le faut, jamais méprisant.
-- Pas de phrase magique, pas de raccourci. S'il cherche la facilité (la formule qui marche à tous les coups, sauter l'entraînement, accuser ses leads), tu le lui dis, et tu le ramènes au travail : comprendre, répéter, s'entraîner. Il progresse par le travail, pas par des astuces.
-- Tu finis souvent par lui donner un travail concret et mesurable. Quand il revient, tu lui demandes s'il l'a fait, et ce que ça a donné.
-- Tu tiens compte de son état : s'il est découragé ou fatigué, tu le recadres avec chaleur, sans le plaindre. Il peut mettre la séance en pause et la reprendre plus tard : c'est normal, tu ne le lui reproches pas.
+Tu commences par comprendre ce qui s'est vraiment passé, une question à la fois. Tu le fais chercher avant de lui donner ta réponse, et tu la donnes s'il bloque vraiment ou s'il te la demande deux fois.
+Quand il te propose une phrase qu'il dirait en call, tu la lui fais refaire tant qu'elle ne sonne pas juste. Tu lui dis pourquoi elle ne touche pas le prospect, et tu lui en demandes une autre. Après deux essais, tu lui donnes la tienne et tu lui demandes de la redire avec ses mots.
+Tu t'appuies sur le réel : les mots du prospect, ceux de ton élève, le moment exact du call si tu as la transcription.
+Tu es franc. Tu nommes ce qu'il évite, y compris chez lui : sa peur de déranger, sa peur d'aller trop loin, son envie de passer vite à l'offre. Dur quand il le faut, jamais méprisant, et chaleureux quand il est découragé.
+Pas de phrase magique. S'il cherche un raccourci, tu le lui dis, et tu le ramènes à ce qui fait progresser : comprendre, répéter, s'entraîner. Tu lui donnes souvent un travail précis, et tu le lui redemandes la fois suivante. Il peut mettre une séance en pause : c'est normal.
 
+${conduiteSeance(c)}
 COMMENT TU PARLES
-Tu parles, tu n'écris pas : pas de listes, pas de titres, pas de gras, pas d'émojis. Des phrases courtes, à l'oral, en tutoyant. En général 2 à 6 phrases. Plus long seulement s'il te demande d'expliquer quelque chose en détail, ou pour un bilan.
+Tu parles, tu n'écris pas. Pas de listes, pas de titres, pas de gras, pas d'émojis, pas de mots de consultant. Des phrases courtes, à l'oral, en tutoyant, avec tes réactions d'humain (« attends », « tu vois ce qui se passe là ? », « non, écoute-toi »). En général 2 à 6 phrases. Plus long seulement s'il te demande d'expliquer en détail, ou pour un bilan.
 ${maniere ? "\nTA MANIÈRE\n" + maniere + "\n" : ""}
 DEUX REPÈRES, à mettre seulement quand c'est utile, chacun seul sur une ligne à la toute fin :
 <<DEVOIR: le travail précis à faire avant votre prochain échange>>
@@ -2979,20 +3596,66 @@ DEUX REPÈRES, à mettre seulement quand c'est utile, chacun seul sur une ligne 
 
 ${cerveau}`;
 }
-function promptCoach(question, estQuestion){
+/* --- la mémoire des séances : chaque séance quittée laisse un mémo, que tous les coachs relisent --- */
+// Chaque façon de travailler est cloisonnée : une analyse de call ne relit que les analyses,
+// une question-réponse que les questions-réponses, une phase que les séances sur cette phase.
+const typeSeance = s => (s && s.type) || "qr";
+const memeTravail = (a, b) => !b || (typeSeance(a) === typeSeance(b) && (typeSeance(b) !== "phase" || !b.k || a.k === b.k));
+const avecSesCalls = s => ["analyse", "phase"].includes(typeSeance(s));
+const titreFil = s => ({analyse: "SES ANALYSES DE CALLS PRÉCÉDENTES", phase: "SES SÉANCES PRÉCÉDENTES SUR CETTE PHASE", qr: "VOS QUESTIONS-RÉPONSES PRÉCÉDENTES"}[typeSeance(s)]) +
+  " (du plus ancien au plus récent). C'est ta mémoire de ce travail-là :";
+const devoirsPour = s => devoirsOuverts().filter(d => { const o = CP.seances.find(x => x.id === d.seance); return o && memeTravail(o, s); });
+function digestSeance(s){
+  const c = s.call;
+  const tete = s.titre + " (avec " + coachDe(s.qui).nom + (s.etat === "terminee" ? "" : ", pas terminée") + ")";
+  const call = c ? " Le call" + (c.issue ? " (" + c.issue + ")" : "") + " : " + String(c.resume || "").slice(0, 220) +
+    (c.joue && c.joue.quoi ? " Là où ça s'est joué" + (c.joue.minute ? ", minute " + c.joue.minute : "") + " : " + String(c.joue.quoi).slice(0, 200) : "") : "";
+  let fond = "";
+  if(s.memo && s.memo.txt) fond = " Ce qu'on en a retenu : " + s.memo.txt;
+  else if(s.bilan) fond = " Bilan : " + s.bilan.slice(0, 600);
+  else{ const der = s.conv.filter(m => m.role === "coach").slice(-2).map(m => m.txt.slice(0, 300)).join(" / "); if(der) fond = " Les derniers mots du coach : " + der; }
+  return tete + " :" + call + fond;
+}
+filSeances = sauf => CP.seances
+  .filter(s => s !== sauf && memeTravail(s, sauf) && (s.maj || 0) > DEPART_FIL && (s.conv.some(m => m.role === "moi") || s.plan))
+  .map(s => ({t: s.maj, txt: digestSeance(s)}));
+async function memoSeance(s){
+  if(!s || !s.conv.some(m => m.role === "moi")) return;
+  if(s.memo && s.memo.n === s.conv.length) return;
+  const n = s.conv.length;
+  const conv = s.conv.slice(-40).map(m => (m.role === "moi" ? nomProfil() : (m.nom || "Coach")) + " : " + m.txt.slice(0, 700)).join("\n");
+  try{
+    const txt = await appelCerveau(`Voici une séance de coaching de ${nomProfil()}, closer high ticket, avec son coach : « ${s.titre} ».
+${s.call ? "Le call travaillé : " + (s.call.resume || "") + (s.call.joue && s.call.joue.quoi ? " Là où ça s'est joué : " + s.call.joue.quoi : "") + "\n" : ""}
+LA SÉANCE :
+${conv}
+
+Écris la note que le coach garde en tête pour les prochaines séances : 3 à 5 phrases, au passé, sans liste. Ce qui ressort de ce call ou de ce travail (avec les mots exacts quand ils comptent), ce que ${nomProfil()} a compris, la phrase juste qu'il a trouvée s'il y en a une, ce qui reste fragile, et le travail donné. Concret, rien de général. Réponds avec la note seule.`, {max: 450, effort: "low"});
+    if(txt && txt.trim() && CP.seances.includes(s)){ s.memo = {n, t: Date.now(), txt: txt.replace(/<<[\s\S]*?>>/g, "").trim().slice(0, 900)}; sauve(); }
+  }catch(_){}
+}
+// les séances quittées sans mémo à jour (onglet fermé en pleine séance…) : rattrapées en fond
+function rattrapeMemos(){
+  CP.seances.filter(s => s.id !== CP.actuelle && (s.maj || 0) > DEPART_FIL && s.conv.some(m => m.role === "moi") && !(s.memo && s.memo.n === s.conv.length))
+    .slice(-3).forEach(s => memoSeance(s));
+}
+function promptCoach(question, estQuestion, fil){
   const c = coachCourant(), s = seance();
   const hist = (s ? s.conv : []).slice(-24, -1).map(m => (m.role === "moi" ? (m.question ? nomProfil().toUpperCase() + " (question à côté)" : nomProfil().toUpperCase()) : (m.nom || "COACH").toUpperCase()) + " : " + m.txt).join("\n");
-  const ouverts = devoirsOuverts().slice(-5).map(d => "  - (" + d.date + ") " + d.txt).join("\n");
-  const avant = CP.seances.filter(x => x.etat === "terminee" && x.bilan && x !== s).sort((a, b) => b.maj - a.maj).slice(0, 3)
-    .map(x => "  - " + jour(x.maj) + ", " + x.titre + " : " + x.bilan.slice(0, 500)).join("\n");
+  // les devoirs ne servent qu'en début de séance (pour les lui redemander) : ensuite ils coloreraient chaque réponse
+  const debut = !s || s.conv.filter(m => m.role === "moi").length <= 1;
+  // nouveau départ : ce qui a été écrit avant le nouveau cerveau de Josh (19 octobre, ancienne façon de penser) n'est plus relu
+  const ouverts = debut ? devoirsPour(s).filter(d => (Number(d.id) || 0) > DEPART_FIL).slice(-3).map(d => "  - (" + d.date + ") " + d.txt).join("\n") : "";
+  const avant = fil || "";
   const objet = s && s.k ? `\nCETTE SÉANCE PORTE SUR UNE PHASE PRÉCISE DE SES CALLS : « ${nomPhase(s.k)} ». Reste dessus, sauf quand il te pose une question directe : tu y réponds d'abord.\n` : "";
   const consigneQuestion = estQuestion ? `
 ATTENTION : CE MESSAGE EST UNE QUESTION DIRECTE qu'il te pose, à côté de l'exercice. Il veut ta réponse, pas une nouvelle question.
 Réponds-y vraiment : clairement, complètement, avec un exemple concret ou la phrase exacte à dire si c'est utile, même si ça sort du sujet de la séance. Ici, tu ne lui retournes pas la question et tu ne le fais pas chercher.
 Pas de DEVOIR ni de ROLEPLAY. Termine par une seule courte phrase qui propose de reprendre l'exercice là où vous en étiez.
 ` : "";
-  let sv = ""; try{ sv = souvenirs(question + " " + (s && s.call ? (s.call.resume || "") : "") + (s && s.k ? " " + nomPhase(s.k) : ""), [], "b2b", 6); }catch(_){}
-  return `${texteProfil()}${avant ? "\nVOS DERNIÈRES SÉANCES (leur bilan) :\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${sv}
+  let sv = ""; try{ sv = souvenirs(question + " " + (s && s.call ? (s.call.resume || "") : "") + (s && s.k ? " " + nomPhase(s.k) : ""), [], "", 6); }catch(_){}
+  // ses chiffres de calls ne servent qu'à une analyse ou une phase : une question-réponse reste sur son sujet à lui
+  return `${avecSesCalls(s) ? texteProfil() : ""}${avant ? "\n" + titreFil(s) + "\n" + avant + "\n" : ""}${ouverts ? "\nLE TRAVAIL QUE TU LUI AS DONNÉ ET QU'IL N'A PAS ENCORE VALIDÉ :\n" + ouverts + "\n" : ""}${objet}${texteDuCall(s)}${textePlan(s)}${sv}
 ${hist ? "CETTE SÉANCE JUSQU'ICI :\n" + hist + "\n" : ""}
 ${nomProfil().toUpperCase()}${estQuestion ? " (QUESTION DIRECTE)" : ""} : ${question}
 ${consigneQuestion}
@@ -3017,16 +3680,25 @@ function rendDevoirs(){
 async function envoie(silencieux, estQuestion){
   const q = $("cpMoi").value.trim(), s = seance();
   if(!q || CP.enCours || !s) return;
+  // une clé collée ici partirait chez l'IA : on la retient
+  if(!/\s/.test(q) && q.length >= 30 && /[A-Za-z]/.test(q) && /\d/.test(q)){
+    $("cpEtat").innerHTML = '<span style="color:var(--clay)">Ça ressemble à une clé : je ne l\'envoie pas au coach. Efface-la d\'ici. Ta clé Fathom se met dans Tracking, à l\'endroit prévu.</span>';
+    return;
+  }
   arreteVoix();
   const c = coachCourant();
   s.conv.push(Object.assign({role: "moi", txt: q, t: Date.now()}, estQuestion ? {question: true} : {})); s.maj = Date.now(); s.qui = CP.qui;
   $("cpMoi").value = ""; rendFil(); sauve();
   CP.enCours = true; $("cpEtat").textContent = c.court + " réfléchit…";
   try{
-    let rep = await appelCerveau(promptCoach(q, estQuestion), {systeme: systemeCoach(), max: 1400, effort: "medium"});
+    let fil = ""; try{ fil = await texteFil(14, s); }catch(_){}
+    let rep = await appelCerveau(promptCoach(q, estQuestion, fil), {systeme: systemeCoach(), max: 1400, effort: "medium"});
     const dv = rep.match(/<<\s*DEVOIR\s*:\s*([\s\S]*?)>>/i), rp = rep.match(/<<\s*ROLEPLAY\s*:\s*([\s\S]*?)>>/i);
+    const momentFait = /<<\s*MOMENT[_ ]FAIT\s*>>/i.test(rep);
     rep = rep.replace(/<<[\s\S]*?>>/g, "").trim();
     s.conv.push({role: "coach", nom: c.court, txt: rep, t: Date.now()}); s.maj = Date.now();
+    // un moment de la carte est réglé : on coche, et le compteur repart pour le suivant
+    if(momentFait && s.plan && !estQuestion && s.plan.courant < s.plan.moments.length){ s.plan.courant++; s.plan.debut = s.conv.length; rendPlan(); }
     if(dv){ CP.devoirs.push({id: Date.now(), txt: dv[1].trim(), date: new Date().toLocaleDateString("fr-FR"), fait: false, seance: s.id}); rendDevoirs(); }
     const ent = $("cpEntrainer");
     if(rp){
@@ -3038,7 +3710,9 @@ async function envoie(silencieux, estQuestion){
     $("cpEtat").textContent = "";
     await parle(rep);
   }catch(e){
-    $("cpEtat").innerHTML = '<span style="color:var(--clay)">' + escapeHTML(e.message) + "</span>";
+    // un testeur n'a rien à vérifier lui-même : la clé de l'IA est sur le serveur
+    const m = TESTEUR && /clé api|config\.json/i.test(e.message) ? "Le coach ne répond pas pour le moment : c'est un souci de notre côté, pas du tien. Réessaie un peu plus tard." : e.message;
+    $("cpEtat").innerHTML = '<span style="color:var(--clay)">' + escapeHTML(m) + "</span>";
   }
   CP.enCours = false;
 }
@@ -3098,7 +3772,7 @@ $("cpQui").onchange = () => {
   arreteVoix();
   if(!avant.conv.some(m => m.role === "moi")){
     // rien n'a encore été dit : on change simplement de coach
-    avant.qui = CP.qui; avant.conv = [{role: "coach", nom: coachDe(CP.qui).court, t: Date.now(), txt: ouvertureCoach()}];
+    avant.qui = CP.qui; avant.conv = [{role: "coach", nom: coachDe(CP.qui).court, t: Date.now(), txt: ouvertureCoach(avant)}];
     sauve(); ouvreSeance(); return;
   }
   avant.maj = Date.now();
@@ -3147,9 +3821,15 @@ $("cpMoi").addEventListener("keydown", e => { if(e.key === "Enter" && (e.ctrlKey
 accueilEl.innerHTML = '<div class="cp-page"><span class="cp-marque">Closing Copilot</span></div>';
 (async () => {
   CP.regl = (await Store.get("coach_perso_regl")) || {};
-  const pf = await Store.get("coach_perso_profils");
-  if(Array.isArray(pf)) PROFILS = PROFILS_DEFAUT.map(d => Object.assign({}, d, pf.find(x => x.id === d.id) || {}, {coachs: d.coachs}));
-  if(!PROFILS.some(p => p.id === PROFIL && p.nom)) PROFIL = "woidih";
+  if(TESTEUR){
+    // son prénom et son essai d'abord, pour que l'accueil lui parle à lui
+    habilleTesteur();
+    await majEssai();
+  } else {
+    const pf = await Store.get("coach_perso_profils");
+    if(Array.isArray(pf)) PROFILS = PROFILS_DEFAUT.map(d => Object.assign({}, d, pf.find(x => x.id === d.id) || {}, {coachs: d.coachs}));
+    if(!PROFILS.some(p => p.id === PROFIL && p.nom)) PROFIL = "woidih";
+  }
   await chargeProfil();
   // l'ancienne conversation unique devient une séance à reprendre
   const vieille = PROFIL === "woidih" ? await Store.get("coach_perso_conv") : null;
