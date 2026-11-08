@@ -399,8 +399,17 @@ const FOOD={
  compote:{b:"#E9C77A",bits:[["dot",["#F2D894","#D9B45A"],10,3]]}
 };
 let plateN=0;
+/* Photos des plats : photos/<identifiant>.jpg est essayée automatiquement ; si elle n'existe pas,
+   on garde l'assiette dessinée (et on ne la redemande plus pendant la session). */
+const SANS_PHOTO=new Set((()=>{ try{ return JSON.parse(sessionStorage.getItem("vc_sans_photo")||"[]"); }catch(e){ return []; } })());
+document.addEventListener("error",e=>{ const im=e.target; if(!im||!im.classList||!im.classList.contains("photo-auto")) return;
+  const id=im.dataset.id; SANS_PHOTO.add(id); try{ sessionStorage.setItem("vc_sans_photo",JSON.stringify([...SANS_PHOTO])); }catch(x){}
+  const w=document.createElement("span"); w.innerHTML=dessinAssiette(id); im.replaceWith(w.firstChild); },true);
 function plateSVG(id){
-  if(typeof PHOTOS!=="undefined"&&PHOTOS[id]) return '<img class="photo-plat" src="'+PHOTOS[id]+'" alt="" loading="lazy">';
+  const src=(typeof PHOTOS!=="undefined"&&PHOTOS[id])||(!SANS_PHOTO.has(id)?"photos/"+id+".jpg":null);
+  return src?'<img class="photo-plat photo-auto" data-id="'+id+'" src="'+src+'" alt="">':dessinAssiette(id);
+}
+function dessinAssiette(id){
   const parts=VIZ[id]||[["veg",1]]; const rand=rng([...id].reduce((a,c)=>a*31+c.charCodeAt(0),7));
   const uid="pl"+(plateN++); const R0=38, C=50;
   const tot=parts.reduce((s,x)=>s+x[1],0); let a=-Math.PI/2-0.4;

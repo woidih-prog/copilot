@@ -41,7 +41,7 @@ Les prix viennent d'[Open Prices](https://prices.openfoodfacts.org) (Open Food F
 Les logos des enseignes (`logos/`) viennent du dépôt [openfoodfacts/brand-images](https://github.com/openfoodfacts/brand-images). Ils servent uniquement à reconnaître le magasin choisi ; ce sont des marques de leurs propriétaires respectifs.
 
 ## Photos des plats
-Chaque plat a une description. Pour remplacer l'illustration par une vraie photo, voir `photos/README.md` (photo carrée dans `photos/`, puis une ligne dans `PHOTOS` à la fin de `recettes.js`).
+Chaque plat a une description. Pour remplacer l'illustration par une vraie photo, il suffit de déposer `photos/<identifiant>.jpg` (voir `photos/README.md`, qui liste tous les plats).
 
 ## Licences des recettes
 Les recettes sont écrites pour Vite & Calé, sauf le couscous (p44) et la chorba (p46), adaptés du [Livre de cuisine de Wikilivres](https://fr.wikibooks.org/wiki/Livre_de_cuisine) sous licence [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/deed.fr). Ces deux fiches restent sous cette licence ; la source et les modifications sont indiquées dans la fiche et dans `recettes.js`.
