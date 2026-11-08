@@ -1,0 +1,39 @@
+name: Prix Vite & Calé
+
+# Chaque jour, relit les promos d'Open Prices (vite-et-cale/promos.json).
+# Le lundi, relit aussi tous les prix (vite-et-cale/prix.json).
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+    - cron: "17 5 * * 0,2-6"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Récupérer les prix et les promos
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 5 * * 1'
+        run: python3 vite-et-cale/prix/maj_prix.py
+      - name: Récupérer les promos seulement
+        if: github.event_name == 'schedule' && github.event.schedule != '17 5 * * 1'
+        run: python3 vite-et-cale/prix/maj_prix.py --promos
+      - name: Enregistrer si les prix ont changé
+        run: |
+          if git diff --quiet -- vite-et-cale/prix.json vite-et-cale/promos.json; then
+            echo "Pas de changement."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vite-et-cale/prix.json vite-et-cale/promos.json
+          git commit -m "Vite & Calé : mise à jour des prix et des promos (Open Prices)"
+          git push
