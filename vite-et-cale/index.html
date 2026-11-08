@@ -491,7 +491,8 @@ const RAYON = {avoine:"Épicerie",pates:"Épicerie",riz:"Épicerie",semoule:"Ép
   baguette:"Boulangerie",confiture:"Épicerie",cereales:"Épicerie",citron:"Fruits et légumes",cacahuete:"Épicerie"};
 const RAYONS = ["Fruits et légumes","Boucherie et charcuterie","Poissonnerie","Frais","Surgelés","Conserves","Épicerie","Boulangerie","Boissons"];
 
-const PROFIL_DEFAUT = {prenom:"",region:"fr",magasin:"lidl",marche:false,allergies:[],regime:"tout",degouts:[],personnes:1,budget:45,temps:"10",ville:null,rayon:20};
+const PROFIL_DEFAUT = {prenom:"",region:"fr",magasin:"lidl",marche:false,allergies:[],regime:"tout",degouts:[],personnes:1,budget:45,temps:"10",ville:null,rayon:20,
+  equip:["plaques","four","microondes","bouilloire"]};
 
 /* ================= Stockage ================= */
 const K = "vc_app_v1";
@@ -592,11 +593,40 @@ function interdits(P){
   if(P.regime==="sansporc") ["jambon","lardons","saucisse"].forEach(i=>ing.add(i));
   return {ing,rec,tags:P.regime==="vege"?["viande","poisson"]:[]};
 }
+/* ===== Équipement : ce qu'on a dans sa cuisine, et les façons de faire chaque recette ===== */
+const EQUIP=[["plaques","Plaques ou gazinière",""],["four","Four",""],["microondes","Micro-ondes",""],["airfryer","Air fryer",""],
+  ["robot","Robot cuiseur","Thermomix, Cookeo, Monsieur Cuisine…"],["cocotte","Cocotte-minute",""],["bouilloire","Bouilloire",""]];
+const EQUIP_NOM=Object.fromEntries(EQUIP.map(e=>[e[0],e[1]]));
+/* Pour chaque type de cuisson, les appareils qui permettent de faire la recette (le premier est celui de la recette). */
+const FACONS={"aucune":["aucune"],"micro-ondes":["microondes"],"bouilloire":["bouilloire","plaques","microondes"],"poêle":["plaques"],
+  "casserole":["plaques","robot"],"four":["four","airfryer"],"cocotte-minute":["cocotte","robot","plaques"]};
+function equipDe(P){ return P.equip||PROFIL_DEFAUT.equip; }
+function faconsPossibles(r,P){ const eq=equipDe(P); return (FACONS[r.cook]||["plaques"]).filter(f=>f==="aucune"||eq.includes(f)); }
+function faconChoisie(r,P){ const l=faconsPossibles(r,P); const pref=(P.prefs||{})[r.cook]; return l.includes(pref)?pref:l[0]; }
+/* Réécrit les étapes pour l'appareil choisi. */
+function etapesPour(r,f){
+  let st=r.steps.slice(), astuce="";
+  if(f==="airfryer"){
+    st=st.map(x=>/four/i.test(x)?x.replace(/Frites au four/g,"Frites à l'air fryer").replace(/au four/gi,"à l'air fryer").replace(/le plus chaud possible/g,"à 200 °C")
+      .replace(/(\d+) ?°C/g,(m,t)=>(+t-20)+" °C").replace(/(\d+) min/g,(m,n)=>Math.max(2,Math.round(+n*0.8))+" min"):x);
+    astuce="Air fryer : 20 °C de moins et environ 20 % de temps en moins qu'au four. Ne remplis pas trop le panier et secoue ou retourne à mi-cuisson. Pour un gratin ou une quiche, prends un petit moule qui rentre dans le panier.";
+  } else if(f==="robot"){
+    astuce=r.cook==="cocotte-minute"?"Robot cuiseur : fais revenir la viande en mode « rissoler », puis lance un programme mijotage sous pression (environ 40 min avec un Cookeo). Avec un Thermomix, compte 1 h 30 en mijotage, vitesse inverse.":
+      "Robot cuiseur : fais revenir oignon et viande en mode « rissoler », puis cuisson mijotée avec le liquide (sens inverse pour ne pas écraser les morceaux). Pour une soupe ou un velouté, mixe dans le bol à la fin. Les pâtes et le riz se cuisent aussi dans le bol, avec le programme de ton robot.";
+  } else if(f==="plaques"&&r.cook==="cocotte-minute"){
+    astuce="Sans cocotte-minute : même recette dans une cocotte ou une grande casserole à couvert, à feu doux, environ 2 h 30.";
+  } else if(f==="plaques"&&r.cook==="bouilloire"){ astuce="Fais chauffer l'eau dans une casserole.";
+  } else if(f==="microondes"&&r.cook==="bouilloire"){ astuce="Fais chauffer l'eau 2 min au micro-ondes dans un bol.";
+  }
+  return {st,astuce};
+}
+
 function permis(r,P,I){
   I=I||interdits(P);
   if(I.rec.has(r.id)) return false;
   if(r.ing.some(([id])=>I.ing.has(id))) return false;
   if(r.tags.some(t=>I.tags.includes(t))) return false;
+  if(!faconsPossibles(r,P).length) return false;
   if(P.temps==="zero") return ["aucune","micro-ondes","bouilloire"].includes(r.cook);
   return r.t <= +P.temps;
 }
@@ -737,6 +767,9 @@ function sectionBudget(P){
     '<div class="field"><label class="lbl" for="budget">Budget courses par semaine</label><span class="rangeval num" id="budgetVal">'+P.budget+' €</span>'+
     '<input id="budget" type="range" min="'+(15*P.personnes)+'" max="'+(70*P.personnes)+'" step="1" value="'+P.budget+'" data-range="budget">'+
     '<p class="hint">Repère avec les prix relevés en magasin : environ '+(P.region==="re"?55:45)+' € par personne pour 3 repas et un en-cas par jour.</p></div>'+
+    '<div class="field"><span class="lbl">Ton équipement</span><div class="opts">'+
+    EQUIP.map(([v,nm,d])=>'<button type="button" class="opt" data-toggle="equip" data-v="'+v+'" aria-pressed="'+equipDe(P).includes(v)+'">'+nm+(d?'<small>'+d+'</small>':"")+'</button>').join("")+'</div>'+
+    '<p class="hint">Les recettes s\'adaptent : un plat au four se fait aussi à l\'air fryer, une soupe ou un mijoté au robot cuiseur.</p></div>'+
     '<div class="field"><span class="lbl">Temps de cuisine</span><div class="opts">'+
     TEMPS.map(([v,nm,d])=>'<button type="button" class="opt" data-set="temps" data-v="'+v+'" aria-pressed="'+(P.temps===v)+'">'+nm+'<small>'+d+'</small></button>').join("")+'</div>'+
     '<p class="hint">'+n+' plats possibles pour midi et soir avec ton profil.</p></div>';
@@ -756,7 +789,8 @@ function bindForm(container,P,rerender){
       P.region=c.dep==="974"?"re":"fr";
       const l=MAGASINS[P.region]; if(!l.some(m=>m[0]===P.magasin)) P.magasin=l[0][0];
       rerender(); }
-    else if(b.dataset.toggle){ const a=P[b.dataset.toggle], v=b.dataset.v, i=a.indexOf(v);
+    else if(b.dataset.toggle){ if(b.dataset.toggle==="equip"&&!P.equip) P.equip=PROFIL_DEFAUT.equip.slice();
+      const a=P[b.dataset.toggle], v=b.dataset.v, i=a.indexOf(v);
       if(i>=0) a.splice(i,1); else a.push(v); rerender(); }
     else if(b.dataset.step){ const old=P.personnes; P.personnes=Math.min(8,Math.max(1,P.personnes+ +b.dataset.step));
       P.budget=Math.round(P.budget/old*P.personnes); rerender(); }
@@ -812,6 +846,7 @@ function renderApp(){
   ({semaine:vueSemaine,promos:vuePromos,stock:vueStock,courses:vueCourses,plats:vuePlats,profil:vueProfil})[ST.onglet]($("view"),P,tk);
 }
 
+function appareilTxt(r){ const P=ST.profil; if(r.cook==="aucune") return ""; const f=faconChoisie(r,P); return f&&f!=="aucune"?EQUIP_NOM[f]:""; }
 function tempsTxt(r){ return !r.t?"0 min":(r.actif&&r.actif<r.t?r.t+" min, dont "+r.actif+" actives":r.t+" min"); }
 /* Le plat du soir en grand, en tête de la journée. */
 function heroSoir(d,P){
@@ -819,7 +854,7 @@ function heroSoir(d,P){
   return '<div class="hero"><button type="button" class="hpic" data-open="'+r.id+'" data-slot="soir" aria-label="Voir la recette">'+plateSVG(r.id)+'</button>'+
     '<div class="htxt"><span class="lbl">Ce soir'+(r.origine&&r.origine!=="classique"?' · '+esc(ORIGINES[r.origine]):"")+(r.fun?' · plaisir':"")+'</span>'+
     '<h3 data-open="'+r.id+'" data-slot="soir" role="button" tabindex="0">'+esc(r.n)+'</h3>'+
-    '<span class="meta"><span>'+tempsTxt(r)+'</span><span class="p">'+r.p+' g prot.</span><span class="c num">'+eur(mealCost(r,P))+' l\'assiette</span></span>'+
+    '<span class="meta"><span>'+tempsTxt(r)+'</span>'+(appareilTxt(r)?'<span>'+esc(appareilTxt(r))+'</span>':"")+'<span class="p">'+r.p+' g prot.</span><span class="c num">'+eur(mealCost(r,P))+' l\'assiette</span></span>'+
     '<div class="row"><button type="button" class="btn small" data-open="'+r.id+'" data-slot="soir">Voir la recette</button><button type="button" class="btn small ghost" data-swap="soir">Changer</button></div></div></div>';
 }
 function carteRepas(k,id,P){
@@ -828,7 +863,7 @@ function carteRepas(k,id,P){
   return '<div class="meal"><button type="button" class="pic" data-open="'+id+'" data-slot="'+k+'" aria-label="Voir la recette">'+plateSVG(id)+'</button>'+
     '<div class="txt"><span class="lbl">'+SLOT_NOM[k]+(r.origine&&r.origine!=="classique"?' · '+esc(ORIGINES[r.origine]):"")+(r.cook==="aucune"?' · <span class="tag">sans cuisson</span>':"")+(r.fun?' <span class="tag fun">plaisir</span>':"")+'</span>'+
     '<button type="button" class="open" data-open="'+id+'" data-slot="'+k+'">'+esc(r.n)+'</button>'+
-    '<span class="meta"><span>'+tempsTxt(r)+'</span><span class="p">'+r.p+' g prot.</span><span class="c num">'+eur(c)+(P.personnes>1?" /pers.":"")+'</span></span>'+
+    '<span class="meta"><span>'+tempsTxt(r)+'</span>'+(appareilTxt(r)?'<span>'+esc(appareilTxt(r))+'</span>':"")+'<span class="p">'+r.p+' g prot.</span><span class="c num">'+eur(c)+(P.personnes>1?" /pers.":"")+'</span></span>'+
     '<button type="button" class="swap" data-swap="'+k+'">Changer ce plat</button></div></div>';
 }
 
@@ -1249,6 +1284,8 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape") fermerPanneau(); }
 
 function ficheRecette(id,slot){
   const P=ST.profil, r=RID[id], c=mealCost(r,P), se=saison(P.region,MOIS_COURANT); let fi=0,li=0;
+  const facons=faconsPossibles(r,P), f=faconChoisie(r,P), {st,astuce}=etapesPour(r,f);
+  const touteFacons=(FACONS[r.cook]||[]).filter(x=>x!=="aucune");
   const ing=r.ing.map(([i,q])=>{ let n=ING[i].n.toLowerCase();
     if(i==="fruit") n="fruit de saison ("+se.fruits[(fi++)%se.fruits.length]+")";
     if(i==="leg") n=r.legNom||"crudités de saison ("+se.legs[(li++)%se.legs.length]+")";
@@ -1258,15 +1295,21 @@ function ficheRecette(id,slot){
     '<div class="head"><div><span class="lbl">'+esc(ORIGINES[r.origine]||"")+(r.fun?' · plaisir':"")+'</span><h2>'+esc(r.n)+'</h2></div><button type="button" class="x" data-close aria-label="Fermer">×</button></div>'+
     '<div class="big">'+plateSVG(id)+'</div>'+
     '<div class="facts"><div><b class="num">'+eur(c).replace(" €","€")+'</b><span>par assiette</span></div><div><b class="num">'+r.p+' g</b><span>protéines</span></div>'+
-      '<div><b class="num">'+r.kcal+'</b><span>kcal</span></div><div><b class="num">'+(r.t||0)+' min</b><span>'+esc(r.actif&&r.actif<r.t?"dont "+r.actif+" actives":r.cook==="aucune"?"sans cuisson":r.cook)+'</span></div></div>'+
+      '<div><b class="num">'+r.kcal+'</b><span>kcal</span></div><div><b class="num">'+(f==="airfryer"?Math.round((r.t||0)*0.85):(r.t||0))+' min</b><span>'+esc(r.actif&&r.actif<r.t?"dont "+r.actif+" actives":r.cook==="aucune"?"sans cuisson":EQUIP_NOM[f]||r.cook)+'</span></div></div>'+
     '<div class="card"><h3>Ingrédients'+(P.personnes>1?" pour "+P.personnes:"")+'</h3><div class="igrid">'+ing+'</div></div>'+
-    '<div class="card"><h3>Comment faire</h3><ol>'+r.steps.map(s=>"<li>"+esc(s)+"</li>").join("")+'</ol>'+
+    '<div class="card"><h3>Comment faire</h3>'+
+      (facons.length>1?'<div class="seg" role="group" aria-label="Appareil">'+facons.map(x=>'<button type="button" data-facon="'+x+'" aria-pressed="'+(x===f)+'">'+esc(EQUIP_NOM[x])+'</button>').join("")+'</div>':
+        (r.cook!=="aucune"&&facons[0]?'<span class="lbl">'+esc(EQUIP_NOM[facons[0]])+'</span>':""))+
+      (astuce?'<div class="etat">'+esc(astuce)+'</div>':"")+
+      '<ol>'+st.map(s=>"<li>"+esc(s)+"</li>").join("")+'</ol>'+
+      (touteFacons.length>facons.length?'<p class="hint">Se fait aussi avec : '+esc(touteFacons.filter(x=>!facons.includes(x)).map(x=>EQUIP_NOM[x].toLowerCase()).join(", "))+'.</p>':"")+
       (r.source?'<p class="foot">Recette adaptée de « <a href="'+esc(r.source.url)+'" target="_blank" rel="noopener">'+esc(r.source.titre)+'</a> », Livre de cuisine de Wikilivres, par ses contributeurs, '+
         'sous licence <a href="https://creativecommons.org/licenses/by-sa/3.0/deed.fr" target="_blank" rel="noopener">CC BY-SA 3.0</a>. Modifications : '+esc(r.source.modifs)+'. Cette fiche est sous la même licence.</p>':"")+'</div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="cuisine">J\'ai cuisiné ce plat</button>'+
       (slot?'<button type="button" class="btn dark" id="goSwap">Changer ce plat</button>':"")+'</div>'+
     '<p class="hint">« J\'ai cuisiné ce plat » retire les ingrédients de Chez moi.</p>',
     s=>{ const b=s.querySelector("#goSwap"); if(b) b.onclick=()=>ficheEchange(slot);
+      s.querySelectorAll("[data-facon]").forEach(x=>x.onclick=()=>{ ST.profil.prefs=ST.profil.prefs||{}; ST.profil.prefs[r.cook]=x.dataset.facon; persist(); ficheRecette(id,slot); });
       s.querySelector("#cuisine").onclick=()=>{ let n=0;
         r.ing.forEach(([i,q])=>{ if(ST.stock[i]){ n++; ST.stock[i]=Math.max(0,ST.stock[i]-q*P.personnes); if(ST.stock[i]<1e-6) delete ST.stock[i]; } });
         persist(); fermerPanneau(); renderApp(); toast(n?"Ingrédients retirés de Chez moi.":"Rien à retirer : ces ingrédients ne sont pas notés dans Chez moi."); }; });
