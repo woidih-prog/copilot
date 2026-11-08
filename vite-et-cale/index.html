@@ -35,6 +35,7 @@
   --plate:#EDEFEA; --plate-line:#3A463E; --pic-bg:#202A23; --scrim:rgba(0,0,0,.6); color-scheme:dark}
 
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
@@ -98,6 +99,19 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within
 .sug button small{color:var(--muted);margin-left:6px}
 .ville{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--leaf-soft);color:var(--leaf);border-radius:12px;padding:10px 14px;font-weight:600}
 .dist{font-size:11.5px;font-weight:700;color:var(--leaf)}
+.form{display:flex;flex-direction:column;gap:14px}
+.form .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form .f{display:flex;flex-direction:column;gap:6px;min-width:0}
+.form .f label{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.form input[type=file]{font:inherit;font-size:13.5px;max-width:100%}
+.check{display:flex;gap:10px;align-items:flex-start;font-weight:600}
+.check input{width:20px;height:20px;accent-color:var(--leaf);margin:1px 0 0}
+.etat{border-radius:12px;padding:10px 14px;font-size:14px;background:var(--leaf-soft);color:var(--leaf)}
+.etat.err{background:var(--warn-soft);color:var(--warn)}
+.links{display:flex;flex-direction:column}
+.links a{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:600}
+.links a:first-child{border-top:0}
+.links a small{color:var(--muted);font-weight:400}
 .prayon{padding:10px 14px 4px;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line)}
 .opt[aria-pressed=true]{border-color:var(--leaf);background:var(--leaf-soft);color:var(--leaf);box-shadow:inset 0 0 0 1px var(--leaf)}
 .opt.no[aria-pressed=true]{border-color:var(--warn);background:var(--warn-soft);color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
@@ -107,7 +121,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within
 .stepper button{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--surface);font-size:20px;font-weight:700}
 .stepper b{font-family:var(--f-display);font-size:28px;min-width:2ch;text-align:center}
 input[type=range]{width:100%;accent-color:var(--leaf)}
-input[type=text]{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:100%}
+input[type=text],input[type=number],input[type=date],input[type=password],select.in{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:100%}
 .rangeval{font-family:var(--f-display);font-size:28px;font-weight:800}
 .hint{font-size:13px;color:var(--muted)}
 
@@ -1021,6 +1035,150 @@ function listePrix(P){
     '</details>';
 }
 
+/* ================= Open Prices : envoyer une promo (compte Open Food Facts) ================= */
+const OP_API="https://prices.openfoodfacts.org/api/v1";
+if(!ST.op) ST.op=null;   // {user, token} : le mot de passe n'est jamais gardé
+/* Fruits et légumes vendus au kilo : envoyés par catégorie, sans code-barres. */
+const CAT_OP={banane:[["en:bananas","Bananes"]],pdt:[["en:potatoes","Pommes de terre"]],patate:[["en:sweet-potatoes","Patates douces"]],oignon:[["en:onions","Oignons"]],
+  fruit:[["en:apples","Pommes"],["en:pears","Poires"],["en:oranges","Oranges"],["en:clementines","Clémentines"],["en:kiwis","Kiwis"]],
+  leg:[["en:carrots","Carottes"],["en:tomatoes","Tomates"],["en:leeks","Poireaux"]]};
+const TYPES_PROMO=[["SALE","Promo"],["LOYALTY_PROGRAM","Carte fidélité"],["QUANTITY","Lot ou quantité"]];
+function opConnexion(user,pass){
+  const body=new URLSearchParams({username:user,password:pass});
+  return fetch(OP_API+"/auth",{method:"POST",body}).then(r=>r.json().then(d=>{ if(!r.ok||!d.access_token) throw new Error(r.status===401||r.status===400?"Identifiant ou mot de passe incorrect.":"Connexion refusée ("+r.status+").");
+    ST.op={user,token:d.access_token}; persist(); return ST.op; }));
+}
+function opEnvoi(promo,photo){
+  const osm=ST.profil.osm, h={Authorization:"Bearer "+ST.op.token}, jour=AUJ;
+  const fd=new FormData(); fd.append("file",photo); fd.append("type","PRICE_TAG"); fd.append("location_osm_id",String(osm.id));
+  fd.append("location_osm_type",osm.type); fd.append("date",jour); fd.append("currency","EUR");
+  const echec=r=>r.json().catch(()=>({})).then(d=>{ if(r.status===401){ ST.op=null; persist(); throw new Error("Ta connexion à Open Prices a expiré : reconnecte-toi dans Profil."); }
+    throw new Error("Open Prices a refusé l'envoi ("+r.status+")"+(d&&d.detail?" : "+JSON.stringify(d.detail).slice(0,160):"")+"."); });
+  return fetch(OP_API+"/proofs/upload",{method:"POST",headers:h,body:fd}).then(r=>r.ok?r.json():echec(r)).then(proof=>{
+    const prix={price:promo.prix,currency:"EUR",date:jour,location_osm_id:osm.id,location_osm_type:osm.type,proof_id:proof.id,
+      price_is_discounted:true,discount_type:promo.typeOP};
+    if(promo.avant) prix.price_without_discount=promo.avant;
+    if(promo.categorie){ prix.type="CATEGORY"; prix.category_tag=promo.categorie; prix.price_per="KILOGRAM"; }
+    else { prix.type="PRODUCT"; prix.product_code=promo.code; if(promo.nom) prix.product_name=promo.nom; }
+    return fetch(OP_API+"/prices",{method:"POST",headers:{...h,"Content-Type":"application/json"},body:JSON.stringify(prix)}).then(r=>r.ok?r.json():echec(r));
+  });
+}
+/* Magasin exact sur OpenStreetMap (Nominatim), pour qu'Open Prices sache où la promo a été vue. */
+function chercheMagasinsOSM(q){
+  return fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&countrycodes=fr,re&accept-language=fr&q="+encodeURIComponent(q))
+    .then(r=>r.ok?r.json():[]).then(l=>l.filter(x=>x.category==="shop"||x.type==="supermarket").map(x=>({
+      id:+x.osm_id,type:({node:"NODE",way:"WAY",relation:"RELATION"})[x.osm_type],nom:x.name||x.display_name.split(",")[0],adresse:x.display_name.split(",").slice(1,4).join(",").trim()})).filter(x=>x.type));
+}
+function sectionOpenPrices(){
+  const P=ST.profil, osm=P.osm;
+  return '<div class="card" id="opCard"><h3>Partager tes promos avec Open Prices</h3>'+
+    '<p class="muted" style="font-size:13.5px">Facultatif. Chaque promo que tu notes peut aussi aller dans la base ouverte Open Prices : elle sert alors à tous les utilisateurs de ta région.</p>'+
+    '<span class="lbl">Ton magasin exact</span>'+
+    (osm?'<div class="ville"><span>'+esc(osm.nom)+' <small class="muted">'+esc(osm.adresse||"")+'</small></span><button type="button" class="btn small ghost" id="osmRaz">Changer</button></div>'
+      :'<div style="display:flex;gap:8px"><input type="text" id="osmQ" value="'+esc(magasin(P)[1]+(P.ville?" "+P.ville.nom:""))+'" aria-label="Magasin à chercher"><button type="button" class="btn small dark" id="osmGo">Chercher</button></div><div id="osmRes"></div>')+
+    '<span class="lbl" style="margin-top:8px">Ton compte Open Food Facts</span>'+
+    (ST.op?'<div class="ville"><span>Connecté : '+esc(ST.op.user)+'</span><button type="button" class="btn small ghost" id="opOut">Se déconnecter</button></div>'
+      :'<div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input type="text" id="opUser" placeholder="Identifiant" autocomplete="username" aria-label="Identifiant Open Food Facts">'+
+        '<input type="password" id="opPass" placeholder="Mot de passe" autocomplete="current-password" aria-label="Mot de passe Open Food Facts"></div>'+
+        '<button type="button" class="btn small dark" id="opIn">Se connecter</button>'+
+        '<p class="hint">Pas de compte ? Il est gratuit : <a href="https://world.openfoodfacts.org/cgi/user.pl" target="_blank" rel="noopener">créer un compte Open Food Facts</a>. Ton mot de passe n\'est pas gardé dans l\'appli.</p>')+
+    '<div id="opMsg"></div></div>';
+}
+function bindOpenPrices(redessine){
+  const msg=(t,err)=>{ const m=$("opMsg"); if(m) m.innerHTML='<div class="etat'+(err?" err":"")+'">'+esc(t)+'</div>'; };
+  if($("osmRaz")) $("osmRaz").onclick=()=>{ delete ST.profil.osm; persist(); redessine(); };
+  if($("osmGo")) $("osmGo").onclick=()=>{ const q=$("osmQ").value.trim(); if(!q) return; $("osmRes").innerHTML='<p class="hint">Recherche…</p>';
+    chercheMagasinsOSM(q).then(l=>{ $("osmRes").className=l.length?"sug":""; $("osmRes").innerHTML=l.length?l.map((m,i)=>'<button type="button" data-osm="'+i+'">'+esc(m.nom)+'<small>'+esc(m.adresse)+'</small></button>').join("")
+        :'<p class="hint">Aucun magasin trouvé. Essaie « Leclerc Chalon-sur-Saône » ou ajoute le nom de la rue.</p>';
+      $("osmRes").querySelectorAll("[data-osm]").forEach(b=>b.onclick=()=>{ ST.profil.osm=l[+b.dataset.osm]; persist(); redessine(); toast("Magasin enregistré."); }); })
+    .catch(()=>{ $("osmRes").innerHTML='<p class="hint">Recherche impossible pour l\'instant : vérifie ta connexion.</p>'; }); };
+  if($("opIn")) $("opIn").onclick=()=>{ const u=$("opUser").value.trim(), pw=$("opPass").value; if(!u||!pw){ msg("Entre ton identifiant et ton mot de passe.",true); return; }
+    msg("Connexion…"); opConnexion(u,pw).then(()=>{ redessine(); toast("Connecté à Open Prices."); }).catch(e=>msg(e.message||"Connexion impossible : vérifie ta connexion.",true)); };
+  if($("opOut")) $("opOut").onclick=()=>{ ST.op=null; persist(); redessine(); };
+}
+
+/* ================= « J'ai vu une promo » ================= */
+function ficheNouvellePromo(){
+  const P=ST.profil, ids=Object.keys(ING).filter(id=>!interdits(P).ing.has(id));
+  const parRayon={}; ids.forEach(id=>(parRayon[RAYON[id]]=parRayon[RAYON[id]]||[]).push(id));
+  const fin=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
+  const peutEnvoyer=!!(ST.op&&P.osm);
+  ouvrirPanneau('<div class="head"><h2>J\'ai vu une promo</h2><button type="button" class="x" data-close aria-label="Fermer">×</button></div>'+
+    '<form class="form" id="fPromo" novalidate>'+
+    '<div class="f"><label for="pIng">Produit</label><select class="in" id="pIng">'+RAYONS.filter(n=>parRayon[n]).map(n=>'<optgroup label="'+n+'">'+parRayon[n].map(id=>'<option value="'+id+'">'+esc(id==="fruit"?"Fruits":id==="leg"?"Légumes":ING[id].n)+'</option>').join("")+'</optgroup>').join("")+'</select></div>'+
+    '<div class="f" id="pCatF" hidden><label for="pCat">Lequel</label><select class="in" id="pCat"></select></div>'+
+    '<div class="f"><label for="pNom">Nom sur l\'étiquette (facultatif)</label><input type="text" id="pNom" placeholder="ex. Crème fraîche épaisse 20 cl"></div>'+
+    '<div class="row2"><div class="f"><label for="pPrix">Prix promo (€)</label><input type="number" id="pPrix" inputmode="decimal" step="0.01" min="0.01"></div>'+
+      '<div class="f"><label for="pAvant">Prix normal (€)</label><input type="number" id="pAvant" inputmode="decimal" step="0.01" min="0" placeholder="facultatif"></div></div>'+
+    '<div class="row2"><div class="f"><label for="pQte" id="pQteL">Contenu</label><input type="number" id="pQte" inputmode="decimal" step="0.001" min="0.001"></div>'+
+      '<div class="f"><label for="pType">Type</label><select class="in" id="pType">'+TYPES_PROMO.map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join("")+'</select></div></div>'+
+    '<div class="f"><label for="pFin">Valable jusqu\'au</label><input type="date" id="pFin" value="'+fin+'" min="'+AUJ+'"></div>'+
+    '<div class="card" style="padding:12px 14px"><label class="check"><input type="checkbox" id="pOP"'+(peutEnvoyer?" checked":" disabled")+'><span>Partager aussi sur Open Prices'+
+      (peutEnvoyer?'<br><small class="muted">Vu chez '+esc(P.osm.nom)+'. Une photo de l\'étiquette ou du prospectus est demandée.</small>'
+        :'<br><small class="muted">Pour partager, connecte ton compte Open Food Facts et choisis ton magasin exact dans Profil.</small>')+'</span></label>'+
+      '<div id="pOPF"'+(peutEnvoyer?"":" hidden")+' class="form" style="margin-top:10px">'+
+        '<div class="f"><label for="pPhoto">Photo de l\'étiquette ou du prospectus</label><input type="file" id="pPhoto" accept="image/*" capture="environment"></div>'+
+        '<div class="f" id="pCodeF"><label for="pCode">Code-barres</label><input type="text" id="pCode" inputmode="numeric" placeholder="13 chiffres sous le code-barres"><span class="hint" id="pCodeH">Lu automatiquement sur la photo quand c\'est possible.</span></div>'+
+      '</div></div>'+
+    '<div id="pMsg"></div><button type="submit" class="btn" id="pOk">Enregistrer la promo</button></form>',
+  sh=>{
+    const ing=$("pIng"), cat=$("pCat"), qte=$("pQte"), op=$("pOP");
+    ing.value=ids.includes("creme")?"creme":ids[0];
+    const unite=id=>{ const b=(PRIX&&PRIX.ingredients&&PRIX.ingredients[id]&&PRIX.ingredients[id].base)||(id==="oeuf"?"piece":["lait","coco","soupe"].includes(id)?"l":"kg"); return b; };
+    const maj=()=>{ const id=ing.value, c=CAT_OP[id], b=unite(id);
+      $("pCatF").hidden=!(c&&c.length>1); cat.innerHTML=(c||[]).map(([t,n])=>'<option value="'+t+'">'+n+'</option>').join("");
+      const auKilo=!!c; qte.value=auKilo?1:String(CONTENU[id]).replace(/0+$/,"");
+      $("pQteL").textContent=auKilo?"Prix pour (kg)":b==="piece"?"Nombre de pièces":b==="l"?"Contenu (litres)":"Contenu (kg)";
+      if($("pCodeF")) $("pCodeF").hidden=auKilo; };
+    ing.onchange=maj; maj();
+    op.onchange=()=>{ $("pOPF").hidden=!op.checked; };
+    const photo=$("pPhoto");
+    if(photo) photo.onchange=()=>{ const f=photo.files[0]; if(!f||!("BarcodeDetector" in window)) return;
+      createImageBitmap(f).then(img=>new BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e"]}).detect(img)).then(l=>{
+        if(l&&l[0]&&!$("pCode").value){ $("pCode").value=l[0].rawValue; $("pCodeH").textContent="Code-barres lu sur la photo : vérifie qu'il est juste."; } }).catch(()=>{}); };
+    const msg=(t,err)=>{ $("pMsg").innerHTML='<div class="etat'+(err?" err":"")+'">'+esc(t)+'</div>'; };
+    $("fPromo").onsubmit=e=>{ e.preventDefault();
+      const id=ing.value, prix=parseFloat($("pPrix").value.replace(",",".")), avant=parseFloat(($("pAvant").value||"").replace(",","."))||null,
+        q=parseFloat(qte.value.replace(",",".")), fin=$("pFin").value||AUJ, c=CAT_OP[id];
+      if(!(prix>0)){ msg("Indique le prix promo.",true); return; }
+      if(!(q>0)){ msg("Indique le contenu du paquet.",true); return; }
+      if(avant&&avant<=prix){ msg("Le prix normal doit être plus élevé que le prix promo.",true); return; }
+      const nom=$("pNom").value.trim()||(c?(c.find(x=>x[0]===cat.value)||c[0])[1]:ING[id].n);
+      const envoyer=op.checked&&!op.disabled;
+      let code=null, categorie=null;
+      if(envoyer){
+        if(c) categorie=cat.value||c[0][0];
+        else { code=($("pCode").value||"").replace(/\D/g,""); if(!/^(\d{8}|\d{12,14})$/.test(code)){ msg("Pour partager, il faut le code-barres (8 ou 13 chiffres). Sinon, décoche « Partager ».",true); return; } }
+        if(!photo.files[0]){ msg("Pour partager, ajoute la photo de l'étiquette ou du prospectus.",true); return; }
+      }
+      ST.mesPromos[id]={unite:prix/q,nom,prix,avant,magasin:(P.osm&&P.osm.nom)||magasin(P)[1],jusqua:fin>=AUJ?fin:AUJ,perso:true,type:(TYPES_PROMO.find(t=>t[0]===$("pType").value)||[0,"Promo"])[1]};
+      persist(); majPill();
+      if(!envoyer){ fermerPanneau(); renderApp(); toast("Promo enregistrée : elle compte dans ton budget."); return; }
+      $("pOk").disabled=true; msg("Promo enregistrée. Envoi à Open Prices…");
+      opEnvoi({prix,avant,nom,code,categorie,typeOP:$("pType").value},photo.files[0])
+        .then(()=>{ fermerPanneau(); renderApp(); toast("Merci ! Promo partagée sur Open Prices."); })
+        .catch(err=>{ $("pOk").disabled=false; $("pOk").textContent="Réessayer l'envoi";
+          msg((err&&err.message&&!/fetch|network|Failed/i.test(err.message)?err.message:"Envoi impossible : vérifie ta connexion. Depuis l'aperçu claude.ai, l'envoi ne marche pas : utilise l'appli installée.")+" La promo reste enregistrée dans ton budget.",true); });
+    };
+  });
+}
+
+/* Prospectus : la page de ta ville sur Tiendeo (agrégateur), et le site officiel de l'enseigne. */
+const SITES={lidl:"https://www.lidl.fr",leclerc:"https://www.e.leclerc",carrefour:"https://www.carrefour.fr",inter:"https://www.intermarche.com",
+  auchan:"https://www.auchan.fr",superu:"https://www.magasins-u.com",aldi:"https://www.aldi.fr",monoprix:"https://www.monoprix.fr"};
+const TIENDEO_ENSEIGNE={lidl:"lidl",leclerc:"e-leclerc"};
+function slug(t){ return normalise(t).replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,""); }
+function blocProspectus(P){
+  const mag=magasin(P)[1], ville=P.ville&&!/arrondissement/i.test(P.ville.nom)?P.ville.nom:P.ville?P.ville.nom.replace(/\s+\d+(er|e)\s+arrondissement/i,""):null;
+  const liens=[];
+  if(ville){ const v=slug(ville);
+    if(TIENDEO_ENSEIGNE[P.magasin]) liens.push(["https://www.tiendeo.fr/"+v+"/"+TIENDEO_ENSEIGNE[P.magasin],"Prospectus "+mag+" à "+ville,"Tiendeo"]);
+    liens.push(["https://www.tiendeo.fr/"+v,"Tous les prospectus à "+ville,"Tiendeo"]); }
+  else liens.push(["https://www.tiendeo.fr/promotions-catalogues/supermarches","Prospectus des supermarchés","Tiendeo"]);
+  if(SITES[P.magasin]) liens.push([SITES[P.magasin],"Site de "+mag,"site officiel"]);
+  return '<div class="group"><h3>Prospectus de la semaine</h3><div class="links">'+liens.map(([u,t,src])=>'<a href="'+esc(u)+'" target="_blank" rel="noopener">'+logoHTML(src==="Tiendeo"&&!t.includes(mag)?"":P.magasin,true)+'<span style="flex:1">'+esc(t)+'<br><small>'+esc(src)+'</small></span><span aria-hidden="true">↗</span></a>').join("")+'</div></div>';
+}
+
 /* ================= Promos ================= */
 function dateCourte(iso){ return new Date(iso+"T12:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); }
 function vuePromos(v,P){
@@ -1066,7 +1224,12 @@ function vuePromos(v,P){
     (V&&ST.filtrePromo!=="toutes"&&!liste.length?'<div class="banner">Aucune promo relevée à moins de '+rayon+' km de '+esc(V.nom)+' ces 30 derniers jours'+
       (plusProche?' : la plus proche est à '+Math.round(plusProche._d)+' km ('+esc(plusProche.ville||plusProche.magasin||"")+')':"")+
       '. Les relevés Open Prices viennent de particuliers et restent rares hors des grandes villes.</div>':"")+
-    (prises.length?'<div class="saving">'+prises.length+' promo'+(prises.length>1?"s prises":" prise")+' en compte dans ton budget.</div><button type="button" class="btn dark" id="refairePromo">Refaire ma semaine avec mes promos</button>':"")+
+    '<button type="button" class="btn" id="nouvellePromo">+ J\'ai vu une promo</button>'+
+    (prises.length?'<div class="group"><h3>Tes promos en cours ('+prises.length+')</h3>'+prises.map(k=>{ const m=ST.mesPromos[k];
+        return '<div class="mini">'+logoHTML(P.magasin,true)+'<span class="nm">'+esc(m.nom)+'<small>'+esc([(m.type||"Promo"),m.magasin,"jusqu'au "+dateCourte(m.jusqua)].filter(Boolean).join(" · "))+'</small></span>'+
+          '<span class="pp num">'+(m.prix?eur(m.prix):"")+(m.avant?'<s>'+eur(m.avant)+'</s>':"")+'<button type="button" class="btn small ghost" data-lacher="'+k+'" style="margin-top:4px;font-family:var(--f-body);padding:5px 10px">Retirer</button></span></div>'; }).join("")+
+      '</div><button type="button" class="btn dark" id="refairePromo">Refaire ma semaine avec mes promos</button>':"")+
+    blocProspectus(P)+
     (!PROMOS?'<div class="banner">Promos indisponibles pour l\'instant : vérifie ta connexion.</div>':"")+
     '<h3>Pour tes recettes</h3>'+
     (pourToi.length?pourToi.map(p=>carte(p,toutes.indexOf(p))).join(""):'<p class="muted">Aucune promo relevée sur nos ingrédients ici ces 30 derniers jours.</p>')+
@@ -1075,6 +1238,7 @@ function vuePromos(v,P){
       '<span class="pp num">'+eur(p.prix)+(p.avant?'<s>'+eur(p.avant)+'</s>':"")+'</span></div>').join("")+'</div>':"")+
     '<p class="foot">Promos relevées par des particuliers dans un magasin précis (Open Prices). Elles peuvent être terminées ou ne valoir que dans ce magasin : vérifie en rayon avant de compter dessus.</p>';
   v.querySelectorAll("[data-fp]").forEach(b=>b.onclick=()=>{ST.filtrePromo=b.dataset.fp;persist();vuePromos(v,P);});
+  $("nouvellePromo").onclick=ficheNouvellePromo;
   if($("choisirVille")) $("choisirVille").onclick=()=>{ ST.onglet="profil"; persist(); renderApp(); setTimeout(()=>{ const q=$("villeQ"); if(q){ q.scrollIntoView({block:"center"}); q.focus(); } },50); };
   v.querySelectorAll("[data-prendre]").forEach(b=>b.onclick=()=>{ const p=toutes[+b.dataset.prendre];
     const fin=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
@@ -1145,11 +1309,13 @@ function vueProfil(v){
       '<div class="field"><label class="lbl" for="prenom2">Prénom</label><input type="text" id="prenom2" value="'+esc(draft.prenom)+'"></div>'+
       '<div class="card">'+sectionLieu(draft)+'</div><div class="card">'+sectionSante(draft)+'</div><div class="card">'+sectionBudget(draft)+'</div>'+
       '<button type="button" class="btn" id="save">Enregistrer et refaire ma semaine</button>'+
+      sectionOpenPrices()+
       '<button type="button" class="btn ghost" id="reset">Tout effacer et recommencer</button>'+
       '<p class="foot" id="resetMsg" hidden></p>';
     bindForm(v,draft,draw);
     $("prenom2").oninput=e=>{draft.prenom=e.target.value.slice(0,30);};
-    $("save").onclick=()=>{ ST.profil=draft; nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Profil enregistré, nouvelle semaine prête."); };
+    bindOpenPrices(()=>{ draft.osm=ST.profil.osm; draw(); });
+    $("save").onclick=()=>{ draft.osm=ST.profil.osm; ST.profil=draft; nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Profil enregistré, nouvelle semaine prête."); };
     let arm=false;
     $("reset").onclick=()=>{ if(!arm){ arm=true; $("reset").textContent="Toucher encore pour tout effacer"; return; }
       ST={profil:null,plan:null,coches:[],onglet:"semaine",jour:null,filtre:"tous",stock:{},mesPromos:{}}; persist(); demarrer(); };
