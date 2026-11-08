@@ -267,6 +267,7 @@ def promos():
         out.append({
             "nom": nom.strip()[:90], "ing": ing, "enseigne": enseigne(loc), "magasin": loc.get("osm_name"),
             "ville": loc.get("osm_address_city"), "reunion": a_la_reunion(loc), "date": pr.get("date"),
+            "lat": loc.get("osm_lat"), "lon": loc.get("osm_lon"),
             "prix": pr["price"], "avant": avant if avant and avant > pr["price"] else None,
             "type": TYPES_REMISE.get(pr.get("discount_type"), "Remise"), "qte": qte_txt,
             "unite": round(unite, 3) if unite else None,

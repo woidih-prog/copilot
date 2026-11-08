@@ -92,6 +92,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within
 .mini .nm small{display:block;color:var(--muted);font-size:12px}
 .mini .pp{text-align:right;font-family:var(--f-mono);font-size:13px;white-space:nowrap}
 .mini .pp s{display:block;color:var(--muted);font-size:11.5px}
+.sug{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+.sug button{border:0;border-top:1px solid var(--line);background:transparent;text-align:left;padding:10px 14px;font-size:14.5px}
+.sug button:first-child{border-top:0}
+.sug button small{color:var(--muted);margin-left:6px}
+.ville{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--leaf-soft);color:var(--leaf);border-radius:12px;padding:10px 14px;font-weight:600}
+.dist{font-size:11.5px;font-weight:700;color:var(--leaf)}
 .prayon{padding:10px 14px 4px;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line)}
 .opt[aria-pressed=true]{border-color:var(--leaf);background:var(--leaf-soft);color:var(--leaf);box-shadow:inset 0 0 0 1px var(--leaf)}
 .opt.no[aria-pressed=true]{border-color:var(--warn);background:var(--warn-soft);color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
@@ -579,7 +585,7 @@ const RAYON = {avoine:"Épicerie",pates:"Épicerie",riz:"Épicerie",semoule:"Ép
   creme:"Frais",pate:"Frais",colin:"Surgelés",hblanc:"Conserves",poiscasse:"Épicerie"};
 const RAYONS = ["Fruits et légumes","Boucherie et charcuterie","Frais","Surgelés","Conserves","Épicerie","Boulangerie"];
 
-const PROFIL_DEFAUT = {prenom:"",region:"fr",magasin:"lidl",marche:false,allergies:[],regime:"tout",degouts:[],personnes:1,budget:45,temps:"10"};
+const PROFIL_DEFAUT = {prenom:"",region:"fr",magasin:"lidl",marche:false,allergies:[],regime:"tout",degouts:[],personnes:1,budget:45,temps:"10",ville:null,rayon:20};
 
 /* ================= Stockage ================= */
 const K = "vc_app_v1";
@@ -768,9 +774,38 @@ const ICONES={
   stock:'<svg viewBox="0 0 24 24"><rect x="5.5" y="2.5" width="13" height="19" rx="2.5"/><path d="M5.5 9.5h13M8.5 5.5v2M8.5 12.5v3"/></svg>'
 };
 
+/* ================= Communes (communes.json, geo.api.gouv.fr) ================= */
+let COMMUNES=null, chargementCommunes=null;
+function chargeCommunes(){
+  if(COMMUNES) return Promise.resolve(COMMUNES);
+  return chargementCommunes=chargementCommunes||fetch("./communes.json").then(r=>r.json()).then(d=>{
+    COMMUNES=d.communes.map(c=>({nom:c[0],cp:c[1],lat:c[2],lon:c[3],dep:c[4],pop:c[5]||0,k:normalise(c[0])})); return COMMUNES; })
+    .catch(()=>{ chargementCommunes=null; return null; });
+}
+function normalise(t){ return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[-'’]/g," ").replace(/\bst\b/g,"saint").replace(/\s+/g," ").trim(); }
+function chercheCommunes(q){
+  if(!COMMUNES) return [];
+  const n=normalise(q); if(n.length<2) return [];
+  if(/^\d{2,5}$/.test(n)) return COMMUNES.filter(c=>c.cp.startsWith(n)).slice(0,8);
+  const debut=COMMUNES.filter(c=>c.k.startsWith(n)), dedans=debut.length>=8?[]:COMMUNES.filter(c=>!c.k.startsWith(n)&&c.k.includes(n));
+  /* Nom exact d'abord, puis mot complet (« paris 1 » → 1er avant 15e), puis les plus peuplées. */
+  const rang=c=>c.k===n?0:/\d/.test(c.k.charAt(n.length))?2:1;
+  return debut.sort((a,b)=>rang(a)-rang(b)||b.pop-a.pop).concat(dedans.sort((a,b)=>b.pop-a.pop)).slice(0,8);
+}
+function distanceKm(a,b){ const R=6371, r=Math.PI/180, dl=(b.lat-a.lat)*r, dg=(b.lon-a.lon)*r;
+  const h=Math.sin(dl/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dg/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+
 /* ================= Formulaire de profil (onboarding et onglet Profil) ================= */
+function sectionVille(P){
+  return '<div class="field"><label class="lbl" for="villeQ">Ta ville ou ton arrondissement</label>'+
+    (P.ville?'<div class="ville"><span>'+esc(P.ville.nom)+' <small class="muted">('+esc(P.ville.cp)+')</small></span><button type="button" class="btn small ghost" data-ville-raz="1">Changer</button></div>'
+      :'<input type="text" id="villeQ" placeholder="Nom de la ville ou code postal" autocomplete="address-level2" inputmode="search"><div id="villeSug"></div>')+
+    '<p class="hint">Pour voir les promos des magasins près de chez toi. À Paris, Lyon et Marseille, choisis ton arrondissement.</p></div>'+
+    '<div class="field"><span class="lbl">Promos jusqu\'à</span><div class="opts">'+
+    [5,10,20,50].map(r=>'<button type="button" class="opt" data-set="rayon" data-v="'+r+'" aria-pressed="'+(+P.rayon===r)+'">'+r+' km</button>').join("")+'</div></div>';
+}
 function sectionLieu(P){
-  return '<div class="field"><span class="lbl">Où tu vis</span><div class="opts">'+
+  return sectionVille(P)+'<div class="field"><span class="lbl">Où tu vis</span><div class="opts">'+
     [["fr","Métropole"],["re","La Réunion"]].map(([v,n])=>'<button type="button" class="opt" data-set="region" data-v="'+v+'" aria-pressed="'+(P.region===v)+'">'+n+'</button>').join("")+'</div></div>'+
     '<div class="field"><span class="lbl">Ton magasin habituel</span><div class="opts">'+
     MAGASINS[P.region].map(([v,n])=>'<button type="button" class="opt store" data-set="magasin" data-v="'+v+'" aria-pressed="'+(P.magasin===v)+'">'+logoHTML(v)+esc(n)+'</button>').join("")+'</div>'+
@@ -799,19 +834,32 @@ function sectionBudget(P){
     TEMPS.map(([v,nm,d])=>'<button type="button" class="opt" data-set="temps" data-v="'+v+'" aria-pressed="'+(P.temps===v)+'">'+nm+'<small>'+d+'</small></button>').join("")+'</div>'+
     '<p class="hint">'+n+' plats possibles pour midi et soir avec ton profil.</p></div>';
 }
+let VILLES_SUG=[];
 function bindForm(container,P,rerender){
   container.onclick=e=>{
     const b=e.target.closest("button"); if(!b||!container.contains(b)) return;
     if(b.dataset.set){ let v=b.dataset.v; if(v==="true"||v==="false") v=(v==="true");
       P[b.dataset.set]=v;
+      if(b.dataset.set==="rayon") P.rayon=+v;
       if(b.dataset.set==="region"){ const l=MAGASINS[P.region]; if(!l.some(m=>m[0]===P.magasin)) P.magasin=l[0][0]; }
+      rerender(); }
+    else if(b.dataset.villeRaz){ P.ville=null; rerender(); setTimeout(()=>{ const q=$("villeQ"); if(q) q.focus(); },0); }
+    else if(b.dataset.ville!=null){ const c=VILLES_SUG[+b.dataset.ville]; if(!c) return;
+      P.ville={nom:c.nom,cp:c.cp,lat:c.lat,lon:c.lon,dep:c.dep};
+      P.region=c.dep==="974"?"re":"fr";
+      const l=MAGASINS[P.region]; if(!l.some(m=>m[0]===P.magasin)) P.magasin=l[0][0];
       rerender(); }
     else if(b.dataset.toggle){ const a=P[b.dataset.toggle], v=b.dataset.v, i=a.indexOf(v);
       if(i>=0) a.splice(i,1); else a.push(v); rerender(); }
     else if(b.dataset.step){ const old=P.personnes; P.personnes=Math.min(8,Math.max(1,P.personnes+ +b.dataset.step));
       P.budget=Math.round(P.budget/old*P.personnes); rerender(); }
   };
-  container.oninput=e=>{ const t=e.target; if(t.dataset&&t.dataset.range){ P[t.dataset.range]=+t.value; const v=$("budgetVal"); if(v) v.textContent=t.value+" €"; } };
+  container.oninput=e=>{ const t=e.target;
+    if(t.id==="villeQ"){ const q=t.value; chargeCommunes().then(()=>{ if($("villeQ")!==t||t.value!==q) return;
+      VILLES_SUG=chercheCommunes(q); const box=$("villeSug"); if(!box) return;
+      box.className=VILLES_SUG.length?"sug":""; box.innerHTML=VILLES_SUG.map((c,i)=>'<button type="button" data-ville="'+i+'">'+esc(c.nom)+'<small>'+esc(c.cp)+'</small></button>').join("")+
+        (!COMMUNES?'<p class="hint">Liste des villes indisponible : vérifie ta connexion.</p>':(!VILLES_SUG.length&&normalise(q).length>=2?'<p class="hint" style="padding:8px 2px">Aucune ville trouvée. Essaie le code postal.</p>':"")); }); return; }
+    if(t.dataset&&t.dataset.range){ P[t.dataset.range]=+t.value; const v=$("budgetVal"); if(v) v.textContent=t.value+" €"; } };
 }
 
 /* ================= Onboarding ================= */
@@ -978,22 +1026,30 @@ function dateCourte(iso){ return new Date(iso+"T12:00:00").toLocaleDateString("f
 function vuePromos(v,P){
   cleanPromos();
   const mag=magasin(P)[1], toutes=(PROMOS&&PROMOS.promos)||[];
-  if(!ST.filtrePromo) ST.filtrePromo="enseigne";
+  const V=P.ville, rayon=+P.rayon||20;
+  if(!ST.filtrePromo||(!V&&ST.filtrePromo!=="toutes"&&ST.filtrePromo!=="enseigne")) ST.filtrePromo=V?"pres":"enseigne";
+  if(V&&ST.filtrePromo==="enseigne") ST.filtrePromo="pres";
   const I=interdits(P);
+  const dist=p=>V&&p.lat!=null&&p.lon!=null?distanceKm(V,{lat:p.lat,lon:p.lon}):null;
+  toutes.forEach(p=>{ p._d=dist(p); });
   const ok=p=>!(p.ing&&I.ing.has(p.ing)) && (P.region==="re"?true:!p.reunion);
+  const pres=V?toutes.filter(p=>ok(p)&&p._d!=null&&p._d<=rayon):[];
+  const presEns=pres.filter(p=>p.enseigne===P.magasin);
   const dansEns=toutes.filter(p=>ok(p)&&p.enseigne===P.magasin);
-  const liste=(ST.filtrePromo==="enseigne"?dansEns:toutes.filter(ok));
+  const liste=ST.filtrePromo==="pres"?pres:ST.filtrePromo==="presEns"?presEns:ST.filtrePromo==="enseigne"?dansEns:toutes.filter(ok);
+  const plusProche=V?toutes.filter(p=>ok(p)&&p._d!=null).sort((a,b)=>a._d-b._d)[0]:null;
+  const kmTxt=p=>p._d==null?"":p._d<1?"à moins d'1 km":"à "+Math.round(p._d)+" km";
   const P90={...P,temps:"90"};
   const recettes=id=>R.filter(r=>r.ing.some(([i])=>i===id)&&permis(r,P,I)).length;
   const recettesLongues=id=>R.filter(r=>r.ing.some(([i])=>i===id)&&permis(r,P90,I)).length;
-  const pourToi=liste.filter(p=>p.ing&&p.unite).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const pourToi=liste.filter(p=>p.ing&&p.unite).sort((a,b)=>V&&ST.filtrePromo!=="toutes"&&a._d!=null&&b._d!=null?a._d-b._d:(b.date||"").localeCompare(a.date||""));
   const autres=liste.filter(p=>!(p.ing&&p.unite));
   const prises=Object.keys(ST.mesPromos);
   const pct=p=>p.avant?'<span class="pct">−'+Math.round((1-p.prix/p.avant)*100)+' %</span>':"";
   const carte=(p,i)=>{ const pris=ST.mesPromos[p.ing]&&ST.mesPromos[p.ing].nom===p.nom&&promoActive(p.ing);
     const n=recettes(p.ing), nl=recettesLongues(p.ing), nomIng=p.ing==="fruit"?"fruits":p.ing==="leg"?"légumes":ING[p.ing].n.toLowerCase();
     const gain=price(p.ing,P)>p.unite*CONTENU[p.ing]&&!promoActive(p.ing);
-    return '<div class="promo'+(pris?" prise":"")+'"><div class="nm"><span class="chez">'+logoHTML(p.enseigne||"",true)+'<small>'+esc((p.magasin||"Magasin")+(p.ville?", "+p.ville:""))+' · vu le '+dateCourte(p.date)+'</small></span>'+
+    return '<div class="promo'+(pris?" prise":"")+'"><div class="nm"><span class="chez">'+logoHTML(p.enseigne||"",true)+'<small>'+esc((p.magasin||"Magasin")+(p.ville?", "+p.ville:""))+' · vu le '+dateCourte(p.date)+'</small>'+(p._d!=null?'<span class="dist">'+kmTxt(p)+'</span>':"")+'</span>'+
       '<b>'+esc(p.nom)+'</b><small>'+esc([p.qte,eur(p.unite)+" "+uniteNom(p.ing)].filter(Boolean).join(" · "))+'</small>'+
       '<span style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip ing">'+esc(nomIng)+'</span><span class="chip">'+esc(p.type)+'</span></span></div>'+
       '<div class="px"><b class="num">'+eur(p.prix)+'</b>'+(p.avant?'<s class="num">'+eur(p.avant)+'</s>':"")+pct(p)+'</div>'+
@@ -1001,17 +1057,25 @@ function vuePromos(v,P){
         :'<button type="button" class="btn small" data-prendre="'+i+'">Je la prends</button>')+
       '<span class="hint">'+(n?n+" plat"+(n>1?"s l'utilisent":" l'utilise"):nl?nl+" plat"+(nl>1?"s":"")+" si tu acceptes plus de temps de cuisine":"aucun plat pour ton profil")+(gain&&!pris?" · moins cher que ton prix habituel":"")+'</span></div></div>'; };
   v.innerHTML='<div><h2>Promos</h2><p class="muted" style="font-size:13.5px">Prix remisés relevés en magasin ces 30 derniers jours'+(PROMOS?", mis à jour le "+dateCourte(PROMOS.maj):"")+'. « Je la prends » l\'ajoute à ton budget et à tes recettes pendant 7 jours.</p></div>'+
-    '<div class="seg" role="group" aria-label="Magasins"><button type="button" data-fp="enseigne" aria-pressed="'+(ST.filtrePromo==="enseigne")+'">Chez '+esc(mag)+' ('+dansEns.length+')</button>'+
-      '<button type="button" data-fp="toutes" aria-pressed="'+(ST.filtrePromo==="toutes")+'">Toutes les enseignes</button></div>'+
+    (V?'<div class="seg" role="group" aria-label="Où"><button type="button" data-fp="pres" aria-pressed="'+(ST.filtrePromo==="pres")+'">À '+rayon+' km de '+esc(V.nom)+' ('+pres.length+')</button>'+
+        '<button type="button" data-fp="presEns" aria-pressed="'+(ST.filtrePromo==="presEns")+'">'+esc(mag)+' à '+rayon+' km ('+presEns.length+')</button>'+
+        '<button type="button" data-fp="toutes" aria-pressed="'+(ST.filtrePromo==="toutes")+'">Toute la France</button></div>'
+      :'<div class="card"><h3>Où fais-tu tes courses ?</h3><p class="muted">Choisis ta ville pour voir les promos des magasins près de chez toi.</p><button type="button" class="btn small" id="choisirVille">Choisir ma ville</button></div>'+
+        '<div class="seg" role="group" aria-label="Magasins"><button type="button" data-fp="enseigne" aria-pressed="'+(ST.filtrePromo==="enseigne")+'">Chez '+esc(mag)+' ('+dansEns.length+')</button>'+
+        '<button type="button" data-fp="toutes" aria-pressed="'+(ST.filtrePromo==="toutes")+'">Toute la France</button></div>')+
+    (V&&ST.filtrePromo!=="toutes"&&!liste.length?'<div class="banner">Aucune promo relevée à moins de '+rayon+' km de '+esc(V.nom)+' ces 30 derniers jours'+
+      (plusProche?' : la plus proche est à '+Math.round(plusProche._d)+' km ('+esc(plusProche.ville||plusProche.magasin||"")+')':"")+
+      '. Les relevés Open Prices viennent de particuliers et restent rares hors des grandes villes.</div>':"")+
     (prises.length?'<div class="saving">'+prises.length+' promo'+(prises.length>1?"s prises":" prise")+' en compte dans ton budget.</div><button type="button" class="btn dark" id="refairePromo">Refaire ma semaine avec mes promos</button>':"")+
     (!PROMOS?'<div class="banner">Promos indisponibles pour l\'instant : vérifie ta connexion.</div>':"")+
     '<h3>Pour tes recettes</h3>'+
-    (pourToi.length?pourToi.map(p=>carte(p,toutes.indexOf(p))).join(""):'<p class="muted">Aucune promo relevée sur nos ingrédients '+(ST.filtrePromo==="enseigne"?"chez "+esc(mag)+" ces 30 derniers jours. Regarde « Toutes les enseignes ».":"ces 30 derniers jours.")+'</p>')+
+    (pourToi.length?pourToi.map(p=>carte(p,toutes.indexOf(p))).join(""):'<p class="muted">Aucune promo relevée sur nos ingrédients ici ces 30 derniers jours.</p>')+
     (autres.length?'<div class="group"><h3>Autres promos ('+autres.length+')</h3>'+autres.slice(0,60).map(p=>'<div class="mini">'+logoHTML(p.enseigne||"",true)+
-      '<span class="nm">'+esc(p.nom)+'<small>'+esc([p.qte,p.type,(p.magasin||"")+(p.ville?", "+p.ville:""),"vu le "+dateCourte(p.date)].filter(Boolean).join(" · "))+'</small></span>'+
+      '<span class="nm">'+esc(p.nom)+'<small>'+esc([p.qte,p.type,(p.magasin||"")+(p.ville?", "+p.ville:""),kmTxt(p),"vu le "+dateCourte(p.date)].filter(Boolean).join(" · "))+'</small></span>'+
       '<span class="pp num">'+eur(p.prix)+(p.avant?'<s>'+eur(p.avant)+'</s>':"")+'</span></div>').join("")+'</div>':"")+
     '<p class="foot">Promos relevées par des particuliers dans un magasin précis (Open Prices). Elles peuvent être terminées ou ne valoir que dans ce magasin : vérifie en rayon avant de compter dessus.</p>';
   v.querySelectorAll("[data-fp]").forEach(b=>b.onclick=()=>{ST.filtrePromo=b.dataset.fp;persist();vuePromos(v,P);});
+  if($("choisirVille")) $("choisirVille").onclick=()=>{ ST.onglet="profil"; persist(); renderApp(); setTimeout(()=>{ const q=$("villeQ"); if(q){ q.scrollIntoView({block:"center"}); q.focus(); } },50); };
   v.querySelectorAll("[data-prendre]").forEach(b=>b.onclick=()=>{ const p=toutes[+b.dataset.prendre];
     const fin=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
     ST.mesPromos[p.ing]={unite:p.unite,nom:p.nom,prix:p.prix,magasin:p.magasin,jusqua:fin}; persist(); majPill(); vuePromos(v,P); toast("Promo ajoutée à ton budget."); });
