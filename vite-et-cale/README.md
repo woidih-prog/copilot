@@ -16,7 +16,7 @@ Une seule page (`index.html`), sans serveur ni compte : le profil, la semaine et
 - **Partage sur Open Prices** (facultatif) : avec un compte Open Food Facts et son magasin choisi sur OpenStreetMap (recherche Nominatim), la promo est envoyée à Open Prices avec la photo de l'étiquette comme preuve (code-barres lu sur la photo quand le navigateur le permet ; les fruits et légumes au kilo partent par catégorie). Le mot de passe n'est pas gardé, seul le jeton de connexion l'est, sur le téléphone. L'envoi ne marche que depuis l'appli en ligne, pas depuis l'aperçu claude.ai.
 - **Prospectus de la semaine** : liens vers la page des prospectus de sa ville sur Tiendeo et vers le site officiel de l'enseigne.
 - **Chez moi** : ce qu'on a au frigo, au congélateur et au placard. C'est retiré de la liste de courses, la semaine suivante l'utilise en priorité, et l'appli montre ce qu'on peut cuisiner tout de suite. « J'ai cuisiné ce plat » retire les ingrédients, « J'ai fait les courses » les range.
-- **Courses** : liste par rayon à cocher, total estimé chez le magasin choisi, prix du paquet et prix au kilo de chaque produit, liste de tous les prix de l'enseigne avec leur origine, économie grâce à ce qu'on a déjà, copie de la liste.
+- **Courses** : les produits qui se gardent (riz, pâtes, farine, beurre, oignons, pommes de terre…) dont la semaine n'utilise qu'une partie vont dans « Réserves : seulement si tu n'en as plus », avec un bouton « J'en ai » ; seule la part utilisée compte dans le budget. Liste par rayon à cocher, total estimé chez le magasin choisi, prix du paquet et prix au kilo de chaque produit, liste de tous les prix de l'enseigne avec leur origine, économie grâce à ce qu'on a déjà, copie de la liste.
 - **Plats** : tous les plats permis par le profil, avec le prix par assiette.
 - **Hors connexion** une fois ouverte une première fois (`sw.js`), et installable sur l'écran d'accueil (`manifest.json`).
 
@@ -26,6 +26,8 @@ Les prix viennent d'[Open Prices](https://prices.openfoodfacts.org) (Open Food F
 - `prix/maj_prix.py` lit les relevés des 12 derniers mois en France pour chaque ingrédient, les ramène au kilo, au litre ou à la pièce, et écrit `prix.json` : un prix « bas » national (premier quartile, les produits les moins chers du rayon) et, à partir de 8 relevés, un prix bas par enseigne.
 - L'appli prend le prix de l'enseigne choisie quand il existe, sinon le prix bas national ajusté au magasin. À La Réunion, faute de relevés, c'est le prix national majoré d'environ 30 % pour les produits importés.
 - `python3 vite-et-cale/prix/maj_prix.py --promos` met à jour seulement `promos.json`, en quelques secondes.
+- La semaine limite à 4 les repas avec le même féculent (pommes de terre, pâtes, riz, pain) et évite le même féculent midi et soir.
+- Quand on passe à une nouvelle semaine, ce qui avait été rangé avec « J'ai fait les courses » et pas encore marqué « J'ai cuisiné » est retiré de Chez moi.
 - La semaine propose chaque plat de midi ou du soir une seule fois quand le choix le permet (deux fois au plus sinon), jamais le même plat deux jours de suite, et varie aussi le matin et le goûter ; le budget est optimisé ensuite sans casser ces règles.
 - Le workflow `.github/workflows/prix-vite-et-cale.yml` relit les promos chaque jour et tous les prix le lundi, et enregistre ce qui a changé. Il ne tourne qu'une fois le workflow présent sur la branche par défaut du dépôt.
 - Pour mettre à jour à la main : `python3 vite-et-cale/prix/maj_prix.py` (Python 3.9+, aucune dépendance).
