@@ -122,6 +122,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within
 .opt.eq span{display:flex;flex-direction:column;gap:1px}
 .seg .eqi{width:20px;height:20px;vertical-align:-5px;margin-right:6px}
 .dish .pourtoi{position:absolute;top:8px;left:8px;background:var(--leaf);color:var(--surface);font-weight:700;font-size:11.5px;border-radius:999px;padding:2px 9px}
+.spin{width:36px;height:36px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--leaf);animation:tourne .8s linear infinite}
+@keyframes tourne{to{transform:rotate(360deg)}}
 .prayon{padding:10px 14px 4px;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line)}
 .opt[aria-pressed=true]{border-color:var(--leaf);background:var(--leaf-soft);color:var(--leaf);box-shadow:inset 0 0 0 1px var(--leaf)}
 .opt.no[aria-pressed=true]{border-color:var(--warn);background:var(--warn-soft);color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
@@ -610,7 +612,7 @@ function mealCost(r,P){ return r.ing.reduce((s,[id,q])=>s+q/ING[id].size*price(i
 function interdits(P){
   const ing=new Set(), rec=new Set();
   P.allergies.forEach(a=>{ const A=ALLERGIES.find(x=>x[0]===a); if(A) A[3].forEach(i=>ing.add(i)); (ALLERGIE_RECETTE[a]||[]).forEach(r=>rec.add(r)); });
-  P.degouts.forEach(d=>{ const D=DEGOUTS.find(x=>x[0]===d); if(D) D[2].forEach(i=>ing.add(i)); });
+  P.degouts.forEach(d=>{ const D=DEGOUTS.find(x=>x[0]===d); if(D) D[D.length-1].forEach(i=>ing.add(i)); });
   if(P.regime==="sansporc") ["jambon","lardons","saucisse"].forEach(i=>ing.add(i));
   return {ing,rec,tags:P.regime==="vege"?["viande","poisson"]:[]};
 }
@@ -712,15 +714,21 @@ function generer(P,seed){
   const plafond=k=>k==="midi"||k==="soir"?null:Math.max(2,Math.ceil(7/Math.max(1,PL[k].length)));
   const groupe=k=>k==="midi"||k==="soir"?"repas":k;
   const maxFeculent=PL.repas.length>=20?4:7;   // au plus 4 repas par semaine avec le même féculent
+  /* Coût rapide : prix calculés une fois, et seul le coût des ingrédients qui changent est recalculé. */
+  const stock=ST.stock||{}, pers=P.personnes, PRX={};
+  Object.keys(ING).forEach(id=>{ PRX[id]=price(id,P); });
+  const FEC={}; R.forEach(r=>{ FEC[r.id]=feculent(r); });
+  const coutId=(id,u)=>{ const g=ING[id], need=Math.max(0,u-(stock[id]||0)); if(need<=1e-9) return 0;
+    const packs=Math.ceil(need/g.size-1e-9); return LONGUE_DUREE.has(id)&&need<0.6*packs*g.size?need/g.size*PRX[id]:packs*PRX[id]; };
   const essai=(maxRepas,t)=>{
     const max={repas:maxRepas,matin:plafond("matin"),encas:plafond("encas")};
     const count={repas:{},matin:{},encas:{}}, days=[];
     const voisin=(i,id)=>[i-1,i+1].some(j=>days[j]&&(days[j].midi===id||days[j].soir===id));
     const libre=(g,i,k,id,day)=>{ if((count[g][id]||0)>=max[g]) return false;
       if(g==="repas"){ const r=RID[id]; if(r.fun&&(count.repas[id]||0)>=1) return false; if(id===day[k==="midi"?"soir":"midi"]) return false; if(voisin(i,id)) return false;
-        const b=feculent(r);
-        if(b!=="autre"){ const autre=day[k==="midi"?"soir":"midi"]; if(autre&&feculent(RID[autre])===b) return false;
-          let n=0; days.forEach((dd,j)=>{ for(const kk of ["midi","soir"]) if(dd[kk]&&!(j===i&&kk===k)&&feculent(RID[dd[kk]])===b) n++; });
+        const b=FEC[id];
+        if(b!=="autre"){ const autre=day[k==="midi"?"soir":"midi"]; if(autre&&FEC[autre]===b) return false;
+          let n=0; days.forEach((dd,j)=>{ for(const kk of ["midi","soir"]) if(dd[kk]&&!(j===i&&kk===k)&&FEC[dd[kk]]===b) n++; });
           if(n>=maxFeculent) return false; } }
       else if(days[i-1]&&days[i-1][k]===id) return false;
       return true; };
@@ -731,15 +739,20 @@ function generer(P,seed){
         const r=g==="repas"?pickPrefere(c):pick(c); day[k]=r.id; count[g][r.id]=(count[g][r.id]||0)+1; }
     }
     /* Descente sur le prix, en respectant les règles. */
+    const use={};
+    days.forEach(d=>SLOTS.forEach(k=>{ const r=RID[d[k]]; if(r) r.ing.forEach(([id,q])=>{ use[id]=(use[id]||0)+q*pers; }); }));
+    const oeufMax=Math.max(OEUFS_MAX*pers,use.oeuf||0);
     for(let pass=0;pass<2;pass++) for(let i=0;i<7;i++) for(const k of SLOTS){
       const g=groupe(k), pl=g==="repas"?PL.repas:PL[k], old=days[i][k]; if(!old) continue;
-      let cur=ticket(days,P).total; const oeufs0=oeufs(days);
       count[g][old]--; days[i][k]=null;
-      let garde=old;
+      const ro=RID[old];
+      let garde=old, meilleur=-0.01;
       for(const r of pl){ if(r.id===old||!libre(g,i,k,r.id,days[i])) continue;
-        if(g==="repas"&&aime(RID[old],P)&&!aime(r,P)) continue;   // on ne remplace pas un plat qu'on aime par un autre, juste pour le prix
-        days[i][k]=r.id; const c=ticket(days,P).total;
-        if(c<cur-0.01&&oeufs(days)<=Math.max(OEUFS_MAX,oeufs0)){ cur=c; garde=r.id; } }
+        if(g==="repas"&&aime(ro,P)&&!aime(r,P)) continue;   // on ne remplace pas un plat qu'on aime par un autre, juste pour le prix
+        const delta={}; ro.ing.forEach(([id,q])=>{ delta[id]=(delta[id]||0)-q*pers; }); r.ing.forEach(([id,q])=>{ delta[id]=(delta[id]||0)+q*pers; });
+        let d=0; for(const id in delta){ const u=use[id]||0; d+=coutId(id,u+delta[id])-coutId(id,u); }
+        if(d<meilleur&&(use.oeuf||0)+(delta.oeuf||0)<=oeufMax){ meilleur=d; garde=r.id; } }
+      if(garde!==old){ ro.ing.forEach(([id,q])=>{ use[id]-=q*pers; }); RID[garde].ing.forEach(([id,q])=>{ use[id]=(use[id]||0)+q*pers; }); }
       days[i][k]=garde; count[g][garde]=(count[g][garde]||0)+1;
     }
     const tk=ticket(days,P), distinct=new Set(days.flatMap(d=>[d.midi,d.soir])).size;
@@ -763,6 +776,13 @@ function consommeSemainePassee(){
     if(faits[id]>0){ faits[id]--; return; }      // déjà retiré avec « J'ai cuisiné »
     RID[id].ing.forEach(([i,q])=>{ if(ST.stock[i]){ ST.stock[i]=Math.max(0,ST.stock[i]-q*P.personnes); if(ST.stock[i]<1e-6) delete ST.stock[i]; } }); }));
   return true;
+}
+/* Affiche « Je prépare ta semaine… » le temps du calcul (quelques secondes sur un vieux téléphone). */
+function prepare(fin){
+  const el=document.createElement("div"); el.className="scrim attente"; el.id="attente";
+  el.innerHTML='<div class="sheet" role="status" style="align-items:center;text-align:center;gap:10px;padding-block:28px"><div class="spin" aria-hidden="true"></div><h2>Je prépare ta semaine…</h2><p class="muted">Je cherche des plats variés qui tiennent dans ton budget.</p></div>';
+  document.body.appendChild(el);
+  setTimeout(()=>{ try{ fin(); } finally { const a=$("attente"); if(a) a.remove(); } },60);
 }
 function nouveauPlan(seed){
   const s=seed||Math.floor(Math.random()*1e6)+1;
@@ -846,7 +866,7 @@ function sectionSante(P){
     '<div class="field"><span class="lbl">Régime</span><div class="opts">'+
     REGIMES.map(([v,n,d])=>'<button type="button" class="opt" data-set="regime" data-v="'+v+'" aria-pressed="'+(P.regime===v)+'">'+n+(d?'<small>'+d+'</small>':"")+'</button>').join("")+'</div></div>'+
     '<div class="field"><span class="lbl">Je n\'aime pas</span><div class="opts">'+
-    DEGOUTS.map(([v,n])=>'<button type="button" class="opt no" data-toggle="degouts" data-v="'+v+'" aria-pressed="'+P.degouts.includes(v)+'">'+esc(n)+'</button>').join("")+'</div></div>';
+    DEGOUTS.map(D=>'<button type="button" class="opt no" data-toggle="degouts" data-v="'+D[0]+'" aria-pressed="'+P.degouts.includes(D[0])+'">'+esc(D[1])+(D.length>3?'<small>'+esc(D[2])+'</small>':"")+'</button>').join("")+'</div></div>';
 }
 function sectionBudget(P){
   const n=pools(P).repas.length;
@@ -915,7 +935,8 @@ function renderOnb(){
   if($("prev")) $("prev").onclick=()=>{ONB.step--;renderOnb();};
   $("next").onclick=()=>{
     if(s<steps.length-1){ ONB.step++; renderOnb(); window.scrollTo(0,0); return; }
-    ST.profil=P; nouveauPlan(); ST.onglet="semaine"; ST.jour=(new Date().getDay()+6)%7; persist(); renderApp();
+    $("next").disabled=true; ST.profil=P;
+    prepare(()=>{ nouveauPlan(); ST.onglet="semaine"; ST.jour=(new Date().getDay()+6)%7; persist(); renderApp(); });
   };
 }
 
@@ -986,7 +1007,7 @@ function vueSemaine(v,P,tk){
   v.querySelectorAll("[data-day]").forEach(b=>b.onclick=()=>{ST.jour=+b.dataset.day;persist();renderApp();});
   v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>ficheRecette(b.dataset.open,b.dataset.slot));
   v.querySelectorAll("[data-swap]").forEach(b=>b.onclick=()=>ficheEchange(b.dataset.swap));
-  $("regen").onclick=()=>{nouveauPlan();renderApp();toast("Nouvelle semaine prête.");};
+  $("regen").onclick=()=>prepare(()=>{nouveauPlan();renderApp();toast("Nouvelle semaine prête.");});
 }
 function prepDimanche(days){
   const all=days.flatMap(d=>SLOTS.map(k=>RID[d[k]]).filter(Boolean));
@@ -1415,7 +1436,7 @@ function vuePromos(v,P){
     const fin=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
     ST.mesPromos[p.ing]={unite:p.unite,nom:p.nom,prix:p.prix,magasin:p.magasin,jusqua:fin}; persist(); majPill(); vuePromos(v,P); toast("Promo ajoutée à ton budget."); });
   v.querySelectorAll("[data-lacher]").forEach(b=>b.onclick=()=>{ delete ST.mesPromos[b.dataset.lacher]; persist(); majPill(); vuePromos(v,P); });
-  if($("refairePromo")) $("refairePromo").onclick=()=>{ nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Semaine refaite avec tes promos."); };
+  if($("refairePromo")) $("refairePromo").onclick=()=>prepare(()=>{ nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Semaine refaite avec tes promos."); });
 }
 
 /* ================= Chez moi : frigo, congélateur, placard ================= */
@@ -1450,7 +1471,7 @@ function vueStock(v,P){
   v.querySelectorAll("[data-plus]").forEach(b=>b.onclick=()=>{ const id=b.dataset.plus; ST.stock[id]=(ST.stock[id]||0)+pas(id); persist(); vueStock(v,P); majPill(); });
   v.querySelectorAll("[data-moins]").forEach(b=>b.onclick=()=>{ const id=b.dataset.moins; ST.stock[id]=Math.max(0,(ST.stock[id]||0)-pas(id)); if(!ST.stock[id]) delete ST.stock[id]; persist(); vueStock(v,P); majPill(); });
   v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>ficheRecette(b.dataset.open,null));
-  if($("refaire")) $("refaire").onclick=()=>{ nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Semaine refaite avec ce que tu as."); };
+  if($("refaire")) $("refaire").onclick=()=>prepare(()=>{ nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Semaine refaite avec ce que tu as."); });
   let arm=false;
   if($("vider")) $("vider").onclick=()=>{ if(!arm){ arm=true; $("vider").textContent="Toucher encore pour tout vider"; return; } ST.stock={}; persist(); vueStock(v,P); majPill(); };
 }
@@ -1493,7 +1514,7 @@ function vueProfil(v){
     bindForm(v,draft,draw);
     $("prenom2").oninput=e=>{draft.prenom=e.target.value.slice(0,30);};
     bindOpenPrices(()=>{ draft.osm=ST.profil.osm; draw(); });
-    $("save").onclick=()=>{ draft.osm=ST.profil.osm; ST.profil=draft; nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Profil enregistré, nouvelle semaine prête."); };
+    $("save").onclick=()=>{ draft.osm=ST.profil.osm; ST.profil=draft; prepare(()=>{ nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Profil enregistré, nouvelle semaine prête."); }); };
     let arm=false;
     $("reset").onclick=()=>{ if(!arm){ arm=true; $("reset").textContent="Toucher encore pour tout effacer"; return; }
       ST={profil:null,plan:null,coches:[],onglet:"semaine",jour:null,filtre:"tous",stock:{},mesPromos:{}}; persist(); demarrer(); };
@@ -1561,6 +1582,10 @@ function ficheEchange(slot){
 }
 
 /* ================= Démarrage ================= */
+/* Bêta : si quelque chose plante, on le dit au lieu de laisser un bouton qui ne répond plus. */
+window.addEventListener("error",e=>{ if(!e.message) return; const t=$("toast"); if(!t) return;
+  t.textContent="Oups, un problème est survenu : "+e.message+". Fais une capture d'écran et envoie-la, merci !"; t.hidden=false;
+  clearTimeout(toast.h); toast.h=setTimeout(()=>t.hidden=true,8000); });
 function demarrer(){
   if(!ST.profil){ ONB={step:0,draft:JSON.parse(JSON.stringify(PROFIL_DEFAUT))}; renderOnb(); }
   else renderApp();
