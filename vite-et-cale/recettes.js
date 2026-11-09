@@ -378,3 +378,421 @@ const STYLES_PLATS = {
   healthy:["p10","p11","p17","p19","p33","p34","p35","p37","p39","p40","p43","p46","p47","p48","p52","p55","p56","p57","p59","p60","p63","p64","p65","p66"],
   tradition:["p01","p04","p07","p08","p13","p15","p20","p21","p22","p24","p25","p26","p27","p28","p29","p38","p58"]
 };
+
+/* Recettes détaillées en trois phases (préparer, cuire, servir), pour les plats les plus longs.
+   Elles remplacent les étapes courtes dans la fiche ; les autres plats gardent leurs étapes. */
+const PHASES = {
+ "p01": {
+  "prep": [
+   "Épluche et hache finement l'oignon (et une gousse d'ail si tu en as).",
+   "Décongèle la viande hachée au frigo la veille, ou au micro-ondes (programme décongélation)."
+  ],
+  "cuisson": [
+   "Dans une casserole, fais revenir l'oignon 3 min dans un filet d'huile, à feu moyen.",
+   "Ajoute la viande, émiette-la à la cuillère en bois et laisse dorer 5 min.",
+   "Verse les tomates, une pincée de sucre, origan, sel, poivre : 15 min à feu doux, à moitié couvert.",
+   "Pendant ce temps, cuis les spaghetti dans une grande casserole d'eau bouillante salée (temps indiqué sur le paquet)."
+  ],
+  "service": [
+   "Égoutte les pâtes en gardant un fond d'eau de cuisson.",
+   "Mélange-les à la sauce (un peu d'eau de cuisson si c'est trop épais), fromage râpé dessus.",
+   "La sauce se garde 3 jours au frigo et se congèle très bien."
+  ]
+ },
+ "p05": {
+  "prep": [
+   "Hache l'oignon. Préchauffe le four à 180 °C.",
+   "Huile légèrement un plat à gratin."
+  ],
+  "cuisson": [
+   "Bolognaise : oignon 3 min à l'huile, viande hachée 5 min, puis tomates, origan, sel, poivre : 15 min à feu doux.",
+   "Béchamel : fais fondre le beurre, ajoute la farine d'un coup et remue 1 min. Verse le lait froid petit à petit en fouettant jusqu'à ce que ça épaississe (5 min). Sel, poivre, muscade.",
+   "Montage : un fond de béchamel, des plaques, de la bolognaise, de la béchamel, et ainsi de suite. Termine par la béchamel et le fromage.",
+   "35 min au four, jusqu'à ce que le dessus soit bien doré."
+  ],
+  "service": [
+   "Laisse reposer 10 min avant de couper : les parts se tiennent mieux.",
+   "Se garde 3 jours au frigo et se congèle en parts."
+  ]
+ },
+ "p08": {
+  "prep": [
+   "Préchauffe le four à 200 °C.",
+   "Lave les pommes de terre (pas besoin de les éplucher) et coupe-les en quartiers, l'oignon aussi.",
+   "Dans un plat, mélange-les avec 2 c. à soupe d'huile, sel et thym."
+  ],
+  "cuisson": [
+   "Pose les cuisses de poulet dessus, peau vers le haut : sel, poivre, paprika.",
+   "50 min au four. À mi-cuisson, arrose le poulet avec le jus du plat et remue les pommes de terre.",
+   "C'est cuit quand le jus qui sort en piquant la cuisse est clair, pas rosé."
+  ],
+  "service": [
+   "Sers dans le plat, avec une salade verte si tu en as."
+  ]
+ },
+ "p12": {
+  "prep": [
+   "Hache l'oignon. Égoutte et rince les haricots rouges."
+  ],
+  "cuisson": [
+   "Oignon 3 min à l'huile, puis la viande hachée émiettée : 5 min.",
+   "Haricots, tomates, 1 c. à café de cumin et de paprika (et du piment si tu aimes), sel : 20 min à feu doux.",
+   "Pendant ce temps, fais cuire le riz."
+  ],
+  "service": [
+   "Sers le chili sur le riz. Il se congèle très bien en portions."
+  ]
+ },
+ "p13": {
+  "prep": [
+   "Épluche les pommes de terre et coupe-les en gros morceaux. Hache l'oignon.",
+   "Préchauffe le four à 200 °C."
+  ],
+  "cuisson": [
+   "Pommes de terre dans une casserole d'eau froide salée : porte à ébullition, puis 20 min (la pointe d'un couteau doit s'enfoncer facilement).",
+   "Pendant ce temps, oignon 3 min à l'huile, puis la viande hachée émiettée : 5 min. Sel, poivre.",
+   "Égoutte les pommes de terre et écrase-les avec le lait chaud et une noix de beurre.",
+   "Viande au fond du plat, purée par-dessus lissée à la fourchette, fromage râpé : 20 min au four."
+  ],
+  "service": [
+   "Laisse tiédir 5 min. Avec une salade verte, c'est un repas complet."
+  ]
+ },
+ "p14": {
+  "prep": [
+   "Mélange la viande hachée, un peu d'œuf battu, l'oignon haché très fin, sel, poivre, herbes. Forme des boulettes avec les mains mouillées."
+  ],
+  "cuisson": [
+   "Dore-les 5 min dans une poêle huilée, en les roulant.",
+   "Ajoute les tomates et du basilic, couvre : 15 min à feu doux.",
+   "Pendant ce temps, cuis les pâtes."
+  ],
+  "service": [
+   "Sers les boulettes et leur sauce sur les pâtes, un peu de fromage râpé dessus."
+  ]
+ },
+ "p16": {
+  "prep": [
+   "Préchauffe le four à 220 °C. Coupe les pommes de terre en bâtonnets, sèche-les dans un torchon, mélange avec huile et sel.",
+   "Lave la salade, coupe la tomate et l'oignon en rondelles."
+  ],
+  "cuisson": [
+   "Frites : 30 min au four, en les retournant à mi-cuisson.",
+   "10 min avant la fin, cuis le steak à la poêle 3 à 4 min de chaque côté ; pose le fromage dessus la dernière minute, couvercle fermé.",
+   "Toaste les pains 1 min à la poêle, face coupée en dessous."
+  ],
+  "service": [
+   "Monte le burger : pain, salade, tomate, steak et fromage, oignon, ketchup ou moutarde, pain.",
+   "Sers avec les frites."
+  ]
+ },
+ "p18": {
+  "prep": [
+   "Préchauffe le four à 220 °C. Frites : bâtonnets de pommes de terre, huile, sel, sur une plaque.",
+   "Coupe le poulet en morceaux. Prépare 3 assiettes : farine, œuf battu salé, chapelure (ou biscottes écrasées)."
+  ],
+  "cuisson": [
+   "Enfourne les frites pour 30 min.",
+   "Passe chaque morceau de poulet dans la farine, puis l'œuf, puis la chapelure.",
+   "Ajoute les nuggets sur une plaque les 15 dernières minutes avec un filet d'huile (ou 6 min à la poêle)."
+  ],
+  "service": [
+   "Sers avec du ketchup ou du fromage blanc aux herbes."
+  ]
+ },
+ "p20": {
+  "prep": [
+   "Coupe le bœuf en gros cubes s'il ne l'est pas, les carottes en rondelles épaisses, émince l'oignon."
+  ],
+  "cuisson": [
+   "Dans la cocotte-minute, dore la viande 5 min de tous les côtés dans un filet d'huile, puis l'oignon 2 min.",
+   "Carottes, thym, laurier, un cube de bouillon, un grand verre d'eau, sel, poivre.",
+   "Ferme et compte 40 min après le sifflement, à feu moyen (sans cocotte-minute : 2 h 30 à couvert, à feu très doux).",
+   "Pendant ce temps, cuis les pommes de terre à l'eau : 20 min."
+  ],
+  "service": [
+   "Ouvre une fois la pression retombée : la viande doit se défaire à la fourchette.",
+   "Encore meilleur réchauffé le lendemain."
+  ]
+ },
+ "p21": {
+  "prep": [
+   "Coupe le poulet en morceaux, les carottes en rondelles, les champignons en lamelles."
+  ],
+  "cuisson": [
+   "Couvre le poulet et les carottes d'eau froide avec un cube de bouillon. Porte à ébullition, puis 25 min à feu doux.",
+   "Fais cuire le riz.",
+   "Retire le poulet et les carottes ; garde le bouillon.",
+   "Sauce : beurre fondu, farine, remue 1 min, puis 2 louches de bouillon petit à petit en fouettant, jusqu'à ce que ça nappe la cuillère.",
+   "Champignons 5 min dans la sauce, puis la crème, le poulet et les carottes : 2 min sans faire bouillir."
+  ],
+  "service": [
+   "Un filet de citron si tu en as. Sers avec le riz."
+  ]
+ },
+ "p22": {
+  "prep": [
+   "Préchauffe le four à 200 °C. Retire le petit cône amer à la base des endives."
+  ],
+  "cuisson": [
+   "Endives 15 min à la vapeur ou dans l'eau bouillante salée.",
+   "Égoutte-les en les pressant bien, sinon le plat rend de l'eau.",
+   "Béchamel : beurre fondu, farine, puis le lait petit à petit en fouettant ; sel, poivre, muscade.",
+   "Roule chaque endive dans une tranche de jambon, range-les dans le plat, béchamel et fromage dessus : 20 min au four."
+  ],
+  "service": [
+   "Sers bien doré, avec du pain."
+  ]
+ },
+ "p24": {
+  "prep": [
+   "Préchauffe le four à 180 °C. Déroule la pâte dans un moule avec son papier, pique le fond à la fourchette.",
+   "Dore les lardons 3 min à la poêle sans matière grasse, égoutte-les."
+  ],
+  "cuisson": [
+   "Pour 4 parts : bats 4 œufs avec 20 cl de crème et 20 cl de lait, poivre, muscade (peu de sel, les lardons sont salés).",
+   "Répartis lardons et fromage sur la pâte, verse le mélange.",
+   "35 min au four : c'est cuit quand le centre ne tremble plus."
+  ],
+  "service": [
+   "Laisse tiédir 10 min avant de couper. Avec une salade verte.",
+   "Les parts restantes se gardent 3 jours au frigo : parfait pour les midis."
+  ]
+ },
+ "p25": {
+  "prep": [
+   "Lave les pommes de terre, émince l'oignon, préchauffe le four à 200 °C."
+  ],
+  "cuisson": [
+   "Pommes de terre entières dans l'eau bouillante salée : 15 min, elles doivent rester un peu fermes. Pèle-les, coupe-les en rondelles.",
+   "Dore lardons et oignon 5 min à la poêle.",
+   "Dans le plat : pommes de terre, lardons-oignons, crème, poivre ; mélange.",
+   "Coupe le reblochon en deux dans l'épaisseur et pose-le dessus, croûte vers le haut : 25 min au four."
+  ],
+  "service": [
+   "Sers bien chaud, avec une salade verte pour équilibrer."
+  ]
+ },
+ "p26": {
+  "prep": [
+   "Pâte pour 3 : 250 g de farine et une pincée de sel dans un saladier. Creuse un puits, casse 3 œufs, et verse 50 cl de lait petit à petit en mélangeant, pour éviter les grumeaux.",
+   "Laisse reposer 30 min si tu as le temps : les crêpes seront plus souples."
+  ],
+  "cuisson": [
+   "Chauffe une poêle et graisse-la avec un papier imbibé de beurre ou d'huile.",
+   "Une petite louche de pâte, fais tourner la poêle pour couvrir le fond : 1 min, retourne, 30 s.",
+   "Remets une crêpe dans la poêle, jambon et fromage, plie en quatre, 1 min pour faire fondre."
+  ],
+  "service": [
+   "Sers aussitôt avec la salade. Les crêpes nature se gardent 2 jours au frigo, filmées."
+  ]
+ },
+ "p27": {
+  "prep": [
+   "Préchauffe le four à 180 °C. Épluche les pommes de terre et coupe-les en rondelles fines (2 à 3 mm), sans les rincer : leur amidon fait la crème.",
+   "Frotte le plat avec une gousse d'ail coupée si tu en as."
+  ],
+  "cuisson": [
+   "Dans une casserole, chauffe le lait et la crème avec sel, poivre, muscade, ajoute les pommes de terre et le jambon en lanières : 10 min à feu doux en remuant.",
+   "Verse dans le plat, fromage dessus.",
+   "50 min au four : la pointe d'un couteau doit traverser sans résistance."
+  ],
+  "service": [
+   "Laisse reposer 10 min. Se réchauffe très bien le lendemain."
+  ]
+ },
+ "p29": {
+  "prep": [
+   "Préchauffe le four à 220 °C. Coupe les pommes de terre en bâtonnets, sèche-les, mélange avec huile et sel.",
+   "Gratte et rince les moules ; jette celles qui sont cassées ou qui restent ouvertes quand tu les tapotes. Émince l'oignon."
+  ],
+  "cuisson": [
+   "Frites : 30 min au four sur une plaque, retournées à mi-cuisson.",
+   "10 min avant la fin, oignon 3 min dans une grande casserole, puis les moules et un demi-verre d'eau ou de vin blanc.",
+   "Couvre : 5 à 6 min à feu vif en secouant la casserole, jusqu'à ce que toutes soient ouvertes. Ajoute la crème et du persil."
+  ],
+  "service": [
+   "Jette celles qui sont restées fermées. Sers les moules dans leur jus, les frites à côté."
+  ]
+ },
+ "p30": {
+  "prep": [
+   "Coupe les saucisses en rondelles épaisses, émince les oignons, hache l'ail et le piment (si tu aimes le piquant)."
+  ],
+  "cuisson": [
+   "Dans une cocotte, dore les saucisses 5 min sans matière grasse, puis retire l'excédent de gras.",
+   "Oignons, ail, 1 c. à café de curcuma et le piment : 3 min.",
+   "Tomates, sel, thym : 20 min à feu doux à couvert, en remuant de temps en temps.",
+   "Pendant ce temps, fais cuire le riz."
+  ],
+  "service": [
+   "Sers le rougail sur le riz. Encore meilleur réchauffé le lendemain."
+  ]
+ },
+ "p31": {
+  "prep": [
+   "Pâte pour 2 : 200 g de farine, 1 c. à café de levure de boulanger, une pincée de sel, 12 cl d'eau tiède et un filet d'huile. Pétris 5 min jusqu'à ce qu'elle soit souple.",
+   "Couvre d'un torchon : 20 à 30 min dans un endroit tiède. Préchauffe le four au plus chaud (240 à 250 °C)."
+  ],
+  "cuisson": [
+   "Étale la pâte sur une plaque huilée ou du papier cuisson.",
+   "Tomates, jambon, champignons émincés, fromage, origan.",
+   "12 à 15 min au four, jusqu'à ce que les bords soient dorés."
+  ],
+  "service": [
+   "Coupe en parts et sers aussitôt, avec une salade."
+  ]
+ },
+ "p33": {
+  "prep": [
+   "Décongèle le colin au frigo la veille (ou au micro-ondes), puis sèche-le bien avec du papier absorbant.",
+   "Prépare 3 assiettes : farine, œuf battu salé, chapelure."
+  ],
+  "cuisson": [
+   "Fais cuire le riz.",
+   "Passe chaque filet dans la farine, l'œuf, puis la chapelure.",
+   "Dore-les 4 min de chaque côté dans une poêle avec un fond d'huile, à feu moyen."
+  ],
+  "service": [
+   "Sers avec le riz, un quartier de citron et la salade."
+  ]
+ },
+ "p38": {
+  "prep": [
+   "Préchauffe le four à 180 °C. Coupe un chapeau sur chaque tomate, vide-les à la petite cuillère et garde la pulpe.",
+   "Farce : viande hachée, oignon haché, persil, sel, poivre (et un peu de pain trempé dans du lait si tu en as)."
+  ],
+  "cuisson": [
+   "Remplis les tomates, remets les chapeaux.",
+   "Dans le plat : le riz cru, la pulpe hachée et un verre d'eau ; pose les tomates dessus.",
+   "45 min au four : le riz doit avoir bu le jus. Ajoute un peu d'eau s'il sèche."
+  ],
+  "service": [
+   "Deux tomates par personne, avec le riz du plat."
+  ]
+ },
+ "p42": {
+  "prep": [
+   "Préchauffe le four à 180 °C. Coupe le potimarron en cubes (inutile de l'éplucher), retire les graines."
+  ],
+  "cuisson": [
+   "Potimarron 15 min à la vapeur ou à l'eau, puis écrasé en purée, sel, poivre.",
+   "Béchamel : beurre fondu, farine, remue 1 min, puis le lait petit à petit en fouettant jusqu'à ce que ça épaississe ; muscade.",
+   "Dans le plat : béchamel, plaques, potimarron, béchamel, et ainsi de suite. Termine par béchamel et fromage.",
+   "35 min au four."
+  ],
+  "service": [
+   "Laisse reposer 10 min avant de couper."
+  ]
+ },
+ "p44": {
+  "prep": [
+   "Coupe le poulet en morceaux si besoin, émince les oignons. Épluche carottes et navets et coupe-les en quatre, les courgettes en gros tronçons. Égoutte les pois chiches."
+  ],
+  "cuisson": [
+   "Dans une grande casserole, dore le poulet dans un peu d'huile d'olive, puis les oignons. Ajoute la tomate, de la harissa si tu aimes, et un demi-verre d'eau.",
+   "Quand ça bout, couvre d'eau et laisse cuire 20 min en écumant.",
+   "Carottes, navets, pois chiches et ras-el-hanout : 15 min. Puis les courgettes : encore 15 min. Rectifie le sel.",
+   "Fais griller les merguez à la poêle."
+  ],
+  "service": [
+   "Semoule : même volume d'eau bouillante salée avec un filet d'huile, 5 min à couvert, puis égrène à la fourchette.",
+   "Sers semoule, légumes et viande, et le bouillon à part pour arroser."
+  ]
+ },
+ "p45": {
+  "prep": [
+   "Émince les oignons, épluche les pommes de terre et coupe-les en quartiers, coupe le citron en rondelles."
+  ],
+  "cuisson": [
+   "Dans une cocotte, dore le poulet 5 min avec un filet d'huile.",
+   "Oignons, 1 c. à café de gingembre, de curcuma et de cumin, sel, poivre : 3 min.",
+   "Pommes de terre, rondelles de citron et un verre d'eau : 45 min à feu doux à couvert."
+  ],
+  "service": [
+   "Ajoute des olives si tu en as, et de la coriandre. Du pain pour la sauce."
+  ]
+ },
+ "p46": {
+  "prep": [
+   "Coupe le poulet en petits morceaux. Râpe l'oignon, la carotte, la courgette et le céleri."
+  ],
+  "cuisson": [
+   "Dans une cocotte : le poulet, les légumes râpés, les tomates, les pois chiches et un filet d'huile, 3 à 4 min sur le feu.",
+   "Couvre d'eau, cannelle, piment doux, sel, poivre : 25 à 30 min à couvert.",
+   "Ajoute les vermicelles : encore 15 min sans couvercle."
+  ],
+  "service": [
+   "Coriandre et menthe hachées juste avant de servir, avec un filet de citron."
+  ]
+ },
+ "p49": {
+  "prep": [
+   "Mélange la viande hachée avec l'oignon râpé, 1 c. à café de cumin, du paprika, du persil haché, sel, poivre. Forme des boulettes de la taille d'une noix."
+  ],
+  "cuisson": [
+   "Sauce : ail haché 1 min dans l'huile, puis les tomates, cumin, sel : 10 min dans une grande poêle.",
+   "Les boulettes dans la sauce, couvert : 12 min, retournées à mi-cuisson.",
+   "Casse l'œuf au centre et couvre encore 5 min, jusqu'à ce que le blanc soit pris."
+  ],
+  "service": [
+   "Sers dans la poêle, avec du pain pour saucer."
+  ]
+ },
+ "p50": {
+  "prep": [
+   "Coupe les pommes de terre et le légume (courgette ou aubergine) en dés, émince l'oignon, hache l'ail."
+  ],
+  "cuisson": [
+   "Dans une cocotte, dore le poulet 5 min, puis l'oignon et l'ail.",
+   "2 c. à café de poudre de colombo, mélange 1 min pour libérer les arômes.",
+   "Pommes de terre, légume, thym et un verre d'eau : 35 min à couvert, à feu doux.",
+   "Fais cuire le riz."
+  ],
+  "service": [
+   "Un filet de citron vert juste avant de servir, avec le riz."
+  ]
+ },
+ "p51": {
+  "prep": [
+   "Émince l'oignon, hache l'ail et le gingembre, coupe les tomates en dés."
+  ],
+  "cuisson": [
+   "Dore le poulet dans un filet d'huile, puis l'oignon, l'ail, le gingembre et 1 c. à café de curcuma : 3 min.",
+   "Tomates, thym et un verre d'eau : 35 min à couvert, à feu doux.",
+   "Fais cuire le riz."
+  ],
+  "service": [
+   "Sers avec le riz, et des grains (haricots rouges ou lentilles) si tu en as."
+  ]
+ },
+ "p53": {
+  "prep": [
+   "Marinade : jus de citron, 1 c. à soupe de moutarde, ail haché, sel, poivre. Mets-y le poulet au moins 30 min (ou la veille au frigo).",
+   "Émince finement tous les oignons."
+  ],
+  "cuisson": [
+   "Égoutte le poulet et dore-le 5 min dans une cocotte avec un filet d'huile.",
+   "Ajoute les oignons et fais-les fondre 10 min à feu moyen, jusqu'à ce qu'ils soient tendres et blonds.",
+   "La marinade et un demi-verre d'eau : 30 min à couvert.",
+   "Fais cuire le riz."
+  ],
+  "service": [
+   "Sers le poulet nappé d'oignons, sur le riz."
+  ]
+ },
+ "p54": {
+  "prep": [
+   "Émince l'oignon, coupe les carottes (ou la patate douce) en morceaux, délaie la pâte d'arachide dans un verre d'eau chaude."
+  ],
+  "cuisson": [
+   "Dore le poulet et l'oignon dans une cocotte.",
+   "Tomates, légumes et pâte d'arachide délayée, sel, poivre.",
+   "35 min à feu doux, en remuant de temps en temps pour que ça n'attache pas.",
+   "Fais cuire le riz."
+  ],
+  "service": [
+   "Sers bien chaud avec le riz, une pointe de piment si tu aimes."
+  ]
+ }
+};

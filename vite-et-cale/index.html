@@ -124,6 +124,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within
 .dish .pourtoi{position:absolute;top:8px;left:8px;background:var(--leaf);color:var(--surface);font-weight:700;font-size:11.5px;border-radius:999px;padding:2px 9px}
 .spin{width:36px;height:36px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--leaf);animation:tourne .8s linear infinite}
 @keyframes tourne{to{transform:rotate(360deg)}}
+.phase{display:flex;flex-direction:column;gap:4px;padding-top:6px}
+.phase+.phase{border-top:1px dashed var(--line);padding-top:10px}
+.phase h4{margin:0;font-family:var(--f-display);font-size:15px;font-weight:700;color:var(--leaf)}
+.phase ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
 .prayon{padding:10px 14px 4px;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line)}
 .opt[aria-pressed=true]{border-color:var(--leaf);background:var(--leaf-soft);color:var(--leaf);box-shadow:inset 0 0 0 1px var(--leaf)}
 .opt.no[aria-pressed=true]{border-color:var(--warn);background:var(--warn-soft);color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
@@ -637,9 +641,13 @@ function faconsPossibles(r,P){ const eq=equipDe(P); return (FACONS[r.cook]||["pl
 function faconChoisie(r,P){ const l=faconsPossibles(r,P); const pref=(P.prefs||{})[r.cook]; return l.includes(pref)?pref:l[0]; }
 /* Réécrit les étapes pour l'appareil choisi. */
 function etapesPour(r,f){
+  const ph=typeof PHASES!=="undefined"&&PHASES[r.id];
+  if(ph){ const out={}, astuces=[];
+    for(const k of ["prep","cuisson","service"]){ const e=etapesPour({...r,id:"_",steps:ph[k]||[]},f); out[k]=e.st; if(e.astuce) astuces.push(e.astuce); }
+    return {st:[].concat(out.prep,out.cuisson,out.service),phases:out,astuce:astuces[0]||""}; }
   let st=r.steps.slice(), astuce="";
   if(f==="airfryer"){
-    st=st.map(x=>/four/i.test(x)?x.replace(/Frites au four/g,"Frites à l'air fryer").replace(/au four/gi,"à l'air fryer").replace(/le plus chaud possible/g,"à 200 °C")
+    st=st.map(x=>/four/i.test(x)?x.replace(/Frites au four/g,"Frites à l'air fryer").replace(/au four/gi,"à l'air fryer").replace(/le four/gi,"l'air fryer").replace(/Enfourne/g,"Mets dans l'air fryer").replace(/le plus chaud possible/g,"à 200 °C")
       .replace(/(\d+) ?°C/g,(m,t)=>(+t-20)+" °C").replace(/(\d+) min/g,(m,n)=>Math.max(2,Math.round(+n*0.8))+" min"):x);
     astuce="Air fryer : 20 °C de moins et environ 20 % de temps en moins qu'au four. Ne remplis pas trop le panier et secoue ou retourne à mi-cuisson. Pour un gratin ou une quiche, prends un petit moule qui rentre dans le panier.";
   } else if(f==="robot"){
@@ -650,7 +658,7 @@ function etapesPour(r,f){
   } else if(f==="plaques"&&r.cook==="bouilloire"){ astuce="Fais chauffer l'eau dans une casserole.";
   } else if(f==="microondes"&&r.cook==="bouilloire"){ astuce="Fais chauffer l'eau 2 min au micro-ondes dans un bol.";
   }
-  return {st,astuce};
+  return {st,astuce,phases:null};
 }
 
 function permis(r,P,I){
@@ -1538,7 +1546,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape") fermerPanneau(); }
 
 function ficheRecette(id,slot){
   const P=ST.profil, r=RID[id], c=mealCost(r,P), se=saison(P.region,MOIS_COURANT); let fi=0,li=0;
-  const facons=faconsPossibles(r,P), f=faconChoisie(r,P), {st,astuce}=etapesPour(r,f);
+  const facons=faconsPossibles(r,P), f=faconChoisie(r,P), {st,astuce,phases}=etapesPour(r,f);
   const touteFacons=(FACONS[r.cook]||[]).filter(x=>x!=="aucune");
   const ing=r.ing.map(([i,q])=>{ let n=ING[i].n.toLowerCase();
     if(i==="fruit") n="fruit de saison ("+se.fruits[(fi++)%se.fruits.length]+")";
@@ -1556,7 +1564,9 @@ function ficheRecette(id,slot){
       (facons.length>1?'<div class="seg" role="group" aria-label="Appareil">'+facons.map(x=>'<button type="button" data-facon="'+x+'" aria-pressed="'+(x===f)+'">'+iconeEquip(x)+esc(EQUIP_NOM[x])+'</button>').join("")+'</div>':
         (r.cook!=="aucune"&&facons[0]?'<span class="lbl">'+esc(EQUIP_NOM[facons[0]])+'</span>':""))+
       (astuce?'<div class="etat">'+esc(astuce)+'</div>':"")+
-      '<ol>'+st.map(s=>"<li>"+esc(s)+"</li>").join("")+'</ol>'+
+      (phases?[["prep","1. Préparer"],["cuisson","2. Cuire"],["service","3. Servir"]].filter(([k])=>phases[k].length).map(([k,t])=>
+        '<div class="phase"><h4>'+t+'</h4><ol>'+phases[k].map(s=>"<li>"+esc(s)+"</li>").join("")+'</ol></div>').join(""):
+        '<ol>'+st.map(s=>"<li>"+esc(s)+"</li>").join("")+'</ol>')+
       (touteFacons.length>facons.length?'<p class="hint">Se fait aussi avec : '+esc(touteFacons.filter(x=>!facons.includes(x)).map(x=>EQUIP_NOM[x].toLowerCase()).join(", "))+'.</p>':"")+
       (r.source?'<p class="foot">Recette adaptée de « <a href="'+esc(r.source.url)+'" target="_blank" rel="noopener">'+esc(r.source.titre)+'</a> », Livre de cuisine de Wikilivres, par ses contributeurs, '+
         'sous licence <a href="https://creativecommons.org/licenses/by-sa/3.0/deed.fr" target="_blank" rel="noopener">CC BY-SA 3.0</a>. Modifications : '+esc(r.source.modifs)+'. Cette fiche est sous la même licence.</p>':"")+'</div>'+
