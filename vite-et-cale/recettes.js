@@ -379,8 +379,7 @@ const STYLES_PLATS = {
   tradition:["p01","p04","p07","p08","p13","p15","p20","p21","p22","p24","p25","p26","p27","p28","p29","p38","p58"]
 };
 
-/* Recettes détaillées en trois phases (préparer, cuire, servir), pour les plats les plus longs.
-   Elles remplacent les étapes courtes dans la fiche ; les autres plats gardent leurs étapes. */
+/* Recettes détaillées en trois phases (préparer, cuire, servir). Elles remplacent les étapes courtes dans la fiche. */
 const PHASES = {
  "p01": {
   "prep": [
@@ -793,6 +792,610 @@ const PHASES = {
   ],
   "service": [
    "Sers bien chaud avec le riz, une pointe de piment si tu aimes."
+  ]
+ },
+ "m01": {
+  "prep": [
+   "Fais chauffer le lait dans une casserole à feu doux, ou 1 min 30 au micro-ondes dans un grand bol."
+  ],
+  "cuisson": [
+   "Prépare le café (ou la chicorée) et verse-le dans le lait chaud.",
+   "Coupe un quart de baguette en deux dans la longueur ; passe-le au grille-pain 2 min s'il est de la veille."
+  ],
+  "service": [
+   "Étale le beurre pendant que le pain est encore tiède, puis la confiture."
+  ]
+ },
+ "m02": {
+  "prep": [
+   "Lave le fruit ; coupe-le en morceaux si c'est une pomme ou une poire."
+  ],
+  "cuisson": [
+   "Verse les céréales dans un bol, puis le lait froid juste au moment de manger (sinon elles ramollissent)."
+  ],
+  "service": [
+   "Le fruit dessus ou à côté. Un peu de cannelle sur la pomme, c'est très bon."
+  ]
+ },
+ "m03": {
+  "prep": [
+   "Lave et coupe le fruit en petits morceaux."
+  ],
+  "cuisson": [
+   "Verse le yaourt dans un bol, le fruit dessus.",
+   "Fais griller une tranche de baguette 2 min."
+  ],
+  "service": [
+   "Beurre la tartine encore chaude. Un filet de miel sur le yaourt si tu aimes."
+  ]
+ },
+ "m04": {
+  "prep": [
+   "Dans une assiette creuse, bats l'œuf avec le lait et 1 c. à café de sucre (et une pincée de cannelle).",
+   "Le pain un peu rassis est le meilleur : il absorbe sans se défaire."
+  ],
+  "cuisson": [
+   "Fais fondre une noisette de beurre dans une poêle à feu moyen.",
+   "Trempe chaque tranche 10 secondes de chaque côté dans le mélange.",
+   "Fais dorer 2 min de chaque côté, jusqu'à ce que ce soit bien doré."
+  ],
+  "service": [
+   "Saupoudre d'un peu de sucre, avec le fruit coupé à côté."
+  ]
+ },
+ "m05": {
+  "prep": [
+   "Pour 4 : 200 g de farine et une pincée de sel dans un saladier. Creuse un puits, casse 2 œufs, mélange en versant 40 cl de lait petit à petit pour éviter les grumeaux.",
+   "Laisse reposer 30 min si tu peux : les crêpes seront plus souples."
+  ],
+  "cuisson": [
+   "Chauffe la poêle et graisse-la avec un papier imbibé d'huile ou de beurre.",
+   "Une petite louche de pâte, fais tourner la poêle pour couvrir tout le fond.",
+   "1 min, jusqu'à ce que les bords se décollent, retourne, encore 30 s."
+  ],
+  "service": [
+   "Confiture ou sucre, roule ou plie en quatre. Les crêpes restantes se gardent 2 jours au frigo, filmées."
+  ]
+ },
+ "m06": {
+  "prep": [
+   "Bats les œufs à la fourchette avec sel et poivre (et une cuillère de lait pour qu'ils soient plus crémeux)."
+  ],
+  "cuisson": [
+   "Fais griller les tartines.",
+   "Dans une petite poêle à feu doux, une noisette de beurre, puis les œufs.",
+   "Remue sans arrêt avec une spatule, 2 à 3 min : arrête quand ils sont encore un peu baveux, ils finissent de cuire hors du feu."
+  ],
+  "service": [
+   "Sur les tartines, avec de la ciboulette si tu en as."
+  ]
+ },
+ "p02": {
+  "prep": [
+   "Bats l'œuf avec la crème, le fromage râpé et beaucoup de poivre (pas de sel : les lardons sont salés).",
+   "Mets à chauffer une grande casserole d'eau salée."
+  ],
+  "cuisson": [
+   "Cuis les pâtes le temps indiqué sur le paquet.",
+   "Pendant ce temps, dore les lardons 5 min à la poêle, sans matière grasse.",
+   "Égoutte les pâtes en gardant un demi-verre d'eau de cuisson."
+  ],
+  "service": [
+   "Hors du feu, verse les pâtes dans la poêle des lardons, puis le mélange œuf-crème, et remue vite : la chaleur des pâtes cuit l'œuf en douceur, sans faire d'omelette.",
+   "Si c'est trop épais, ajoute un peu d'eau de cuisson. Sers tout de suite."
+  ]
+ },
+ "p03": {
+  "prep": [
+   "Émince l'oignon, égoutte le thon.",
+   "Mets à chauffer une grande casserole d'eau salée."
+  ],
+  "cuisson": [
+   "Cuis les pâtes le temps indiqué sur le paquet.",
+   "Pendant ce temps, fais revenir l'oignon 3 min dans un filet d'huile.",
+   "Ajoute les tomates, une pincée de sucre, des herbes de Provence, sel, poivre : 8 min à feu doux.",
+   "Ajoute le thon émietté à la fin, juste pour le réchauffer."
+  ],
+  "service": [
+   "Mélange avec les pâtes égouttées, un filet d'huile d'olive et du basilic si tu en as."
+  ]
+ },
+ "p04": {
+  "prep": [
+   "Coupe le jambon en petits dés. Mets à chauffer de l'eau salée."
+  ],
+  "cuisson": [
+   "Cuis les coquillettes le temps indiqué (environ 8 min).",
+   "Égoutte, remets-les dans la casserole chaude, feu éteint.",
+   "Ajoute le beurre, la crème, le jambon et le fromage, une pincée de muscade : remue 1 min sur feu doux, jusqu'à ce que le fromage file."
+  ],
+  "service": [
+   "Sers aussitôt, poivre au moulin."
+  ]
+ },
+ "p06": {
+  "prep": [
+   "Coupe le poulet en lanières, émince l'oignon et les champignons.",
+   "Mets à chauffer une grande casserole d'eau salée."
+  ],
+  "cuisson": [
+   "Cuis les pâtes.",
+   "Dans une poêle, dore le poulet 6 min dans un filet d'huile, sel, poivre ; réserve-le.",
+   "Dans la même poêle, oignon et champignons 5 min, jusqu'à ce que les champignons aient rendu leur eau.",
+   "Remets le poulet, ajoute la crème et 2 c. à soupe d'eau de cuisson des pâtes : 2 min à feu doux."
+  ],
+  "service": [
+   "Mélange avec les pâtes égouttées, persil ou ciboulette dessus."
+  ]
+ },
+ "p07": {
+  "prep": [
+   "Préchauffe le four à 200 °C. Coupe le jambon en lanières."
+  ],
+  "cuisson": [
+   "Cuis les pâtes 2 min de moins que le temps indiqué : elles finiront au four.",
+   "Égoutte, mélange avec le jambon, la crème, poivre et un peu de muscade.",
+   "Verse dans un plat, fromage râpé dessus : 15 min au four, jusqu'à ce que ce soit doré."
+  ],
+  "service": [
+   "Laisse tiédir 2 min, avec une salade verte."
+  ]
+ },
+ "p09": {
+  "prep": [
+   "Préchauffe le four à 220 °C.",
+   "Coupe les pommes de terre en bâtonnets de l'épaisseur d'un doigt, sèche-les dans un torchon, mélange avec 1 c. à soupe d'huile et du sel."
+  ],
+  "cuisson": [
+   "Étale les frites sur une plaque, sans qu'elles se chevauchent : 30 min au four, retournées à mi-cuisson.",
+   "5 min avant la fin, chauffe une poêle bien chaude avec un filet d'huile.",
+   "Steak : 3 min de chaque côté pour qu'il reste rosé, 4 min pour bien cuit. Sale à la fin."
+  ],
+  "service": [
+   "Sers avec la salade assaisonnée (huile, vinaigre, moutarde)."
+  ]
+ },
+ "p10": {
+  "prep": [
+   "Aplatis un peu l'escalope si elle est épaisse, pour qu'elle cuise régulièrement. Émince les champignons."
+  ],
+  "cuisson": [
+   "Cuis le riz.",
+   "Dans une poêle, dore l'escalope 5 min de chaque côté dans un filet d'huile ; sel, poivre ; réserve-la.",
+   "Dans la même poêle, champignons 5 min.",
+   "Ajoute la crème et 2 c. à soupe d'eau, remets l'escalope : 2 min à feu doux pour qu'elle s'imprègne de la sauce."
+  ],
+  "service": [
+   "Sers sur le riz, nappée de sauce."
+  ]
+ },
+ "p11": {
+  "prep": [
+   "Coupe le poulet en cubes, émince l'oignon."
+  ],
+  "cuisson": [
+   "Fais revenir le poulet et l'oignon 5 min dans un filet d'huile.",
+   "Ajoute 1 c. à café de curry et remue 1 min pour libérer les arômes.",
+   "Tomates et lait de coco, sel : 12 min à feu doux, en remuant de temps en temps.",
+   "Pendant ce temps, cuis le riz."
+  ],
+  "service": [
+   "Sers le curry sur le riz, coriandre dessus si tu en as."
+  ]
+ },
+ "p15": {
+  "prep": [
+   "Épluche les pommes de terre et coupe-les en gros morceaux."
+  ],
+  "cuisson": [
+   "Pommes de terre dans l'eau froide salée : porte à ébullition, puis 20 min.",
+   "Pendant ce temps, cuis les saucisses à la poêle à feu moyen, 12 à 15 min, en les retournant souvent (pique-les une fois pour qu'elles n'éclatent pas).",
+   "Égoutte les pommes de terre, écrase-les avec le lait chaud et le beurre ; sel, muscade."
+  ],
+  "service": [
+   "La purée en dôme, les saucisses à côté, un peu de jus de cuisson par-dessus."
+  ]
+ },
+ "p17": {
+  "prep": [
+   "Coupe le poulet en lanières, les crudités en fines lamelles (carotte râpée, salade, tomate)."
+  ],
+  "cuisson": [
+   "Fais dorer le poulet 6 min dans une poêle avec un filet d'huile, paprika, sel, poivre.",
+   "Réchauffe les tortillas 20 secondes à la poêle ou au micro-ondes : elles se roulent sans casser."
+  ],
+  "service": [
+   "Étale le fromage blanc sur les tortillas, ajoute les crudités et le poulet.",
+   "Replie le bas, puis roule bien serré ; coupe en deux en biais."
+  ]
+ },
+ "p19": {
+  "prep": [
+   "Coupe les poivrons en lanières (sans les graines), émince l'oignon et l'ail."
+  ],
+  "cuisson": [
+   "Dans une cocotte, dore les cuisses de poulet 8 min, peau en dessous d'abord ; réserve-les.",
+   "Dans la même cocotte, oignon et poivrons 5 min.",
+   "Tomates, piment d'Espelette ou paprika, sel ; remets le poulet : 35 min à couvert, à feu doux.",
+   "Cuis le riz."
+  ],
+  "service": [
+   "Sers le poulet nappé de sauce aux poivrons, avec le riz."
+  ]
+ },
+ "p23": {
+  "prep": [
+   "Beurre légèrement les tranches de pain à l'extérieur."
+  ],
+  "cuisson": [
+   "Monte : pain, jambon, fromage, pain (beurre à l'extérieur).",
+   "Dans une poêle à feu moyen, 4 min de chaque côté, en appuyant avec la spatule, jusqu'à ce que le pain soit doré et le fromage fondu."
+  ],
+  "service": [
+   "Coupe en deux en triangle, avec la salade assaisonnée."
+  ]
+ },
+ "p28": {
+  "prep": [
+   "Coupe les carottes en rondelles, émince l'oignon, égoutte les lentilles."
+  ],
+  "cuisson": [
+   "Dore les saucisses 5 min dans une cocotte, en les retournant.",
+   "Ajoute l'oignon et les carottes : 3 min.",
+   "Lentilles, thym, laurier et un demi-verre d'eau : 15 min à couvert, à feu doux."
+  ],
+  "service": [
+   "Sers bien chaud, un filet de vinaigre sur les lentilles relève le goût."
+  ]
+ },
+ "p32": {
+  "prep": [
+   "Utilise du riz cuit la veille : il colle moins et donne un meilleur riz sauté.",
+   "Coupe le jambon en petits dés, bats les œufs."
+  ],
+  "cuisson": [
+   "Dans une grande poêle, une omelette fine avec les œufs battus ; roule-la et coupe-la en lanières.",
+   "Dans la même poêle, les petits pois 3 min avec un filet d'huile.",
+   "Ajoute le riz et le jambon : 5 min à feu vif en remuant, jusqu'à ce que le riz soit chaud et un peu grillé.",
+   "Remets l'omelette, sauce soja."
+  ],
+  "service": [
+   "Sers aussitôt, avec un peu d'oignon vert si tu en as."
+  ]
+ },
+ "p34": {
+  "prep": [
+   "Épluche les pommes de terre et coupe-les en morceaux. Décongèle le colin au frigo (ou au micro-ondes)."
+  ],
+  "cuisson": [
+   "Pommes de terre dans l'eau froide salée : 20 min après l'ébullition.",
+   "Dans une poêle, le colin avec un fond d'eau, sel, poivre : 10 min à couvert, à feu doux, il doit s'effeuiller.",
+   "Verse la crème autour du poisson, ajoute aneth ou persil : 2 min."
+  ],
+  "service": [
+   "Sers le poisson nappé de sauce, les pommes de terre à côté, un filet de citron."
+  ]
+ },
+ "p35": {
+  "prep": [
+   "Cuis l'œuf 9 min dans l'eau bouillante (œuf dur), refroidis-le sous l'eau froide.",
+   "Coupe la tomate et le concombre en dés."
+  ],
+  "cuisson": [
+   "Cuis le riz, rince-le à l'eau froide et laisse-le égoutter."
+  ],
+  "service": [
+   "Mélange riz, thon émietté, légumes et œuf écalé en quartiers.",
+   "Vinaigrette : 3 c. à soupe d'huile, 1 de vinaigre, 1 c. à café de moutarde, sel, poivre.",
+   "Se garde 2 jours au frigo dans une boîte fermée."
+  ]
+ },
+ "p36": {
+  "prep": [
+   "Épluche les pommes de terre et coupe-les en rondelles très fines ; émince l'oignon.",
+   "Bats les œufs avec du sel."
+  ],
+  "cuisson": [
+   "Dans une poêle, 3 c. à soupe d'huile, pommes de terre et oignon : 15 min à feu doux, à couvert, en remuant ; elles doivent être tendres, pas grillées.",
+   "Mélange-les aux œufs battus, puis verse le tout dans la poêle : 8 min à feu doux.",
+   "Retourne la tortilla à l'aide d'une grande assiette : glisse-la dessus, puis remets-la dans la poêle à l'envers : 3 min."
+  ],
+  "service": [
+   "Sers tiède ou froide, coupée en parts, avec une salade."
+  ]
+ },
+ "p37": {
+  "prep": [
+   "Coupe courgettes, aubergine, poivron et tomates en dés de même taille ; émince l'oignon et l'ail."
+  ],
+  "cuisson": [
+   "Dans une grande casserole, 2 c. à soupe d'huile d'olive : oignon et poivron 5 min.",
+   "Ajoute l'aubergine et la courgette : 5 min, puis les tomates, l'ail, thym, laurier, sel, poivre.",
+   "35 min à feu doux à couvert, en remuant de temps en temps.",
+   "Au dernier moment, deux œufs au plat dans une poêle : 3 min."
+  ],
+  "service": [
+   "Sers la ratatouille avec les œufs dessus et du pain. Encore meilleure le lendemain."
+  ]
+ },
+ "p39": {
+  "prep": [
+   "Épluche et coupe tous les légumes et la pomme de terre en morceaux, émince l'oignon."
+  ],
+  "cuisson": [
+   "Fais revenir l'oignon 3 min dans un filet d'huile dans une grande casserole.",
+   "Ajoute les légumes, couvre d'eau, un cube de bouillon : 25 min à feu moyen.",
+   "Mixe (ou écrase au presse-purée), goûte et rectifie le sel."
+  ],
+  "service": [
+   "Tartines : fromage sur le pain, 1 min au micro-ondes ou 3 min au four.",
+   "La soupe se garde 3 jours au frigo et se congèle."
+  ]
+ },
+ "p40": {
+  "prep": [
+   "Coupe en petits morceaux les légumes qui restent (courgette, poivron, oignon, champignons…).",
+   "Bats les œufs avec la crème, le fromage, sel et poivre."
+  ],
+  "cuisson": [
+   "Fais revenir les légumes 5 min dans une poêle avec un filet d'huile.",
+   "Verse les œufs par-dessus, sans remuer.",
+   "10 min à feu doux à couvert : le dessus doit être pris. (Ou 5 min sous le gril du four pour dorer.)"
+  ],
+  "service": [
+   "Coupe en parts, avec du pain. Se mange aussi froide le lendemain."
+  ]
+ },
+ "p41": {
+  "prep": [
+   "Beurre légèrement les tranches de pain à l'extérieur."
+  ],
+  "cuisson": [
+   "Monte : pain, jambon, fromage, pain. 4 min de chaque côté à la poêle, en appuyant avec la spatule.",
+   "Dans une petite poêle, l'œuf au plat : 3 min, le jaune doit rester coulant."
+  ],
+  "service": [
+   "Pose l'œuf sur le croque, poivre, avec la salade."
+  ]
+ },
+ "p43": {
+  "prep": [
+   "Coupe les poivrons en lanières, émince l'oignon, hache l'ail."
+  ],
+  "cuisson": [
+   "Dans une grande poêle, oignon et poivrons 8 min dans un filet d'huile d'olive, avec ail, cumin et paprika.",
+   "Ajoute les tomates, sel : 8 min à feu doux.",
+   "Creuse deux trous dans la sauce et casse un œuf dans chacun. Couvre : 5 min, le blanc doit être pris et le jaune encore coulant."
+  ],
+  "service": [
+   "Sers dans la poêle, coriandre dessus, avec du pain pour saucer."
+  ]
+ },
+ "p47": {
+  "prep": [
+   "Égoutte et rince les haricots blancs. Hache l'oignon et l'ail."
+  ],
+  "cuisson": [
+   "Fais revenir l'oignon et l'ail 3 min dans un filet d'huile, avec 1 c. à café de cumin et de paprika.",
+   "Ajoute les haricots, les tomates et un demi-verre d'eau, sel : 20 min à feu doux, en remuant de temps en temps.",
+   "La sauce doit épaissir et napper les haricots."
+  ],
+  "service": [
+   "Coriandre ou persil, un filet d'huile d'olive, avec du pain."
+  ]
+ },
+ "p48": {
+  "prep": [
+   "Égoutte et rince les lentilles. Hache l'oignon et l'ail."
+  ],
+  "cuisson": [
+   "Oignon et ail 3 min dans un filet d'huile, avec cumin, paprika et un peu de curcuma.",
+   "Ajoute les lentilles, les tomates et un verre d'eau, sel : 20 min à feu doux.",
+   "Écrase quelques lentilles contre la casserole pour lier la sauce."
+  ],
+  "service": [
+   "Coriandre et un filet d'huile d'olive. Avec du pain."
+  ]
+ },
+ "p52": {
+  "prep": [
+   "Égoutte les haricots rouges (les « grains »). Rougail : coupe les tomates en tout petits dés, hache finement l'oignon et le piment."
+  ],
+  "cuisson": [
+   "Cuis le riz.",
+   "Réchauffe les grains avec un oignon, de l'ail, du thym et un fond d'eau : 10 min à feu doux.",
+   "Mélange le rougail : tomates, oignon, piment, sel, un filet d'huile (et un peu de gingembre si tu en as)."
+  ],
+  "service": [
+   "Dans l'assiette : le riz, les grains à côté, le rougail frais par-dessus."
+  ]
+ },
+ "p55": {
+  "prep": [
+   "Utilise du riz cuit la veille. Bats les œufs."
+  ],
+  "cuisson": [
+   "Dans une grande poêle, les légumes surgelés 5 min avec un filet d'huile.",
+   "Ajoute le riz : 3 min à feu vif en remuant.",
+   "Pousse le riz sur le côté, verse les œufs dans l'espace libre, remue jusqu'à ce qu'ils prennent, puis mélange tout.",
+   "Sauce soja, poivre."
+  ],
+  "service": [
+   "Sers aussitôt."
+  ]
+ },
+ "p56": {
+  "prep": [
+   "Égoutte et rince les pois chiches, émince l'oignon."
+  ],
+  "cuisson": [
+   "Oignon 3 min dans un filet d'huile, avec 1 c. à café de curry (et un peu de gingembre).",
+   "Ajoute les pois chiches, les tomates et le lait de coco, sel : 15 min à feu doux.",
+   "Cuis le riz."
+  ],
+  "service": [
+   "Sers sur le riz, coriandre dessus, un filet de citron vert."
+  ]
+ },
+ "p57": {
+  "prep": [
+   "Rince les lentilles corail à l'eau froide, jusqu'à ce que l'eau soit claire."
+  ],
+  "cuisson": [
+   "Dans une casserole : lentilles, tomates, lait de coco, un verre d'eau, 1 c. à café de curry, sel.",
+   "15 min à feu doux, en remuant souvent : elles fondent et deviennent crémeuses. Ajoute un peu d'eau si ça épaissit trop.",
+   "Cuis le riz."
+  ],
+  "service": [
+   "Sers le dahl avec le riz, un filet de citron."
+  ]
+ },
+ "p58": {
+  "prep": [
+   "Lave et essore la salade. Coupe le pain en petits cubes."
+  ],
+  "cuisson": [
+   "Dore les lardons 5 min à la poêle, puis les cubes de pain dans leur graisse jusqu'à ce qu'ils soient croustillants.",
+   "Œuf mollet : 6 min dans l'eau bouillante, puis eau froide, et écale-le délicatement."
+  ],
+  "service": [
+   "Vinaigrette : 3 c. à soupe d'huile, 1 de vinaigre, 1 c. à café de moutarde.",
+   "Salade, lardons, croûtons, l'œuf dessus ouvert en deux."
+  ]
+ },
+ "p59": {
+  "prep": [
+   "Égoutte et rince pois chiches et haricots rouges.",
+   "Coupe concombre, poivron et tomate en petits dés, l'oignon rouge en lamelles fines."
+  ],
+  "cuisson": [
+   "Rien à cuire : mélange tout dans un saladier."
+  ],
+  "service": [
+   "Assaisonne avec huile d'olive, citron ou vinaigre, sel, poivre, herbes.",
+   "Laisse 10 min au frais pour que les saveurs se mélangent. Se garde 2 jours."
+  ]
+ },
+ "p60": {
+  "prep": [
+   "Épluche les pommes de terre et coupe-les en cubes."
+  ],
+  "cuisson": [
+   "Pommes de terre dans l'eau froide salée : 15 min après ébullition, elles doivent rester fermes.",
+   "Œuf dur : 9 min dans l'eau bouillante, puis eau froide.",
+   "Laisse refroidir les pommes de terre."
+  ],
+  "service": [
+   "Mélange pommes de terre, thon, œuf en quartiers, tomates et quelques cornichons.",
+   "Vinaigrette à la moutarde ou une cuillère de mayonnaise."
+  ]
+ },
+ "p61": {
+  "prep": [
+   "Lave les crudités ; râpe la carotte."
+  ],
+  "cuisson": [
+   "Coupe la baguette dans la longueur sans aller jusqu'au bout.",
+   "Beurre généreusement les deux côtés, ajoute le jambon plié, et des cornichons si tu aimes."
+  ],
+  "service": [
+   "Crudités à côté avec un filet de vinaigrette."
+  ]
+ },
+ "p62": {
+  "prep": [
+   "Œuf dur : 9 min dans l'eau bouillante, puis eau froide.",
+   "Coupe la tomate et le poivron en fines rondelles."
+  ],
+  "cuisson": [
+   "Ouvre la baguette, arrose l'intérieur d'huile d'olive (et un peu de vinaigre).",
+   "Garnis : tomate, poivron, thon émietté, œuf en rondelles, olives si tu en as."
+  ],
+  "service": [
+   "Referme et presse fort avec la main, ou sous une assiette 10 min : le pain s'imprègne, c'est le secret du pan bagnat."
+  ]
+ },
+ "p63": {
+  "prep": [
+   "Coupe la tomate et le concombre en tout petits dés. Presse le citron."
+  ],
+  "cuisson": [
+   "Verse sur la semoule le même volume d'eau bouillante salée, couvre 5 min.",
+   "Égrène à la fourchette avec 2 c. à soupe d'huile d'olive et le jus de citron."
+  ],
+  "service": [
+   "Ajoute les légumes, le thon émietté et de la menthe ou du persil.",
+   "Meilleur après 30 min au frais. Se garde 2 jours."
+  ]
+ },
+ "p64": {
+  "prep": [
+   "Égoutte le thon et les pois chiches. Coupe les tomates."
+  ],
+  "cuisson": [
+   "Rien à cuire : mélange dans un saladier."
+  ],
+  "service": [
+   "Huile d'olive, vinaigre, sel, poivre, un peu d'oignon si tu aimes. Avec du pain."
+  ]
+ },
+ "p65": {
+  "prep": [
+   "Égoutte le thon et émiette-le. Râpe la carotte, coupe la salade et la tomate."
+  ],
+  "cuisson": [
+   "Réchauffe les tortillas 20 secondes à la poêle pour qu'elles se roulent sans casser."
+  ],
+  "service": [
+   "Fromage blanc, crudités, thon ; replie le bas et roule bien serré. Coupe en deux."
+  ]
+ },
+ "p66": {
+  "prep": [
+   "Lave les pommes de terre et pique-les à la fourchette.",
+   "Cervelle de canut : fromage blanc, échalote ou oignon très finement haché, une demi-gousse d'ail râpée, ciboulette, un filet d'huile et de vinaigre, sel, poivre."
+  ],
+  "cuisson": [
+   "Pommes de terre 8 min au micro-ondes (plus si elles sont grosses) : la pointe du couteau doit entrer facilement."
+  ],
+  "service": [
+   "Ouvre-les en deux, nappe de cervelle de canut bien froide."
+  ]
+ },
+ "e03": {
+  "prep": [
+   "Coupe un morceau de baguette en deux."
+  ],
+  "cuisson": [
+   "Fais-le griller 2 min s'il est de la veille."
+  ],
+  "service": [
+   "Beurre et confiture."
+  ]
+ },
+ "e04": {
+  "prep": [
+   "Préchauffe le four à 180 °C. Huile un moule.",
+   "Pour 8 parts : vide 1 yaourt dans un saladier ; avec le pot vide, mesure 3 pots de farine, 2 de sucre et ½ d'huile."
+  ],
+  "cuisson": [
+   "Mélange le yaourt, le sucre et 3 œufs, puis la farine et 1 sachet de levure, puis l'huile.",
+   "35 min au four : une lame plantée au centre doit ressortir sèche."
+  ],
+  "service": [
+   "Laisse refroidir avant de démouler. Se garde 4 jours dans une boîte."
+  ]
+ },
+ "e05": {
+  "prep": [
+   "Épluche les pommes ou les poires, retire le cœur, coupe-les en morceaux."
+  ],
+  "cuisson": [
+   "Dans une casserole avec un fond d'eau (2 c. à soupe) : 15 min à feu doux à couvert, en remuant de temps en temps.",
+   "Écrase à la fourchette, ou mixe pour une compote lisse."
+  ],
+  "service": [
+   "Cannelle si tu aimes. Se garde 4 jours au frigo."
   ]
  }
 };
