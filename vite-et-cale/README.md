@@ -5,6 +5,7 @@ Une semaine de repas qui calent, à petit budget, avec des produits de saison et
 Une seule page (`index.html`), sans serveur ni compte : le profil, la semaine et la liste de courses sont gardés sur le téléphone.
 
 ## Ce que fait la V1
+- **Goûts** : « Tu manges plutôt… » de tout, fast-food maison, healthy et léger, cuisine de grand-mère, cuisine du monde, souvent végétarien, copieux (plusieurs choix). Ces plats sont tirés trois fois plus souvent dans la semaine et passent en tête de la galerie, sans faire disparaître les autres.
 - **Profil** : Métropole ou La Réunion, magasin habituel, fruits et légumes au marché ou au magasin, allergies (gluten, lait, arachides, œufs, poisson, soja), régime (sans porc, végétarien), ce qu'on n'aime pas, nombre de personnes, budget, temps de cuisine.
 - **Équipement** : plaques ou gazinière, four, micro-ondes, air fryer, robot cuiseur (Thermomix, Cookeo…), cocotte-minute, bouilloire. Seules les recettes faisables sont proposées ; dans la fiche, on choisit l'appareil et les étapes s'adaptent (air fryer : 20 °C et environ 20 % de temps en moins qu'au four ; conseils pour le robot cuiseur et sans cocotte-minute).
 - **Semaine** : 7 jours, 3 repas et un en-cas, image et prix de chaque plat, « Changer ce plat », préparation du dimanche.
