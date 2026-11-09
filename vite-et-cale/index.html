@@ -408,9 +408,9 @@ const FOOD={
 let plateN=0;
 /* Photos des plats : photos/<identifiant>.jpg est essayée automatiquement ; si elle n'existe pas,
    on garde l'assiette dessinée (et on ne la redemande plus pendant la session). */
-const SANS_PHOTO=new Set((()=>{ try{ return JSON.parse(sessionStorage.getItem("vc_sans_photo")||"[]"); }catch(e){ return []; } })());
+const SANS_PHOTO=new Set();   // seulement pour cette ouverture : une photo ajoutée plus tard sera retrouvée
 document.addEventListener("error",e=>{ const im=e.target; if(!im||!im.classList||!im.classList.contains("photo-auto")) return;
-  const id=im.dataset.id; SANS_PHOTO.add(id); try{ sessionStorage.setItem("vc_sans_photo",JSON.stringify([...SANS_PHOTO])); }catch(x){}
+  const id=im.dataset.id; SANS_PHOTO.add(id);
   const w=document.createElement("span"); w.innerHTML=dessinAssiette(id); im.replaceWith(w.firstChild); },true);
 function plateSVG(id){
   const src=(typeof PHOTOS!=="undefined"&&PHOTOS[id])||(!SANS_PHOTO.has(id)?"photos/"+id+".jpg":null);
@@ -732,12 +732,13 @@ function generer(P,seed){
     const max={repas:maxRepas,matin:plafond("matin"),encas:plafond("encas")};
     const count={repas:{},matin:{},encas:{}}, days=[];
     const voisin=(i,id)=>[i-1,i+1].some(j=>days[j]&&(days[j].midi===id||days[j].soir===id));
-    const libre=(g,i,k,id,day)=>{ if((count[g][id]||0)>=max[g]) return false;
+    let souple=false;   // passe en mode souple quand il faut absolument rentrer dans le budget
+    const libre=(g,i,k,id,day)=>{ if((count[g][id]||0)>=(souple&&g==="repas"?Math.max(max[g],3):max[g])) return false;
       if(g==="repas"){ const r=RID[id]; if(r.fun&&(count.repas[id]||0)>=1) return false; if(id===day[k==="midi"?"soir":"midi"]) return false; if(voisin(i,id)) return false;
         const b=FEC[id];
         if(b!=="autre"){ const autre=day[k==="midi"?"soir":"midi"]; if(autre&&FEC[autre]===b) return false;
           let n=0; days.forEach((dd,j)=>{ for(const kk of ["midi","soir"]) if(dd[kk]&&!(j===i&&kk===k)&&FEC[dd[kk]]===b) n++; });
-          if(n>=maxFeculent) return false; } }
+          if(n>=maxFeculent+(souple?2:0)) return false; } }
       else if(days[i-1]&&days[i-1][k]===id) return false;
       return true; };
     for(let d=0;d<7;d++){
@@ -750,32 +751,37 @@ function generer(P,seed){
     const use={};
     days.forEach(d=>SLOTS.forEach(k=>{ const r=RID[d[k]]; if(r) r.ing.forEach(([id,q])=>{ use[id]=(use[id]||0)+q*pers; }); }));
     const oeufMax=Math.max(OEUFS_MAX*pers,use.oeuf||0);
-    for(let pass=0;pass<2;pass++) for(let i=0;i<7;i++) for(const k of SLOTS){
+    const descente=passes=>{ for(let pass=0;pass<passes;pass++) for(let i=0;i<7;i++) for(const k of SLOTS){
       const g=groupe(k), pl=g==="repas"?PL.repas:PL[k], old=days[i][k]; if(!old) continue;
       count[g][old]--; days[i][k]=null;
       const ro=RID[old];
       let garde=old, meilleur=-0.01;
       for(const r of pl){ if(r.id===old||!libre(g,i,k,r.id,days[i])) continue;
-        if(g==="repas"&&aime(ro,P)&&!aime(r,P)) continue;   // on ne remplace pas un plat qu'on aime par un autre, juste pour le prix
+        if(!souple&&g==="repas"&&aime(ro,P)&&!aime(r,P)) continue;   // on ne remplace pas un plat qu'on aime par un autre, juste pour le prix
         const delta={}; ro.ing.forEach(([id,q])=>{ delta[id]=(delta[id]||0)-q*pers; }); r.ing.forEach(([id,q])=>{ delta[id]=(delta[id]||0)+q*pers; });
         let d=0; for(const id in delta){ const u=use[id]||0; d+=coutId(id,u+delta[id])-coutId(id,u); }
         if(d<meilleur&&(use.oeuf||0)+(delta.oeuf||0)<=oeufMax){ meilleur=d; garde=r.id; } }
       if(garde!==old){ ro.ing.forEach(([id,q])=>{ use[id]-=q*pers; }); RID[garde].ing.forEach(([id,q])=>{ use[id]=(use[id]||0)+q*pers; }); }
       days[i][k]=garde; count[g][garde]=(count[g][garde]||0)+1;
-    }
+    } };
+    descente(2);
+    /* Toujours au-dessus du budget : on assouplit (un plat jusqu'à 3 fois, plats préférés remplaçables)
+       et on continue à baisser le prix. Le budget est une limite, pas une indication. */
+    const total=()=>Object.keys(use).reduce((t,id)=>t+coutId(id,use[id]),0);
+    if(total()>P.budget){ souple=true; descente(3); }
     const tk=ticket(days,P), distinct=new Set(days.flatMap(d=>[d.midi,d.soir])).size;
-    const ok=tk.total<=P.budget, trop=oeufs(days)>OEUFS_MAX, depasse=Math.max(0,tk.total-P.budget);
-    /* La variété d'abord : un plat de plus vaut jusqu'à 1,50 € de dépassement du budget. */
+    const ok=tk.total<=P.budget+0.005, trop=oeufs(days)>OEUFS_MAX, depasse=Math.max(0,tk.total-P.budget);
+    /* Dans le budget d'abord (strictement), puis la variété et les goûts, puis le prix. */
     const aimes=days.reduce((n,d)=>n+(aime(RID[d.midi],P)?1:0)+(aime(RID[d.soir],P)?1:0),0);
-    return {days,score:(trop?-1e7:0)+distinct*60+aimes*25-depasse*40-tk.total,ok,total:tk.total};
+    return {days,score:(trop?-1e7:0)+(ok?1e6+distinct*60+aimes*25-tk.total:-depasse*1000-tk.total),ok,total:tk.total};
   };
   let best=null;
   const maxs=PL.repas.length>=14?[1,2]:[Math.ceil(14/PL.repas.length)];
   for(const m of maxs){
     for(let t=0;t<14;t++){ const e=essai(m,t); if(!best||e.score>best.score) best=e; }
-    if(best.total<=P.budget+5) break;  // chaque plat une seule fois et le budget tient à peu près : on s'arrête là
+    if(best.ok) break;                 // dans le budget avec le plus de variété possible : on s'arrête là
   }
-  return {days:best.days};
+  return {days:best.days,ok:best.ok,total:best.total};
 }
 function consommeSemainePassee(){
   const pl=ST.plan; if(!pl||!pl.days||!pl.range) return false;
@@ -796,7 +802,7 @@ function nouveauPlan(seed){
   const s=seed||Math.floor(Math.random()*1e6)+1;
   consommeSemainePassee();
   const g=generer(ST.profil,s);
-  ST.plan=g.err?{err:g.err,seed:s}:{days:g.days,seed:s,cree:Date.now()};
+  ST.plan=g.err?{err:g.err,seed:s}:{days:g.days,seed:s,cree:Date.now(),horsBudget:!g.ok};
   ST.coches=[]; persist();
 }
 /* Un plat retiré du profil (allergie ajoutée…) ne doit pas rester dans la semaine. */
@@ -1000,7 +1006,8 @@ function vueSemaine(v,P,tk){
   const salut=P.prenom?"Salut "+esc(P.prenom)+", voici ta semaine.":"Voici ta semaine.";
   v.innerHTML=
     '<p class="muted">'+salut+'</p>'+
-    (tk.total>P.budget?'<div class="banner">Cette semaine dépasse ton budget de '+eur(tk.total-P.budget)+'. Essaie « Nouvelle semaine », autorise plus de temps de cuisine, ou monte un peu le budget.</div>':"")+
+    (tk.total>P.budget+0.005?'<div class="banner">'+(ST.plan.horsBudget?'Avec ton profil, la semaine la moins chère que je trouve coûte '+eur(tk.total)+', soit '+eur(tk.total-P.budget)+' au-dessus de ton budget. Pour rester à '+P.budget+' €, autorise plus de temps de cuisine, retire un « je n\'aime pas », ou monte le budget à '+Math.ceil(tk.total)+' €.'
+      :'Tes changements de plats font dépasser ton budget de '+eur(tk.total-P.budget)+'. Touche « Nouvelle semaine » pour revenir dans ton budget.')+'</div>':"")+
     '<div class="stats"><div class="stat"><b class="num">'+Math.round(prot/7)+' g</b><span>protéines / jour</span></div>'+
       '<div class="stat"><b class="num">≈ '+Math.round(kcal/7/50)*50+'</b><span>kcal / jour</span></div>'+
       '<div class="stat"><b class="num">'+Math.round(mins/7)+' min</b><span>en cuisine / jour</span></div></div>'+
@@ -1607,7 +1614,16 @@ chargePrix().then(ok=>{ if(ok&&PRIX.maj!==majAvant&&ST.profil&&!$("onb")){ if(!$
 const promosAvant=PROMOS&&PROMOS.maj;
 chargePromos().then(ok=>{ if(ok&&PROMOS.maj!==promosAvant&&ST.onglet==="promos"&&ST.profil&&!$("onb")&&!$("scrim")) renderApp(); });
 if("serviceWorker" in navigator && location.protocol==="https:" && !/claude\.ai|claudeusercontent/.test(location.hostname)){
-  try{ navigator.serviceWorker.register("./sw.js").catch(()=>{}); }catch(e){}
+  try{ sessionStorage.removeItem("vc_sans_photo"); }catch(e){}
+  try{
+    navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).then(reg=>{
+      reg.update();                                  // cherche une nouvelle version à chaque ouverture
+      document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") reg.update(); });
+    }).catch(()=>{});
+    /* Nouvelle version installée : on recharge une fois pour l'afficher. */
+    let recharge=false;
+    if(navigator.serviceWorker.controller) navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(recharge) return; recharge=true; location.reload(); });
+  }catch(e){}
 }
 </script>
 </body>
