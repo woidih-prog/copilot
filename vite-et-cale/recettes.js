@@ -370,3 +370,11 @@ const DESCRIPTIONS = {
    p08:"photos/poulet-roti.webp",  */
 const PHOTOS = {
 };
+
+/* Styles de cuisine, pour orienter la semaine selon ce qu'on aime (en plus de l'origine et des calories,
+   calculées dans index.html : « monde » = origine non classique, « vege » = sans viande ni poisson, « copieux » = 700 kcal et plus). */
+const STYLES_PLATS = {
+  fastfood:["p09","p16","p17","p18","p23","p31","p41","p61","p62","p65","p02","p12","p32"],
+  healthy:["p10","p11","p17","p19","p33","p34","p35","p37","p39","p40","p43","p46","p47","p48","p52","p55","p56","p57","p59","p60","p63","p64","p65","p66"],
+  tradition:["p01","p04","p07","p08","p13","p15","p20","p21","p22","p24","p25","p26","p27","p28","p29","p38","p58"]
+};

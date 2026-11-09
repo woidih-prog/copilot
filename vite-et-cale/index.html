@@ -121,6 +121,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within
 .opt.eq{flex-direction:row;align-items:center;gap:10px}
 .opt.eq span{display:flex;flex-direction:column;gap:1px}
 .seg .eqi{width:20px;height:20px;vertical-align:-5px;margin-right:6px}
+.dish .pourtoi{position:absolute;top:8px;left:8px;background:var(--leaf);color:var(--surface);font-weight:700;font-size:11.5px;border-radius:999px;padding:2px 9px}
 .prayon{padding:10px 14px 4px;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line)}
 .opt[aria-pressed=true]{border-color:var(--leaf);background:var(--leaf-soft);color:var(--leaf);box-shadow:inset 0 0 0 1px var(--leaf)}
 .opt.no[aria-pressed=true]{border-color:var(--warn);background:var(--warn-soft);color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
@@ -510,7 +511,7 @@ const RAYON = {avoine:"Épicerie",pates:"Épicerie",riz:"Épicerie",semoule:"Ép
   baguette:"Boulangerie",confiture:"Épicerie",cereales:"Épicerie",citron:"Fruits et légumes",cacahuete:"Épicerie"};
 const RAYONS = ["Fruits et légumes","Boucherie et charcuterie","Poissonnerie","Frais","Surgelés","Conserves","Épicerie","Boulangerie","Boissons"];
 
-const PROFIL_DEFAUT = {prenom:"",region:"fr",magasin:"lidl",marche:false,allergies:[],regime:"tout",degouts:[],personnes:1,budget:45,temps:"10",ville:null,rayon:20,
+const PROFIL_DEFAUT = {prenom:"",region:"fr",magasin:"lidl",marche:false,allergies:[],regime:"tout",degouts:[],styles:[],personnes:1,budget:45,temps:"10",ville:null,rayon:20,
   equip:["plaques","four","microondes","bouilloire"]};
 
 /* ================= Stockage ================= */
@@ -677,11 +678,27 @@ function oeufs(days){ let n=0; days.forEach(d=>SLOTS.forEach(k=>{ const r=RID[d[
    Règles : un plat de midi ou du soir au plus une fois par semaine quand le choix le permet (deux fois sinon),
    jamais le même plat deux jours de suite, matin et goûter variés. On cherche ensuite à faire baisser le prix
    en échangeant des plats, sans jamais casser ces règles. */
+/* ===== Ce qu'on aime manger : oriente la semaine sans rien interdire ===== */
+const STYLES=[["fastfood","Fast-food maison","burgers, pizzas, wraps, croques"],["healthy","Healthy et léger","légumes, poisson, légumineuses"],
+  ["tradition","Cuisine de grand-mère","plats mijotés et gratins"],["monde","Cuisine du monde","Maghreb, Antilles, Asie…"],
+  ["vege","Souvent végétarien","sans viande ni poisson"],["copieux","Copieux","les grosses faims"]];
+function stylesDe(r){
+  const l=Object.keys(STYLES_PLATS).filter(k=>STYLES_PLATS[k].includes(r.id));
+  if(r.origine&&r.origine!=="classique") l.push("monde");
+  if(!r.tags.includes("viande")&&!r.tags.includes("poisson")) l.push("vege");
+  if(r.kcal>=700) l.push("copieux");
+  return l;
+}
+function aime(r,P){ const st=P.styles||[]; return st.length>0&&stylesDe(r).some(x=>st.includes(x)); }
+
 function generer(P,seed){
   const PL=pools(P);
   if(PL.repas.length<2) return {err:"Avec tes allergies, ton régime, tes goûts, ton équipement et ton temps de cuisine, il reste moins de 2 plats pour midi et soir. Autorise plus de temps de cuisine, coche un appareil de plus ou retire un « je n'aime pas »."};
   const rand=rng(seed*7919+MOIS_COURANT*31);
   const pick=a=>a[Math.floor(rand()*a.length)];
+  /* Les plats qu'on aime ont 3 fois plus de chances d'être tirés (midi et soir). */
+  const pickPrefere=a=>{ if(!(P.styles||[]).length) return pick(a); const w=a.map(r=>aime(r,P)?3:1), t=w.reduce((x,y)=>x+y,0); let v=rand()*t;
+    for(let i=0;i<a.length;i++){ v-=w[i]; if(v<=0) return a[i]; } return a[a.length-1]; };
   const plafond=k=>k==="midi"||k==="soir"?null:Math.max(2,Math.ceil(7/Math.max(1,PL[k].length)));
   const groupe=k=>k==="midi"||k==="soir"?"repas":k;
   const essai=(maxRepas,t)=>{
@@ -696,7 +713,7 @@ function generer(P,seed){
       const day={}; days.push(day);
       for(const k of SLOTS){ const g=groupe(k), pl=g==="repas"?PL.repas:PL[k]; if(!pl.length){ day[k]=null; continue; }
         let c=pl.filter(r=>libre(g,d,k,r.id,day)); if(!c.length) c=pl.filter(r=>r.id!==day[k==="midi"?"soir":"midi"]);
-        const r=pick(c); day[k]=r.id; count[g][r.id]=(count[g][r.id]||0)+1; }
+        const r=g==="repas"?pickPrefere(c):pick(c); day[k]=r.id; count[g][r.id]=(count[g][r.id]||0)+1; }
     }
     /* Descente sur le prix, en respectant les règles. */
     for(let pass=0;pass<2;pass++) for(let i=0;i<7;i++) for(const k of SLOTS){
@@ -705,6 +722,7 @@ function generer(P,seed){
       count[g][old]--; days[i][k]=null;
       let garde=old;
       for(const r of pl){ if(r.id===old||!libre(g,i,k,r.id,days[i])) continue;
+        if(g==="repas"&&aime(RID[old],P)&&!aime(r,P)) continue;   // on ne remplace pas un plat qu'on aime par un autre, juste pour le prix
         days[i][k]=r.id; const c=ticket(days,P).total;
         if(c<cur-0.01&&oeufs(days)<=Math.max(OEUFS_MAX,oeufs0)){ cur=c; garde=r.id; } }
       days[i][k]=garde; count[g][garde]=(count[g][garde]||0)+1;
@@ -712,7 +730,8 @@ function generer(P,seed){
     const tk=ticket(days,P), distinct=new Set(days.flatMap(d=>[d.midi,d.soir])).size;
     const ok=tk.total<=P.budget, trop=oeufs(days)>OEUFS_MAX, depasse=Math.max(0,tk.total-P.budget);
     /* La variété d'abord : un plat de plus vaut jusqu'à 1,50 € de dépassement du budget. */
-    return {days,score:(trop?-1e7:0)+distinct*60-depasse*40-tk.total,ok,total:tk.total};
+    const aimes=days.reduce((n,d)=>n+(aime(RID[d.midi],P)?1:0)+(aime(RID[d.soir],P)?1:0),0);
+    return {days,score:(trop?-1e7:0)+distinct*60+aimes*25-depasse*40-tk.total,ok,total:tk.total};
   };
   let best=null;
   const maxs=PL.repas.length>=14?[1,2]:[Math.ceil(14/PL.repas.length)];
@@ -793,7 +812,12 @@ function sectionLieu(P){
     '<button type="button" class="opt" data-set="marche" data-v="true" aria-pressed="'+(!!P.marche)+'">Au marché<small>souvent moins cher</small></button></div></div>';
 }
 function sectionSante(P){
-  return '<div class="field"><span class="lbl">Allergies et intolérances</span><div class="opts">'+
+  const st=P.styles||[];
+  return '<div class="field"><span class="lbl">Tu manges plutôt…</span><div class="opts">'+
+    '<button type="button" class="opt" data-styles-tout="1" aria-pressed="'+(!st.length)+'">De tout<small>un peu de chaque</small></button>'+
+    STYLES.map(([v,n,d])=>'<button type="button" class="opt" data-toggle="styles" data-v="'+v+'" aria-pressed="'+st.includes(v)+'">'+n+'<small>'+esc(d)+'</small></button>').join("")+'</div>'+
+    '<p class="hint">Plusieurs choix possibles. Ces plats reviendront plus souvent, sans faire disparaître les autres.</p></div>'+
+    '<div class="field"><span class="lbl">Allergies et intolérances</span><div class="opts">'+
     ALLERGIES.map(([v,n,d])=>'<button type="button" class="opt no" data-toggle="allergies" data-v="'+v+'" aria-pressed="'+P.allergies.includes(v)+'">'+n+(d?'<small>'+esc(d)+'</small>':"")+'</button>').join("")+'</div></div>'+
     '<div class="field"><span class="lbl">Régime</span><div class="opts">'+
     REGIMES.map(([v,n,d])=>'<button type="button" class="opt" data-set="regime" data-v="'+v+'" aria-pressed="'+(P.regime===v)+'">'+n+(d?'<small>'+d+'</small>':"")+'</button>').join("")+'</div></div>'+
@@ -830,7 +854,9 @@ function bindForm(container,P,rerender){
       P.region=c.dep==="974"?"re":"fr";
       const l=MAGASINS[P.region]; if(!l.some(m=>m[0]===P.magasin)) P.magasin=l[0][0];
       rerender(); }
+    else if(b.dataset.stylesTout){ P.styles=[]; rerender(); }
     else if(b.dataset.toggle){ if(b.dataset.toggle==="equip"&&!P.equip) P.equip=PROFIL_DEFAUT.equip.slice();
+      if(b.dataset.toggle==="styles"&&!P.styles) P.styles=[];
       const a=P[b.dataset.toggle], v=b.dataset.v, i=a.indexOf(v);
       if(i>=0) a.splice(i,1); else a.push(v); rerender(); }
     else if(b.dataset.step){ const old=P.personnes; P.personnes=Math.min(8,Math.max(1,P.personnes+ +b.dataset.step));
@@ -853,7 +879,7 @@ function renderOnb(){
        '<p>Une semaine de repas qui calent, à petit budget, avec des produits de saison et le moins de cuisine possible. Quatre questions et c\'est prêt.</p>'+
        '<div class="field" style="margin-top:14px"><label class="lbl" for="prenom">Ton prénom (facultatif)</label><input type="text" id="prenom" autocomplete="given-name" value="'+esc(P.prenom)+'"></div></div>',
     ()=>'<div class="onb-body"><h2>Où tu fais tes courses</h2><p>Pour estimer les prix et les produits de saison.</p></div>'+sectionLieu(P),
-    ()=>'<div class="onb-body"><h2>Ce que tu ne manges pas</h2><p>Les plats concernés seront retirés. Touche pour cocher, touche encore pour enlever.</p></div>'+sectionSante(P),
+    ()=>'<div class="onb-body"><h2>Tes goûts</h2><p>Ce que tu aimes revient plus souvent ; ce que tu ne manges pas est retiré. Touche pour cocher, touche encore pour enlever.</p></div>'+sectionSante(P),
     ()=>'<div class="onb-body"><h2>Ton budget et ton temps</h2><p>Tu pourras tout changer plus tard dans Profil.</p></div>'+sectionBudget(P)
   ];
   $("root").innerHTML='<div id="onb" class="page"><div class="dots" aria-hidden="true">'+steps.map((_,i)=>'<i class="'+(i<=s?"on":"")+'"></i>').join("")+'</div>'+
@@ -1407,12 +1433,12 @@ function vuePlats(v,P){
   const ok=r=>permis(r,P90,I);
   const origs=["toutes"].concat(Object.keys(ORIGINES).filter(o=>R.some(r=>r.origine===o&&ok(r))));
   const list=R.filter(r=>ok(r)&&(ST.filtre==="tous"||r.slot===ST.filtre)&&(ST.origine==="toutes"||r.origine===ST.origine))
-    .sort((a,b)=>order[a.slot]-order[b.slot]||mealCost(a,P)-mealCost(b,P));
+    .sort((a,b)=>order[a.slot]-order[b.slot]||(aime(b,P)?1:0)-(aime(a,P)?1:0)||mealCost(a,P)-mealCost(b,P));
   const exclus=R.filter(r=>!ok(r)).length;
   v.innerHTML='<div><h2>Les plats et leur prix</h2><p class="muted" style="font-size:13.5px">Prix par assiette chez '+esc(magasin(P)[1])+'. Les images sont des illustrations.</p></div>'+
     '<div class="seg" role="group" aria-label="Moment">'+F.map(([k,n])=>'<button type="button" data-f="'+k+'" aria-pressed="'+(ST.filtre===k)+'">'+n+'</button>').join("")+'</div>'+
     '<div class="seg" role="group" aria-label="Origine">'+origs.map(o=>'<button type="button" data-o="'+o+'" aria-pressed="'+(ST.origine===o)+'">'+esc(o==="toutes"?"Toutes les cuisines":ORIGINES[o])+'</button>').join("")+'</div>'+
-    '<div class="cards">'+list.map(r=>'<button type="button" class="dish" data-open="'+r.id+'"><div class="dpic">'+plateSVG(r.id)+'<span class="badge">'+r.p+' g</span></div>'+
+    '<div class="cards">'+list.map(r=>'<button type="button" class="dish" data-open="'+r.id+'"><div class="dpic">'+plateSVG(r.id)+'<span class="badge">'+r.p+' g</span>'+(aime(r,P)?'<span class="pourtoi">Pour toi</span>':"")+'</div>'+
       '<div class="body"><span>'+esc(r.origine&&r.origine!=="classique"?ORIGINES[r.origine]:KIND[r.slot])+' · '+(r.t?r.t+" min":"sans préparation")+'</span><b>'+esc(r.n)+'</b><span><span class="price num">'+eur(mealCost(r,P))+'</span> · '+r.kcal+' kcal</span></div></button>').join("")+'</div>'+
     (exclus?'<p class="foot">'+exclus+' plat'+(exclus>1?"s":"")+' masqué'+(exclus>1?"s":"")+' à cause de ton profil (allergies, régime ou goûts).</p>':"");
   v.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{ST.filtre=b.dataset.f;persist();vuePlats(v,P);});
