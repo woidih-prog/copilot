@@ -663,12 +663,17 @@ function permis(r,P,I){
 function pools(P){ const I=interdits(P); const f=s=>R.filter(r=>r.slot===s && permis(r,P,I)); return {matin:f("matin"),repas:f("repas"),encas:f("encas")}; }
 const SLOTS=["matin","midi","soir","encas"];
 /* Ce qu'on a déjà (onglet Chez moi) est retiré des achats : l'optimiseur préfère donc les plats qui l'utilisent. */
+/* Produits qui se gardent longtemps : quand la semaine n'en utilise qu'une partie, ils vont dans les « réserves »
+   (à acheter seulement si on n'en a plus) et seule la part utilisée compte dans le budget de la semaine. */
+const LONGUE_DUREE=new Set(["riz","pates","semoule","farine","lcorail","poiscasse","avoine","confiture","cereales","cacahuete","noix","coco","lasagne","beurre","oignon","pdt","biere"]);
 function ticket(days,P,stock){
   stock=stock||ST.stock||{};
   const use={};
   days.forEach(d=>SLOTS.forEach(k=>{ const r=RID[d[k]]; if(r) r.ing.forEach(([id,q])=>use[id]=(use[id]||0)+q*P.personnes); }));
   const rows=Object.keys(use).map(id=>{ const g=ING[id], have=stock[id]||0, need=Math.max(0,use[id]-have);
-    const packs=need>1e-9?Math.ceil(need/g.size-1e-9):0; return {id,used:use[id],have,packs,cost:packs*price(id,P)}; });
+    const packs=need>1e-9?Math.ceil(need/g.size-1e-9):0, packCost=packs*price(id,P);
+    const reserve=packs>0&&LONGUE_DUREE.has(id)&&need<0.6*packs*g.size;
+    return {id,used:use[id],have,packs,packCost,reserve,cost:reserve?need/g.size*price(id,P):packCost}; });
   return {rows,total:rows.reduce((s,r)=>s+r.cost,0)};
 }
 /* Pas plus de 12 œufs par personne et par semaine : l'optimiseur de prix en mettrait partout. */
@@ -691,6 +696,11 @@ function stylesDe(r){
 }
 function aime(r,P){ const st=P.styles||[]; return st.length>0&&stylesDe(r).some(x=>st.includes(x)); }
 
+/* Le féculent principal d'un plat, pour varier pommes de terre, pâtes, riz et pain dans la semaine. */
+function feculent(r){ const ids=r.ing.map(x=>x[0]);
+  return ids.includes("pdt")?"pdt":ids.includes("pates")||ids.includes("lasagne")?"pates":ids.includes("riz")?"riz":ids.includes("semoule")?"semoule":
+    ids.some(x=>["baguette","pain","tortilla","painburger"].includes(x))?"pain":"autre"; }
+
 function generer(P,seed){
   const PL=pools(P);
   if(PL.repas.length<2) return {err:"Avec tes allergies, ton régime, tes goûts, ton équipement et ton temps de cuisine, il reste moins de 2 plats pour midi et soir. Autorise plus de temps de cuisine, coche un appareil de plus ou retire un « je n'aime pas »."};
@@ -701,12 +711,17 @@ function generer(P,seed){
     for(let i=0;i<a.length;i++){ v-=w[i]; if(v<=0) return a[i]; } return a[a.length-1]; };
   const plafond=k=>k==="midi"||k==="soir"?null:Math.max(2,Math.ceil(7/Math.max(1,PL[k].length)));
   const groupe=k=>k==="midi"||k==="soir"?"repas":k;
+  const maxFeculent=PL.repas.length>=20?4:7;   // au plus 4 repas par semaine avec le même féculent
   const essai=(maxRepas,t)=>{
     const max={repas:maxRepas,matin:plafond("matin"),encas:plafond("encas")};
     const count={repas:{},matin:{},encas:{}}, days=[];
     const voisin=(i,id)=>[i-1,i+1].some(j=>days[j]&&(days[j].midi===id||days[j].soir===id));
     const libre=(g,i,k,id,day)=>{ if((count[g][id]||0)>=max[g]) return false;
-      if(g==="repas"){ const r=RID[id]; if(r.fun&&(count.repas[id]||0)>=1) return false; if(id===day[k==="midi"?"soir":"midi"]) return false; if(voisin(i,id)) return false; }
+      if(g==="repas"){ const r=RID[id]; if(r.fun&&(count.repas[id]||0)>=1) return false; if(id===day[k==="midi"?"soir":"midi"]) return false; if(voisin(i,id)) return false;
+        const b=feculent(r);
+        if(b!=="autre"){ const autre=day[k==="midi"?"soir":"midi"]; if(autre&&feculent(RID[autre])===b) return false;
+          let n=0; days.forEach((dd,j)=>{ for(const kk of ["midi","soir"]) if(dd[kk]&&!(j===i&&kk===k)&&feculent(RID[dd[kk]])===b) n++; });
+          if(n>=maxFeculent) return false; } }
       else if(days[i-1]&&days[i-1][k]===id) return false;
       return true; };
     for(let d=0;d<7;d++){
@@ -741,8 +756,17 @@ function generer(P,seed){
   }
   return {days:best.days};
 }
+function consommeSemainePassee(){
+  const pl=ST.plan; if(!pl||!pl.days||!pl.range) return false;
+  const faits=Object.assign({},pl.cuits||{}), P=ST.profil;
+  pl.days.forEach(d=>SLOTS.forEach(k=>{ const id=d[k]; if(!id||!RID[id]) return;
+    if(faits[id]>0){ faits[id]--; return; }      // déjà retiré avec « J'ai cuisiné »
+    RID[id].ing.forEach(([i,q])=>{ if(ST.stock[i]){ ST.stock[i]=Math.max(0,ST.stock[i]-q*P.personnes); if(ST.stock[i]<1e-6) delete ST.stock[i]; } }); }));
+  return true;
+}
 function nouveauPlan(seed){
   const s=seed||Math.floor(Math.random()*1e6)+1;
+  consommeSemainePassee();
   const g=generer(ST.profil,s);
   ST.plan=g.err?{err:g.err,seed:s}:{days:g.days,seed:s,cree:Date.now()};
   ST.coches=[]; persist();
@@ -981,7 +1005,7 @@ function vueCourses(v,P,tk){
   if(!tk){ v.innerHTML='<div class="banner">'+esc(ST.plan.err)+'</div>'; return; }
   const se=saison(P.region,MOIS_COURANT);
   const coches=new Set(ST.coches);
-  const achats=tk.rows.filter(r=>r.packs>0), dispo=tk.rows.filter(r=>r.packs===0);
+  const achats=tk.rows.filter(r=>r.packs>0&&!r.reserve), reserves=tk.rows.filter(r=>r.reserve), dispo=tk.rows.filter(r=>r.packs===0);
   const parRayon={}; achats.forEach(r=>{(parRayon[RAYON[r.id]]=parRayon[RAYON[r.id]]||[]).push(r);});
   const sansStock=ticket(ST.plan.days,P,{}).total, eco=sansStock-tk.total;
   const u=r=>eur(prixUnite(r.id,P))+" "+uniteNom(r.id).replace("l'unité","pièce").replace("le ","le ");
@@ -991,15 +1015,23 @@ function vueCourses(v,P,tk){
     const left=r.packs*g.size+r.have-r.used;
     return [(r.packs>1?r.packs+" × ":"")+g.n+" ("+g.pk+")", eur(price(r.id,P))+" l'unité · "+u(r)+(left>0.001?" · il t'en restera "+(g.u==="g"||g.u==="ml"?Math.round(left)+" "+g.u:String(Math.round(left*10)/10).replace(".",",")):"")]; };
   const reste=achats.filter(r=>!coches.has(r.id)).reduce((s,r)=>s+r.cost,0);
+  const aPayer=achats.reduce((s,r)=>s+r.cost,0), resTotal=reserves.reduce((s,r)=>s+r.packCost,0);
+  const qte=(id,q)=>{ const g=ING[id]; return g.u==="g"||g.u==="ml"?(q>=1000?String(Math.round(q/100)/10).replace(".",",")+(g.u==="g"?" kg":" L"):Math.round(q)+" "+g.u):qtyTxt(id,Math.round(q*10)/10); };
   const mag=magasin(P)[1];
   v.innerHTML=
     '<div class="totalbar"><div><h2>Courses de la semaine</h2><span class="muted chez">'+logoHTML(P.magasin,true)+'Chez '+esc(mag)+(P.marche?", fruits et légumes au marché":"")+'</span></div>'+
-      '<div style="text-align:right"><b class="num">'+eur(tk.total)+'</b><br><span class="muted num" style="font-size:12.5px">reste à prendre : '+eur(reste)+'</span></div></div>'+
+      '<div style="text-align:right"><b class="num">'+eur(aPayer)+'</b><br><span class="muted num" style="font-size:12.5px">reste à prendre : '+eur(reste)+'</span></div></div>'+
+    '<p class="hint">Coût réel de tes repas cette semaine : <b class="num">'+eur(tk.total)+'</b> (la part utilisée des réserves comprise).</p>'+
     (eco>0.01?'<div class="saving">Grâce à ce que tu as déjà, tu économises '+eur(eco)+' cette semaine.</div>':
       '<p class="hint">Astuce : note ce que tu as déjà dans l\'onglet <b>Chez moi</b>, ça le retire de la liste.</p>')+
     (achats.length?"":'<div class="saving">Tu as déjà tout ce qu\'il faut pour la semaine. Pas de courses !</div>')+
     RAYONS.filter(n=>parRayon[n]).map(n=>'<div class="group"><h3>'+n+'</h3>'+parRayon[n].map(r=>{ const [a,b]=libelle(r); const on=coches.has(r.id);
       return '<label class="item'+(on?" done":"")+'"><input type="checkbox" data-coche="'+r.id+'"'+(on?" checked":"")+'><span class="nm">'+esc(a)+(b?'<small>'+esc(b)+'</small>':"")+'</span><span class="pr num">'+eur(r.cost)+'</span></label>'; }).join("")+'</div>').join("")+
+    (reserves.length?'<div class="group"><h3>Réserves : seulement si tu n\'en as plus</h3>'+
+      '<p class="hint" style="padding:0 14px 8px">Tu n\'en utilises qu\'une partie cette semaine, le reste se garde. Touche « J\'en ai » et l\'appli ne te le redemandera plus.</p>'+
+      reserves.map(r=>{ const g=ING[r.id]; return '<div class="srow"><span class="nm">'+esc(g.n)+'<small>'+esc("il t'en faut "+qte(r.id,r.used-r.have)+" · "+g.pk+" à "+eur(r.packCost))+'</small></span>'+
+        '<button type="button" class="btn small ghost" data-jenai="'+r.id+'">J\'en ai</button></div>'; }).join("")+
+      '<p class="hint" style="padding:8px 14px 12px">Si tu dois tout racheter : '+eur(resTotal)+' de plus.</p></div>':"")+
     listePrix(P)+
     (dispo.length?'<div class="card"><h3>Déjà chez toi</h3><p class="muted">'+dispo.map(r=>esc(r.id==="fruit"?"fruits de saison":r.id==="leg"?"légumes de saison":ING[r.id].n)).join(", ")+'</p></div>':"")+
     '<div class="card"><h3>Au placard (pas compté)</h3><p class="muted">Huile, vinaigre, moutarde, mayonnaise, cornichons, sucre, levure, cube de bouillon, sel, poivre, épices (curry, paprika, cumin, muscade, herbes)'+(P.allergies.includes("soja")?"":", sauce soja")+'.</p></div>'+
@@ -1011,13 +1043,15 @@ function vueCourses(v,P,tk){
     '<p class="foot">'+esc(resumePrix(P))+' Les prix peuvent varier d\'un magasin à l\'autre.</p>';
   v.querySelectorAll("[data-coche]").forEach(c=>c.onchange=()=>{ const id=c.dataset.coche; const s=new Set(ST.coches); c.checked?s.add(id):s.delete(id); ST.coches=[...s]; persist(); vueCourses(v,P,tk); });
   $("decocher").onclick=()=>{ST.coches=[];persist();vueCourses(v,P,tk);};
+  v.querySelectorAll("[data-jenai]").forEach(b=>b.onclick=()=>{ const id=b.dataset.jenai; ST.stock[id]=(ST.stock[id]||0)+ING[id].size; persist(); renderApp(); toast(ING[id].n+" : noté dans Chez moi."); });
   if($("ranger")) $("ranger").onclick=()=>{
     const pris=achats.filter(r=>coches.size?coches.has(r.id):true);
     pris.forEach(r=>{ ST.stock[r.id]=(ST.stock[r.id]||0)+r.packs*ING[r.id].size; });
+    ST.plan.range=true;
     ST.coches=[]; persist(); renderApp(); toast(pris.length+" produit"+(pris.length>1?"s rangés":" rangé")+" dans Chez moi.");
   };
   $("copier").onclick=()=>{
-    const txt="Courses Vite & Calé, "+MOIS[MOIS_COURANT]+" ("+mag+")\n"+RAYONS.filter(n=>parRayon[n]).map(n=>"\n"+n.toUpperCase()+"\n"+parRayon[n].map(r=>"- "+libelle(r)[0]).join("\n")).join("\n")+"\n\nTotal estimé : "+eur(tk.total);
+    const txt="Courses Vite & Calé, "+MOIS[MOIS_COURANT]+" ("+mag+")\n"+RAYONS.filter(n=>parRayon[n]).map(n=>"\n"+n.toUpperCase()+"\n"+parRayon[n].map(r=>"- "+libelle(r)[0]).join("\n")).join("\n")+(reserves.length?"\n\nRÉSERVES (seulement si tu n'en as plus)\n"+reserves.map(r=>"- "+ING[r.id].n+" ("+ING[r.id].pk+")").join("\n"):"")+"\n\nTotal estimé : "+eur(aPayer);
     navigator.clipboard.writeText(txt).then(()=>toast("Liste copiée."),()=>toast("Copie refusée par l'appareil."));
   };
 }
@@ -1511,6 +1545,7 @@ function ficheRecette(id,slot){
     s=>{ const b=s.querySelector("#goSwap"); if(b) b.onclick=()=>ficheEchange(slot);
       s.querySelectorAll("[data-facon]").forEach(x=>x.onclick=()=>{ ST.profil.prefs=ST.profil.prefs||{}; ST.profil.prefs[r.cook]=x.dataset.facon; persist(); ficheRecette(id,slot); });
       s.querySelector("#cuisine").onclick=()=>{ let n=0;
+        if(ST.plan&&ST.plan.days){ ST.plan.cuits=ST.plan.cuits||{}; ST.plan.cuits[r.id]=(ST.plan.cuits[r.id]||0)+1; }
         r.ing.forEach(([i,q])=>{ if(ST.stock[i]){ n++; ST.stock[i]=Math.max(0,ST.stock[i]-q*P.personnes); if(ST.stock[i]<1e-6) delete ST.stock[i]; } });
         persist(); fermerPanneau(); renderApp(); toast(n?"Ingrédients retirés de Chez moi.":"Rien à retirer : ces ingrédients ne sont pas notés dans Chez moi."); }; });
 }
