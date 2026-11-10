@@ -1127,8 +1127,15 @@ function vueSemaine(v,P,tk){
   v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>ficheRecette(b.dataset.open,b.dataset.slot));
   v.querySelectorAll("[data-swap]").forEach(b=>b.onclick=()=>ficheEchange(b.dataset.swap));
   $("regen").onclick=()=>prepare(()=>{nouveauPlan();renderApp();toast("Nouvelle semaine prête.");});
-  if($("avecPromos")) $("avecPromos").onclick=()=>{ const n=utiles.length; utiles.forEach(prendPromo); persist();
-    prepare(()=>{ nouveauPlan(); renderApp(); toast(n+" promo"+(n>1?"s":"")+" prise"+(n>1?"s":"")+" en compte pendant 7 jours."); }); };
+  /* On garde la semaine actuelle (déjà moins chère avec les promos) sauf si une nouvelle l'est encore plus. */
+  if($("avecPromos")) $("avecPromos").onclick=()=>{ const avant=tk.total; utiles.forEach(prendPromo); persist();
+    prepare(()=>{ let best=null, cur=ticket(ST.plan.days,P).total;
+      for(let i=0;i<3;i++){ const s=Math.floor(Math.random()*1e6)+1, g=generer(P,s); if(g.err||!g.ok) continue;
+        const t=ticket(g.days,P).total; if(t<cur-0.01&&(!best||t<best.t)) best={t,days:g.days,s}; }
+      if(best){ ST.plan={days:best.days,seed:best.s,cree:Date.now(),horsBudget:false}; ST.coches=[]; }
+      persist(); renderApp();
+      const apres=ticket(ST.plan.days,P).total;
+      toast(apres<avant-0.005?"Ta semaine passe de "+eur(avant)+" à "+eur(apres)+".":"Promo prise en compte : elle servira dès qu'un plat l'utilise."); }); };
 }
 function prepDimanche(days){
   const all=days.flatMap(d=>SLOTS.map(k=>RID[d[k]]).filter(Boolean));
