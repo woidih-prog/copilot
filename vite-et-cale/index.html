@@ -220,6 +220,9 @@ nav.tabs .nb{position:absolute;top:7px;left:calc(50% + 6px);min-width:17px;heigh
 .chasse li.moi{background:var(--leaf-soft)}
 .chasse .rg{font-family:var(--f-display);font-weight:800;color:var(--leaf)}
 .promo-sem{display:grid;gap:6px;border-color:var(--warn)}
+.vote.part{margin-left:auto}
+.invite{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.invite b{flex:1 1 200px;font-size:14.5px}
 .promo-sem .btn{justify-self:start}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
 .card ul,.card ol{margin:0;padding-left:20px}
@@ -1574,8 +1577,18 @@ function chasseurs(liste){ const c={}; liste.forEach(p=>{ if(p.par) c[p.par]=(c[
 function quiQuand(p){ const v=vuesPar(p), moi=ST.op&&p.par===ST.op.user;
   return '<span class="qui">'+(p.live&&p.cree&&Date.now()-Date.parse(p.cree)<6*3600e3?'<i class="direct">En direct</i>':"")+
     esc(ilYa(p))+(p.par?' · par <b>'+esc(moi?"toi":p.par)+'</b>':"")+(v.size>1?' · <span class="conf">✓ vue par '+v.size+' personnes</span>':"")+'</span>'; }
+/* Partager : la feuille de partage du téléphone, sinon WhatsApp. Chaque promo partagée fait connaître l'appli. */
+const URL_APPLI="https://woidih-prog.github.io/copilot/vite-et-cale/";
+function partage(texte){
+  const data={title:"Vite & Calé",text:texte,url:URL_APPLI};
+  if(navigator.share) return navigator.share(data).catch(()=>{});
+  window.open("https://wa.me/?text="+encodeURIComponent(texte+" "+URL_APPLI),"_blank","noopener");
+}
+function textePromo(p){ return "🏷️ "+p.nom+" à "+eur(p.prix)+(p.avant?" au lieu de "+eur(p.avant):"")+" chez "+(p.magasin||"un magasin")+(p.ville?" ("+p.ville+")":"")+
+  ", repérée sur Vite & Calé, l'appli gratuite des promos du coin :"; }
 function votes(p){ return p.id&&p.osm?'<div class="votes"><span>Toujours là ?</span><button type="button" class="vote" data-oui="'+p.id+'">👍 Oui, je confirme</button>'+
-  '<button type="button" class="vote" data-non="'+p.id+'">👎 Plus là</button></div>':""; }
+  '<button type="button" class="vote" data-non="'+p.id+'">👎 Plus là</button>'+
+  '<button type="button" class="vote part" data-part="'+p.id+'" aria-label="Partager cette promo">↗ Partager</button></div>':""; }
 function vuePromos(v,P){
   cleanPromos(); ST.promosVues=Date.now(); ST.promosFinies=ST.promosFinies||{}; persist();
   const mag=magasin(P)[1], toutes=(PROMOS&&PROMOS.promos)||[], visibles=promosVisibles(P);
@@ -1623,6 +1636,7 @@ function vuePromos(v,P){
     blocContrib()+
     (top.length?'<div class="card chasse"><h3>Chasseurs de promos '+(V?"autour de "+esc(V.nom):"en France")+'</h3><ol>'+top.map(([n,c],i)=>'<li'+(ST.op&&ST.op.user===n?' class="moi"':"")+'><span class="rg num">'+(i+1)+'</span><b>'+esc(ST.op&&ST.op.user===n?n+" (toi)":n)+'</b><span class="num muted">'+c+' promo'+(c>1?"s":"")+'</span></li>').join("")+'</ol>'+
       '<span class="hint">Sur 30 jours. Partage tes promos pour entrer dans le classement.</span></div>':"")+
+    '<div class="card invite"><b>Plus on est nombreux, plus il y a de promos près de chez toi.</b><button type="button" class="btn small" id="inviter">Inviter mes voisins</button></div>'+
     (prises.length?'<div class="group"><h3>Tes promos en cours ('+prises.length+')</h3>'+prises.map(k=>{ const m=ST.mesPromos[k];
         return '<div class="mini">'+logoHTML(P.magasin,true)+'<span class="nm">'+esc(m.nom)+'<small>'+esc([(m.type||"Promo"),m.magasin,"jusqu'au "+dateCourte(m.jusqua)].filter(Boolean).join(" · "))+'</small></span>'+
           '<span class="pp num">'+(m.prix?eur(m.prix):"")+(m.avant?'<s>'+eur(m.avant)+'</s>':"")+'<button type="button" class="btn small ghost" data-lacher="'+k+'" style="margin-top:4px;font-family:var(--f-body);padding:5px 10px">Retirer</button></span></div>'; }).join("")+
@@ -1639,6 +1653,8 @@ function vuePromos(v,P){
   majHeureLive();
   if(Date.now()-LIVE_T>60000) chargePromosLive().then(n=>{ if(n&&ST.onglet==="promos"&&!$("scrim")) vuePromos(v,P); else majHeureLive(); });
   v.querySelectorAll("[data-oui]").forEach(b=>b.onclick=()=>{ const p=toutes.find(x=>String(x.id)===b.dataset.oui); if(p) ficheConfirmer(p); });
+  v.querySelectorAll("[data-part]").forEach(b=>b.onclick=()=>{ const p=toutes.find(x=>String(x.id)===b.dataset.part); if(p) partage(textePromo(p)); });
+  if($("inviter")) $("inviter").onclick=()=>partage("Je partage les promos que je vois en magasin sur Vite & Calé : c'est gratuit, sans pub, et ça fait aussi les repas de la semaine dans ton budget. Rejoins-moi, plus on est, plus il y a de promos près de chez nous :");
   v.querySelectorAll("[data-non]").forEach(b=>b.onclick=()=>{ ST.promosFinies[b.dataset.non]=AUJ; persist(); vuePromos(v,P); toast("Merci, promo masquée."); });
   v.querySelectorAll("[data-fp]").forEach(b=>b.onclick=()=>{ST.filtrePromo=b.dataset.fp;persist();vuePromos(v,P);});
   $("nouvellePromo").onclick=ficheNouvellePromo;
