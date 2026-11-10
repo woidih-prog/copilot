@@ -285,11 +285,21 @@ def promos():
             "prix": pr["price"], "avant": avant if avant and avant > pr["price"] else None,
             "type": TYPES_REMISE.get(pr.get("discount_type"), "Remise"), "qte": qte_txt,
             "unite": round(unite, 3) if unite else None,
+            # Pour l'appli : qui l'a vue, quand, et de quoi la confirmer sur Open Prices
+            "id": pr.get("id"), "par": pr.get("owner"), "cree": pr.get("created"), "loc": loc.get("id"),
+            "osm": [loc.get("osm_type"), loc.get("osm_id")] if loc.get("osm_id") else None,
+            "code": pr.get("product_code"), "cat": pr.get("category_tag"), "remise": pr.get("discount_type"),
+            "per": pr.get("price_per"),
         })
         if len(out) >= MAX_PROMOS:
             break
     resultat = {"maj": dt.date.today().isoformat(), "depuis": depuis,
-                "source": "Open Prices (Open Food Facts), licence ODbL", "promos": out}
+                "source": "Open Prices (Open Food Facts), licence ODbL", "promos": out,
+                # Les mêmes règles que ce script, pour que l'appli traite les promos en direct
+                "regles": {"enseignes": ENSEIGNES, "categories": {c: n for c, n in NOMS_CATEGORIES.items()},
+                           "types": TYPES_REMISE,
+                           "ingredients": {ing: {k: cfg[k] for k in ("base", "noms", "exclut", "cat", "surgele") if k in cfg}
+                                           for ing, cfg in INGREDIENTS.items()}}}
     SORTIE_PROMOS.write_text(json.dumps(resultat, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     lies = sum(1 for p in out if p["ing"])
     print(f"Écrit : {SORTIE_PROMOS} ({len(out)} promos, dont {lies} sur des ingrédients de l'appli)")

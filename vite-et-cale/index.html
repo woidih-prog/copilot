@@ -197,6 +197,30 @@ nav.tabs button[aria-current=page]{color:var(--leaf)}
 .meal .swap{margin-top:4px;border:1px solid var(--line);background:transparent;border-radius:999px;padding:4px 10px;font-size:12.5px;font-weight:600;color:var(--muted)}
 .tag{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--leaf-soft);color:var(--leaf)}
 .tag.fun{background:var(--squash-soft);color:var(--squash)}
+.tag.promo{background:var(--warn-soft);color:var(--warn)}
+/* Promos en direct */
+nav.tabs button{position:relative}
+nav.tabs .nb{position:absolute;top:7px;left:calc(50% + 6px);min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:var(--warn);color:var(--surface);font-size:10.5px;font-weight:800;line-height:17px;text-align:center}
+.qui{display:block;font-size:12px;color:var(--muted);margin-bottom:2px}
+.qui b{color:var(--ink);font-weight:700}
+.qui .conf{color:var(--leaf);font-weight:700}
+.direct{font-style:normal;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--surface);background:var(--warn);border-radius:999px;padding:1px 7px;margin-right:6px}
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:6px;vertical-align:1px;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.live-dot{animation:none}}
+.votes{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px}
+.votes span{margin-right:2px}
+.vote{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 11px;font:600 12.5px var(--f-body);min-height:34px}
+.vote:hover{border-color:var(--leaf)}
+.mini.autre .votes{border-top:0;padding-top:0}
+.big-cta{width:100%;min-height:56px;font-size:17px}
+.chasse ol{list-style:none;margin:8px 0 6px;padding:0;display:grid;gap:4px}
+.chasse li{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:baseline;padding:6px 8px;border-radius:10px}
+.chasse li b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14.5px}
+.chasse li.moi{background:var(--leaf-soft)}
+.chasse .rg{font-family:var(--f-display);font-weight:800;color:var(--leaf)}
+.promo-sem{display:grid;gap:6px;border-color:var(--warn)}
+.promo-sem .btn{justify-self:start}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
 .card ul,.card ol{margin:0;padding-left:20px}
 .banner{border-radius:12px;padding:10px 14px;font-size:14px;background:var(--warn-soft);color:var(--warn)}
@@ -566,12 +590,75 @@ let PROMOS=null;
 try{ PROMOS=JSON.parse(localStorage.getItem("vc_promos")||"null"); }catch(e){}
 function chargePromos(){
   return fetch("./promos.json",{cache:"no-cache"}).then(r=>r.ok?r.json():null).then(d=>{
-    if(d&&d.promos){ PROMOS=d; try{ localStorage.setItem("vc_promos",JSON.stringify(d)); }catch(e){} return true; } return false; }).catch(()=>false);
+    if(d&&d.promos){ const live=PROMOS&&PROMOS.promos?PROMOS.promos.filter(p=>p.live):[];
+      PROMOS=d; fusionPromos(live); sauvePromos(); return true; } return false; }).catch(()=>false);
+}
+function sauvePromos(){ try{ localStorage.setItem("vc_promos",JSON.stringify(PROMOS)); }catch(e){} }
+/* ===== Promos en direct : on lit Open Prices sans attendre la mise à jour du fichier (une fois par jour) =====
+   Mêmes règles que prix/maj_prix.py, livrées dans promos.json (« regles »). */
+const NB_OEUFS=/(\d{1,2})\s*(?:gros|moyens?|extra|frais|plein air|bio|x)?\s*(?:œufs|oeufs)|(?:œufs|oeufs)[^0-9]{0,30}?[x×]\s*(\d{1,2})|\b[x×]\s*(\d{1,2})\b/i;
+function quantiteOP(prod,base){
+  if(base==="piece"){ const m=NB_OEUFS.exec(prod.product_name||"")||NB_OEUFS.exec(String(prod.quantity||"")); if(!m) return null;
+    const n=+m.slice(1).find(Boolean); return n>=4&&n<=30?n:null; }
+  const q=prod.product_quantity, u=(prod.product_quantity_unit||"").toLowerCase(); if(!q||q<=0) return null;
+  return u==="g"||u==="ml"?q/1000:u==="kg"||u==="l"?q:u==="cl"?q/100:null;
+}
+function ingDuNom(nom,RG){ const n=(nom||"").toLowerCase();
+  for(const [ing,c] of Object.entries(RG.ingredients)){ if(!c.noms) continue;
+    if(c.exclut&&new RegExp(c.exclut).test(n)) continue;
+    if(c.noms.some(x=>n.includes(x.toLowerCase()))&&!(c.surgele&&!n.includes("surgel"))) return ing; }
+  return null; }
+function promoDepuisOP(pr,RG){
+  const loc=pr.location||{}, pays=(loc.osm_address_country_code||"").toUpperCase();
+  if(!["FR","RE","GP","MQ","GF","YT"].includes(pays)||!pr.price) return null;
+  const prod=pr.product||{}; let nom,ing,unite=null,qte;
+  if(pr.type==="CATEGORY"){ const c=pr.category_tag||""; ing=Object.keys(RG.ingredients).find(k=>RG.ingredients[k].cat===c)||null;
+    nom=RG.categories[c]||c.split(":").pop().replace(/-/g," ").replace(/^./,x=>x.toUpperCase());
+    if(pr.price_per==="KILOGRAM") unite=pr.price; qte=pr.price_per==="KILOGRAM"?"le kilo":"la pièce"; }
+  else { nom=prod.product_name||pr.product_name; if(!nom) return null; ing=ingDuNom(nom,RG);
+    const q=ing?quantiteOP(prod,RG.ingredients[ing].base):null; if(ing&&q) unite=pr.price/q;
+    qte=prod.product_quantity&&prod.product_quantity_unit?prod.product_quantity+" "+prod.product_quantity_unit:""; }
+  const marque=[loc.osm_brand,loc.osm_name].filter(Boolean).join(" ").toLowerCase();
+  const ens=Object.keys(RG.enseignes).find(k=>new RegExp(RG.enseignes[k]).test(marque))||null;
+  const lat=loc.osm_lat, lon=loc.osm_lon, avant=pr.price_without_discount;
+  return {nom:String(nom).trim().slice(0,90),ing,enseigne:ens,magasin:loc.osm_name,ville:loc.osm_address_city,
+    reunion:lat!=null&&lon!=null&&lat>-21.5&&lat<-20.8&&lon>55.1&&lon<56,date:pr.date,lat,lon,prix:pr.price,avant:avant&&avant>pr.price?avant:null,
+    type:RG.types[pr.discount_type]||"Remise",qte,unite:unite?Math.round(unite*1000)/1000:null,
+    id:pr.id,par:pr.owner,cree:pr.created,loc:loc.id,osm:loc.osm_id?[loc.osm_type,loc.osm_id]:null,code:pr.product_code,cat:pr.category_tag,
+    remise:pr.discount_type,per:pr.price_per,live:true};
+}
+function clePromo(p){ return [p.code||p.cat||p.nom,p.loc,p.prix].join("|"); }
+function fusionPromos(nouv){
+  if(!PROMOS||!PROMOS.promos) return 0;
+  const ids=new Set(PROMOS.promos.map(p=>p.id)), cles=new Set(PROMOS.promos.map(clePromo)); let n=0;
+  nouv.forEach(p=>{ if(!p||ids.has(p.id)) return; ids.add(p.id);
+    if(cles.has(clePromo(p))){ PROMOS.promos.push({...p,doublon:true}); return; }   // même promo revue : compte comme une confirmation
+    cles.add(clePromo(p)); PROMOS.promos.unshift(p); n++; });
+  return n;
+}
+let LIVE_T=0, LIVE_EN_COURS=null;
+function chargePromosLive(){
+  if(!PROMOS||!PROMOS.regles) return Promise.resolve(0);
+  if(LIVE_EN_COURS) return LIVE_EN_COURS;
+  const depuis=new Date(Date.parse(PROMOS.maj||AUJ)-36*3600e3).toISOString();
+  const page=n=>fetch(OP_API+"/prices?price_is_discounted=true&currency=EUR&order_by=-created&size=100&page="+n+"&created__gte="+encodeURIComponent(depuis)).then(r=>r.ok?r.json():null);
+  return LIVE_EN_COURS=page(1).then(d=>{ if(!d) return 0;
+      const plus=(d.pages||1)>1?page(2).then(e=>(d.items||[]).concat(e&&e.items||[])):Promise.resolve(d.items||[]);
+      return plus.then(items=>{ const n=fusionPromos(items.map(pr=>promoDepuisOP(pr,PROMOS.regles)));
+        LIVE_T=Date.now(); sauvePromos(); return n; }); })
+    .catch(()=>0).finally(()=>{ LIVE_EN_COURS=null; });
+}
+/* « il y a 20 min », « il y a 3 h », « hier », sinon la date */
+function ilYa(p){
+  if(!p.cree) return "vue le "+dateCourte(p.date);
+  const m=Math.max(0,Math.round((Date.now()-Date.parse(p.cree))/60000));
+  return m<2?"à l'instant":m<60?"il y a "+m+" min":m<24*60?"il y a "+Math.round(m/60)+" h":m<48*60?"hier":"le "+dateCourte(p.cree.slice(0,10));
 }
 const AUJ=new Date().toISOString().slice(0,10);
 /* Une promo « prise » vaut 7 jours : l'appli s'en sert pour le budget et les recettes. */
 function promoActive(id){ const m=ST.mesPromos&&ST.mesPromos[id]; return m&&m.jusqua>=AUJ?m:null; }
-function cleanPromos(){ Object.keys(ST.mesPromos||{}).forEach(k=>{ if(!promoActive(k)) delete ST.mesPromos[k]; }); }
+function cleanPromos(){ Object.keys(ST.mesPromos||{}).forEach(k=>{ if(!promoActive(k)) delete ST.mesPromos[k]; });
+  const f=ST.promosFinies||{}, lim=new Date(Date.now()-35*864e5).toISOString().slice(0,10); Object.keys(f).forEach(k=>{ if(f[k]<lim) delete f[k]; }); }
 
 /* D'où vient le prix d'un produit : "promo", "enseigne", "national", "reunion" ou "estime". */
 function sourcePrix(id,P){
@@ -966,10 +1053,11 @@ function renderApp(){
       (tk?'<span class="pill num'+(over?" over":"")+'">'+eur(tk.total)+' / '+P.budget+' €</span>':"")+'</div></header>'+
     '<main class="page" id="view"></main>'+
     '<nav class="tabs" aria-label="Sections"><div class="in">'+
-      [["semaine","Semaine"],["promos","Promos"],["stock","Chez moi"],["courses","Courses"],["plats","Plats"],["profil","Profil"]].map(([v,n])=>
+      [["promos","Promos"],["semaine","Semaine"],["stock","Chez moi"],["courses","Courses"],["plats","Plats"],["profil","Profil"]].map(([v,n])=>
         '<button type="button" data-tab="'+v+'"'+(ST.onglet===v?' aria-current="page"':"")+'>'+ICONES[v]+n+'</button>').join("")+'</div></nav>';
   document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{ST.onglet=b.dataset.tab;persist();renderApp();window.scrollTo(0,0);});
   ({semaine:vueSemaine,promos:vuePromos,stock:vueStock,courses:vueCourses,plats:vuePlats,profil:vueProfil})[ST.onglet]($("view"),P,tk);
+  majBadgePromos();
 }
 
 function appareilTxt(r){ const P=ST.profil; if(r.cook==="aucune") return ""; const f=faconChoisie(r,P); return f&&f!=="aucune"?EQUIP_NOM[f]:""; }
@@ -978,7 +1066,7 @@ function tempsTxt(r){ return !r.t?"0 min":(r.actif&&r.actif<r.t?r.t+" min, dont 
 function heroSoir(d,P){
   const r=RID[d.soir]; if(!r) return "";
   return '<div class="hero"><button type="button" class="hpic" data-open="'+r.id+'" data-slot="soir" aria-label="Voir la recette">'+plateSVG(r.id)+'</button>'+
-    '<div class="htxt"><span class="lbl">Ce soir'+(r.origine&&r.origine!=="classique"?' · '+esc(ORIGINES[r.origine]):"")+(r.fun?' · plaisir':"")+'</span>'+
+    '<div class="htxt"><span class="lbl">Ce soir'+(r.origine&&r.origine!=="classique"?' · '+esc(ORIGINES[r.origine]):"")+(r.fun?' · plaisir':"")+tagPromo(r)+'</span>'+
     '<h3 data-open="'+r.id+'" data-slot="soir" role="button" tabindex="0">'+esc(r.n)+'</h3>'+
     (DESCRIPTIONS[r.id]?'<p class="desc">'+esc(DESCRIPTIONS[r.id])+'</p>':"")+
     '<span class="meta"><span>'+tempsTxt(r)+'</span>'+(appareilTxt(r)?'<span>'+esc(appareilTxt(r))+'</span>':"")+'<span class="p">'+r.p+' g prot.</span><span class="c num">'+eur(mealCost(r,P))+' l\'assiette</span></span>'+
@@ -988,12 +1076,24 @@ function carteRepas(k,id,P){
   const r=RID[id]; if(!r) return "";
   const c=mealCost(r,P);
   return '<div class="meal"><button type="button" class="pic" data-open="'+id+'" data-slot="'+k+'" aria-label="Voir la recette">'+plateSVG(id)+'</button>'+
-    '<div class="txt"><span class="lbl">'+SLOT_NOM[k]+(r.origine&&r.origine!=="classique"?' · '+esc(ORIGINES[r.origine]):"")+(r.cook==="aucune"?' · <span class="tag">sans cuisson</span>':"")+(r.fun?' <span class="tag fun">plaisir</span>':"")+'</span>'+
+    '<div class="txt"><span class="lbl">'+SLOT_NOM[k]+(r.origine&&r.origine!=="classique"?' · '+esc(ORIGINES[r.origine]):"")+(r.cook==="aucune"?' · <span class="tag">sans cuisson</span>':"")+(r.fun?' <span class="tag fun">plaisir</span>':"")+tagPromo(r)+'</span>'+
     '<button type="button" class="open" data-open="'+id+'" data-slot="'+k+'">'+esc(r.n)+'</button>'+
     '<span class="meta"><span>'+tempsTxt(r)+'</span>'+(appareilTxt(r)?'<span>'+esc(appareilTxt(r))+'</span>':"")+'<span class="p">'+r.p+' g prot.</span><span class="c num">'+eur(c)+(P.personnes>1?" /pers.":"")+'</span></span>'+
     '<button type="button" class="swap" data-swap="'+k+'">Changer ce plat</button></div></div>';
 }
 
+/* Les promos du coin qui feraient baisser la semaine : la moins chère par ingrédient, utilisée par au moins un plat. */
+function promosUtiles(P){
+  if(!P.ville) return [];
+  const I=interdits(P), best={};
+  promosPres(P).forEach(p=>{ if(!p.ing||!p.unite||promoActive(p.ing)||!ING[p.ing]) return;
+    if(price(p.ing,P)<=p.unite*CONTENU[p.ing]*1.02) return;
+    if(!R.some(r=>r.ing.some(([i])=>i===p.ing)&&permis(r,P,I))) return;
+    if(!best[p.ing]||p.unite<best[p.ing].unite) best[p.ing]=p; });
+  return Object.values(best);
+}
+function prendPromo(p){ ST.mesPromos[p.ing]={unite:p.unite,nom:p.nom,prix:p.prix,avant:p.avant,magasin:p.magasin,type:p.type,jusqua:new Date(Date.now()+7*864e5).toISOString().slice(0,10)}; }
+function tagPromo(r){ return r.ing.some(([i])=>promoActive(i))?' <span class="tag promo">promo</span>':""; }
 function vueSemaine(v,P,tk){
   const plan=ST.plan;
   if(plan.err){ v.innerHTML='<div class="banner">'+esc(plan.err)+'</div><button type="button" class="btn dark" id="goProfil">Modifier mon profil</button>';
@@ -1004,8 +1104,12 @@ function vueSemaine(v,P,tk){
   const d=plan.days[ST.jour];
   const dayCost=SLOTS.reduce((s,k)=>s+(RID[d[k]]?mealCost(RID[d[k]],P):0),0)*P.personnes;
   const salut=P.prenom?"Salut "+esc(P.prenom)+", voici ta semaine.":"Voici ta semaine.";
+  const utiles=promosUtiles(P);
   v.innerHTML=
     '<p class="muted">'+salut+'</p>'+
+    (utiles.length?'<div class="card promo-sem"><b>🏷️ '+utiles.length+' promo'+(utiles.length>1?"s":"")+' repérée'+(utiles.length>1?"s":"")+' près de chez toi</b>'+
+      '<span class="muted">'+utiles.slice(0,4).map(p=>esc((p.ing==="fruit"?"fruits":p.ing==="leg"?"légumes":ING[p.ing].n.toLowerCase())+" chez "+(p.magasin||"un magasin du coin"))).join(" · ")+(utiles.length>4?"…":"")+'</span>'+
+      '<button type="button" class="btn small" id="avecPromos">Refaire ma semaine avec</button></div>':"")+
     (tk.total>P.budget+0.005?'<div class="banner">'+(ST.plan.horsBudget?'Avec ton profil, la semaine la moins chère que je trouve coûte '+eur(tk.total)+', soit '+eur(tk.total-P.budget)+' au-dessus de ton budget. Pour rester à '+P.budget+' €, autorise plus de temps de cuisine, retire un « je n\'aime pas », ou monte le budget à '+Math.ceil(tk.total)+' €.'
       :'Tes changements de plats font dépasser ton budget de '+eur(tk.total-P.budget)+'. Touche « Nouvelle semaine » pour revenir dans ton budget.')+'</div>':"")+
     '<div class="stats"><div class="stat"><b class="num">'+Math.round(prot/7)+' g</b><span>protéines / jour</span></div>'+
@@ -1023,6 +1127,8 @@ function vueSemaine(v,P,tk){
   v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>ficheRecette(b.dataset.open,b.dataset.slot));
   v.querySelectorAll("[data-swap]").forEach(b=>b.onclick=()=>ficheEchange(b.dataset.swap));
   $("regen").onclick=()=>prepare(()=>{nouveauPlan();renderApp();toast("Nouvelle semaine prête.");});
+  if($("avecPromos")) $("avecPromos").onclick=()=>{ const n=utiles.length; utiles.forEach(prendPromo); persist();
+    prepare(()=>{ nouveauPlan(); renderApp(); toast(n+" promo"+(n>1?"s":"")+" prise"+(n>1?"s":"")+" en compte pendant 7 jours."); }); };
 }
 function prepDimanche(days){
   const all=days.flatMap(d=>SLOTS.map(k=>RID[d[k]]).filter(Boolean));
@@ -1127,26 +1233,27 @@ function opConnexion(user,pass){
 function opEchec(r){ return r.json().catch(()=>({})).then(d=>{ if(r.status===401){ ST.op=null; persist(); throw new Error("Ta connexion à Open Prices a expiré : reconnecte-toi dans Profil."); }
   throw new Error("Open Prices a refusé l'envoi ("+r.status+")"+(d&&d.detail?" : "+JSON.stringify(d.detail).slice(0,160):"")+"."); }); }
 const PREUVES=new Map();   // une même photo n'est envoyée qu'une fois, même pour plusieurs prix
-function opPreuve(photo,lireEtiquettes){
-  const cle=photo.name+"|"+photo.size+"|"+photo.lastModified+"|"+!!lireEtiquettes;
+function opPreuve(photo,lireEtiquettes,osm){
+  osm=osm||ST.profil.osm;
+  const cle=photo.name+"|"+photo.size+"|"+photo.lastModified+"|"+!!lireEtiquettes+"|"+osm.id;
   if(PREUVES.has(cle)) return Promise.resolve(PREUVES.get(cle));
-  const osm=ST.profil.osm, fd=new FormData();
+  const fd=new FormData();
   fd.append("file",photo); fd.append("type","PRICE_TAG"); fd.append("location_osm_id",String(osm.id)); fd.append("location_osm_type",osm.type);
   fd.append("date",AUJ); fd.append("currency","EUR");
   if(lireEtiquettes) fd.append("ready_for_price_tag_validation","true");
   return fetch(OP_API+"/proofs/upload",{method:"POST",headers:{Authorization:"Bearer "+ST.op.token},body:fd}).then(r=>r.ok?r.json():opEchec(r))
     .then(p=>{ PREUVES.set(cle,p.id); return p.id; });
 }
-function opPrix(promo,proofId){
-  const osm=ST.profil.osm;
+function opPrix(promo,proofId,osm){
+  osm=osm||ST.profil.osm;
   const prix={price:promo.prix,currency:"EUR",date:AUJ,location_osm_id:osm.id,location_osm_type:osm.type,proof_id:proofId,price_is_discounted:!!promo.typeOP};
   if(promo.typeOP) prix.discount_type=promo.typeOP;
   if(promo.avant) prix.price_without_discount=promo.avant;
-  if(promo.categorie){ prix.type="CATEGORY"; prix.category_tag=promo.categorie; prix.price_per="KILOGRAM"; }
+  if(promo.categorie){ prix.type="CATEGORY"; prix.category_tag=promo.categorie; prix.price_per=promo.per||"KILOGRAM"; }
   else { prix.type="PRODUCT"; prix.product_code=promo.code; if(promo.nom) prix.product_name=promo.nom; }
   return fetch(OP_API+"/prices",{method:"POST",headers:{Authorization:"Bearer "+ST.op.token,"Content-Type":"application/json"},body:JSON.stringify(prix)}).then(r=>r.ok?r.json():opEchec(r));
 }
-function opEnvoi(promo,photo){ return opPreuve(photo).then(id=>opPrix(promo,id)).then(r=>{ ST.contrib.prix++; persist(); return r; }); }
+function opEnvoi(promo,photo,osm){ return opPreuve(photo,false,osm).then(id=>opPrix(promo,id,osm)).then(r=>{ ST.contrib.prix++; persist(); return r; }); }
 
 /* ===== Lecture des codes-barres sur une photo : le navigateur s'il sait faire, sinon ZXing (licence MIT) ===== */
 let zxingCharge=null;
@@ -1302,12 +1409,56 @@ function bindOpenPrices(redessine){
   if($("opOut")) $("opOut").onclick=()=>{ ST.op=null; persist(); redessine(); };
 }
 
+/* ================= « Toujours là ? » : confirmer une promo vue par quelqu'un d'autre ================= */
+function blocConnexionOP(){
+  return ST.op?"":'<div class="card" style="padding:12px 14px"><span class="lbl">Ton compte Open Food Facts</span>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input type="text" id="opUser" placeholder="Identifiant" autocomplete="username" aria-label="Identifiant Open Food Facts">'+
+    '<input type="password" id="opPass" placeholder="Mot de passe" autocomplete="current-password" aria-label="Mot de passe Open Food Facts"></div>'+
+    '<button type="button" class="btn small dark" id="opIn" style="margin-top:8px">Se connecter</button>'+
+    '<p class="hint">Le compte est gratuit : <a href="https://world.openfoodfacts.org/cgi/user.pl" target="_blank" rel="noopener">créer un compte Open Food Facts</a>. Ton mot de passe n\'est pas gardé dans l\'appli.</p><div id="opMsg"></div></div>';
+}
+function ficheConfirmer(p){
+  const osm={type:p.osm[0],id:p.osm[1],nom:p.magasin||"ce magasin"};
+  ouvrirPanneau('<div class="head"><div><span class="lbl">Toujours là ?</span><h2>'+esc(p.nom)+'</h2></div><button type="button" class="x" data-close aria-label="Fermer">×</button></div>'+
+    '<p class="muted" style="margin:0">'+esc((p.magasin||"Magasin")+(p.ville?", "+p.ville:""))+' · '+esc(ilYa(p))+(p.par?' par '+esc(p.par):"")+'</p>'+
+    '<div class="px" style="display:flex;gap:10px;align-items:baseline;margin:10px 0"><b class="num" style="font-size:28px">'+eur(p.prix)+'</b>'+(p.avant?'<s class="num">'+eur(p.avant)+'</s>':"")+'</div>'+
+    blocConnexionOP()+
+    '<form class="form" id="fConf" novalidate>'+
+    '<div class="f"><label for="cPrix">Prix vu aujourd\'hui (€)</label><input type="number" id="cPrix" inputmode="decimal" step="0.01" min="0.01" value="'+p.prix+'"></div>'+
+    '<div class="f"><label for="cPhoto">Photo de l\'étiquette</label><input type="file" id="cPhoto" accept="image/*" capture="environment"><span class="hint">Open Prices demande une preuve pour chaque prix : une photo suffit.</span></div>'+
+    '<div id="cMsg"></div><button type="submit" class="btn" id="cOk">Confirmer la promo</button></form>',
+  sh=>{
+    const msg=(t,err)=>{ $("cMsg").innerHTML='<div class="etat'+(err?" err":"")+'">'+esc(t)+'</div>'; };
+    if($("opIn")) $("opIn").onclick=()=>{ const u=$("opUser").value.trim(), pw=$("opPass").value; if(!u||!pw) return;
+      $("opMsg").innerHTML='<div class="etat">Connexion…</div>';
+      opConnexion(u,pw).then(()=>{ fermerPanneau(); ficheConfirmer(p); toast("Connecté à Open Prices."); })
+        .catch(e=>{ $("opMsg").innerHTML='<div class="etat err">'+esc(e.message||"Connexion impossible.")+'</div>'; }); };
+    $("fConf").onsubmit=e=>{ e.preventDefault();
+      if(!ST.op){ msg("Connecte-toi d'abord à ton compte Open Food Facts (au-dessus).",true); return; }
+      const prix=parseFloat(($("cPrix").value||"").replace(",",".")), photo=$("cPhoto").files[0];
+      if(!(prix>0)){ msg("Indique le prix.",true); return; }
+      if(!photo){ msg("Ajoute la photo de l'étiquette.",true); return; }
+      $("cOk").disabled=true; msg("Envoi à Open Prices…");
+      const promo={prix,avant:p.avant&&p.avant>prix?p.avant:null,nom:p.nom,typeOP:p.remise||"SALE",per:p.per};
+      if(p.cat) promo.categorie=p.cat; else promo.code=p.code;
+      opPreuve(photo,false,osm).then(id=>opPrix(promo,id,osm)).then(()=>{ ST.contrib.prix++; persist();
+          fermerPanneau(); toast("Merci ! Promo confirmée pour tout le monde."); return chargePromosLive(); })
+        .then(()=>{ if(ST.onglet==="promos") renderApp(); })
+        .catch(err=>{ $("cOk").disabled=false; msg(err&&err.message&&!/fetch|network|Failed/i.test(err.message)?err.message:"Envoi impossible : vérifie ta connexion.",true); });
+    };
+  });
+}
+
 /* ================= « J'ai vu une promo » ================= */
 function ficheNouvellePromo(){
   const P=ST.profil, ids=Object.keys(ING).filter(id=>!interdits(P).ing.has(id));
   const parRayon={}; ids.forEach(id=>(parRayon[RAYON[id]]=parRayon[RAYON[id]]||[]).push(id));
   const fin=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
-  const peutEnvoyer=!!(ST.op&&P.osm);
+  /* Magasins : le tien (Profil) puis ceux déjà connus d'Open Prices autour de toi */
+  const mags=[], vus=new Set();
+  if(P.osm){ mags.push(P.osm); vus.add(String(P.osm.id)); }
+  promosPres(P).forEach(p=>{ if(p.osm&&!vus.has(String(p.osm[1]))){ vus.add(String(p.osm[1])); mags.push({type:p.osm[0],id:p.osm[1],nom:(p.magasin||"Magasin")+(p.ville?", "+p.ville:"")}); } });
+  const peutEnvoyer=!!(ST.op&&mags.length);
   ouvrirPanneau('<div class="head"><h2>J\'ai vu une promo</h2><button type="button" class="x" data-close aria-label="Fermer">×</button></div>'+
     '<form class="form" id="fPromo" novalidate>'+
     '<div class="f"><label for="pIng">Produit</label><select class="in" id="pIng">'+RAYONS.filter(n=>parRayon[n]).map(n=>'<optgroup label="'+n+'">'+parRayon[n].map(id=>'<option value="'+id+'">'+esc(id==="fruit"?"Fruits":id==="leg"?"Légumes":ING[id].n)+'</option>').join("")+'</optgroup>').join("")+'</select></div>'+
@@ -1319,9 +1470,12 @@ function ficheNouvellePromo(){
       '<div class="f"><label for="pType">Type</label><select class="in" id="pType">'+TYPES_PROMO.map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join("")+'</select></div></div>'+
     '<div class="f"><label for="pFin">Valable jusqu\'au</label><input type="date" id="pFin" value="'+fin+'" min="'+AUJ+'"></div>'+
     '<div class="card" style="padding:12px 14px"><label class="check"><input type="checkbox" id="pOP"'+(peutEnvoyer?" checked":" disabled")+'><span>Partager aussi sur Open Prices'+
-      (peutEnvoyer?'<br><small class="muted">Vu chez '+esc(P.osm.nom)+'. Une photo de l\'étiquette ou du prospectus est demandée.</small>'
-        :'<br><small class="muted">Pour partager, connecte ton compte Open Food Facts et choisis ton magasin exact dans Profil.</small>')+'</span></label>'+
+      (peutEnvoyer?'<br><small class="muted">Toutes les personnes autour la verront tout de suite. Une photo de l\'étiquette est demandée.</small>'
+        :!ST.op?'<br><small class="muted">Connecte-toi ci-dessous pour la partager avec les gens du coin.</small>'
+        :'<br><small class="muted">Choisis ton magasin exact dans Profil pour pouvoir partager.</small>')+'</span></label>'+
+      (ST.op?"":blocConnexionOP())+
       '<div id="pOPF"'+(peutEnvoyer?"":" hidden")+' class="form" style="margin-top:10px">'+
+        (mags.length?'<div class="f"><label for="pMag">Magasin</label><select class="in" id="pMag">'+mags.map((m,i)=>'<option value="'+i+'">'+esc(m.nom)+'</option>').join("")+'</select></div>':"")+
         '<div class="f"><label for="pPhoto">Photo de l\'étiquette ou du prospectus</label><input type="file" id="pPhoto" accept="image/*" capture="environment"></div>'+
         '<div class="f" id="pCodeF"><label for="pCode">Code-barres</label><input type="text" id="pCode" inputmode="numeric" placeholder="13 chiffres sous le code-barres"><span class="hint" id="pCodeH">Lu automatiquement sur la photo quand c\'est possible.</span></div>'+
       '</div></div>'+
@@ -1337,6 +1491,10 @@ function ficheNouvellePromo(){
       if($("pCodeF")) $("pCodeF").hidden=auKilo; };
     ing.onchange=maj; maj();
     op.onchange=()=>{ $("pOPF").hidden=!op.checked; };
+    if($("opIn")) $("opIn").onclick=()=>{ const u=$("opUser").value.trim(), pw=$("opPass").value; if(!u||!pw) return;
+      $("opMsg").innerHTML='<div class="etat">Connexion…</div>';
+      opConnexion(u,pw).then(()=>{ fermerPanneau(); ficheNouvellePromo(); toast("Connecté à Open Prices."); })
+        .catch(e=>{ $("opMsg").innerHTML='<div class="etat err">'+esc(e.message||"Connexion impossible.")+'</div>'; }); };
     const photo=$("pPhoto");
     if(photo) photo.onchange=()=>{ const f=photo.files[0]; if(!f||!("BarcodeDetector" in window)) return;
       createImageBitmap(f).then(img=>new BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e"]}).detect(img)).then(l=>{
@@ -1356,12 +1514,13 @@ function ficheNouvellePromo(){
         else { code=($("pCode").value||"").replace(/\D/g,""); if(!/^(\d{8}|\d{12,14})$/.test(code)){ msg("Pour partager, il faut le code-barres (8 ou 13 chiffres). Sinon, décoche « Partager ».",true); return; } }
         if(!photo.files[0]){ msg("Pour partager, ajoute la photo de l'étiquette ou du prospectus.",true); return; }
       }
-      ST.mesPromos[id]={unite:prix/q,nom,prix,avant,magasin:(P.osm&&P.osm.nom)||magasin(P)[1],jusqua:fin>=AUJ?fin:AUJ,perso:true,type:(TYPES_PROMO.find(t=>t[0]===$("pType").value)||[0,"Promo"])[1]};
+      const mag=mags[+(($("pMag")||{}).value||0)]||P.osm;
+      ST.mesPromos[id]={unite:prix/q,nom,prix,avant,magasin:(mag&&mag.nom)||magasin(P)[1],jusqua:fin>=AUJ?fin:AUJ,perso:true,type:(TYPES_PROMO.find(t=>t[0]===$("pType").value)||[0,"Promo"])[1]};
       persist(); majPill();
       if(!envoyer){ fermerPanneau(); renderApp(); toast("Promo enregistrée : elle compte dans ton budget."); return; }
       $("pOk").disabled=true; msg("Promo enregistrée. Envoi à Open Prices…");
-      opEnvoi({prix,avant,nom,code,categorie,typeOP:$("pType").value},photo.files[0])
-        .then(()=>{ fermerPanneau(); renderApp(); toast("Merci ! Promo partagée sur Open Prices."); })
+      opEnvoi({prix,avant,nom,code,categorie,typeOP:$("pType").value},photo.files[0],mag)
+        .then(()=>{ fermerPanneau(); toast("Merci ! Ta promo est visible par les gens du coin."); return chargePromosLive(); }).then(()=>renderApp())
         .catch(err=>{ $("pOk").disabled=false; $("pOk").textContent="Réessayer l'envoi";
           msg((err&&err.message&&!/fetch|network|Failed/i.test(err.message)?err.message:"Envoi impossible : vérifie ta connexion. Depuis l'aperçu claude.ai, l'envoi ne marche pas : utilise l'appli installée.")+" La promo reste enregistrée dans ton budget.",true); });
     };
@@ -1386,40 +1545,65 @@ function blocProspectus(P){
 
 /* ================= Promos ================= */
 function dateCourte(iso){ return new Date(iso+"T12:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); }
+/* Promos visibles pour ce profil : ni masquées (« plus là »), ni simples confirmations d'une promo déjà listée. */
+function promosVisibles(P){
+  const I=interdits(P), V=P.ville, fin=ST.promosFinies||{};
+  return ((PROMOS&&PROMOS.promos)||[]).filter(p=>!p.doublon&&!fin[p.id]&&!(p.ing&&I.ing.has(p.ing))&&(P.region==="re"?true:!p.reunion))
+    .map(p=>{ p._d=V&&p.lat!=null&&p.lon!=null?distanceKm(V,{lat:p.lat,lon:p.lon}):null; return p; });
+}
+function promosPres(P){ const r=+P.rayon||20; return promosVisibles(P).filter(p=>p._d!=null&&p._d<=r); }
+/* Combien de personnes différentes ont relevé la même promo dans le même magasin */
+function vuesPar(p){ const k=(p.code||p.cat||p.nom)+"|"+p.loc, s=new Set();
+  ((PROMOS&&PROMOS.promos)||[]).forEach(q=>{ if((q.code||q.cat||q.nom)+"|"+q.loc===k&&q.par) s.add(q.par); }); return s; }
+function nouvellesPromos(P){ if(ST.promosVues==null){ ST.promosVues=Date.now()-48*3600e3; persist(); } const t=ST.promosVues; return P.ville?promosPres(P).filter(p=>p.cree&&Date.parse(p.cree)>t).length:0; }
+function majBadgePromos(){ const b=document.querySelector('nav.tabs [data-tab="promos"]'); if(!b||!ST.profil) return;
+  const n=nouvellesPromos(ST.profil); let e=b.querySelector(".nb");
+  if(!n){ if(e) e.remove(); return; } if(!e){ e=document.createElement("span"); e.className="nb"; b.appendChild(e); }
+  e.textContent=n>9?"9+":n; e.setAttribute("aria-label",n+" nouvelle"+(n>1?"s":"")+" promo"+(n>1?"s":"")); }
+function majHeureLive(){ const h=$("liveH"); if(h) h.textContent=LIVE_T?"Actualisé à "+new Date(LIVE_T).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}):"Actualisation…"; }
+/* Les chasseurs de promos du coin (pseudos Open Prices), sur 30 jours */
+function chasseurs(liste){ const c={}; liste.forEach(p=>{ if(p.par) c[p.par]=(c[p.par]||0)+1; });
+  return Object.entries(c).sort((a,b)=>b[1]-a[1]); }
+function quiQuand(p){ const v=vuesPar(p), moi=ST.op&&p.par===ST.op.user;
+  return '<span class="qui">'+(p.live&&p.cree&&Date.now()-Date.parse(p.cree)<6*3600e3?'<i class="direct">En direct</i>':"")+
+    esc(ilYa(p))+(p.par?' · par <b>'+esc(moi?"toi":p.par)+'</b>':"")+(v.size>1?' · <span class="conf">✓ vue par '+v.size+' personnes</span>':"")+'</span>'; }
+function votes(p){ return p.id&&p.osm?'<div class="votes"><span>Toujours là ?</span><button type="button" class="vote" data-oui="'+p.id+'">👍 Oui, je confirme</button>'+
+  '<button type="button" class="vote" data-non="'+p.id+'">👎 Plus là</button></div>':""; }
 function vuePromos(v,P){
-  cleanPromos();
-  const mag=magasin(P)[1], toutes=(PROMOS&&PROMOS.promos)||[];
+  cleanPromos(); ST.promosVues=Date.now(); ST.promosFinies=ST.promosFinies||{}; persist();
+  const mag=magasin(P)[1], toutes=(PROMOS&&PROMOS.promos)||[], visibles=promosVisibles(P);
   const V=P.ville, rayon=+P.rayon||20;
   if(!ST.filtrePromo||(!V&&ST.filtrePromo!=="toutes"&&ST.filtrePromo!=="enseigne")) ST.filtrePromo=V?"pres":"enseigne";
   if(V&&ST.filtrePromo==="enseigne") ST.filtrePromo="pres";
   const I=interdits(P);
-  const dist=p=>V&&p.lat!=null&&p.lon!=null?distanceKm(V,{lat:p.lat,lon:p.lon}):null;
-  toutes.forEach(p=>{ p._d=dist(p); });
-  const ok=p=>!(p.ing&&I.ing.has(p.ing)) && (P.region==="re"?true:!p.reunion);
-  const pres=V?toutes.filter(p=>ok(p)&&p._d!=null&&p._d<=rayon):[];
+  const pres=V?visibles.filter(p=>p._d!=null&&p._d<=rayon):[];
   const presEns=pres.filter(p=>p.enseigne===P.magasin);
-  const dansEns=toutes.filter(p=>ok(p)&&p.enseigne===P.magasin);
-  const liste=ST.filtrePromo==="pres"?pres:ST.filtrePromo==="presEns"?presEns:ST.filtrePromo==="enseigne"?dansEns:toutes.filter(ok);
-  const plusProche=V?toutes.filter(p=>ok(p)&&p._d!=null).sort((a,b)=>a._d-b._d)[0]:null;
+  const dansEns=visibles.filter(p=>p.enseigne===P.magasin);
+  const recent=(a,b)=>(b.cree||b.date||"").localeCompare(a.cree||a.date||"");
+  const liste=(ST.filtrePromo==="pres"?pres:ST.filtrePromo==="presEns"?presEns:ST.filtrePromo==="enseigne"?dansEns:visibles).slice().sort(recent);
+  const plusProche=V?visibles.filter(p=>p._d!=null).sort((a,b)=>a._d-b._d)[0]:null;
   const kmTxt=p=>p._d==null?"":p._d<1?"à moins d'1 km":"à "+Math.round(p._d)+" km";
   const P90={...P,temps:"90"};
   const recettes=id=>R.filter(r=>r.ing.some(([i])=>i===id)&&permis(r,P,I)).length;
   const recettesLongues=id=>R.filter(r=>r.ing.some(([i])=>i===id)&&permis(r,P90,I)).length;
-  const pourToi=liste.filter(p=>p.ing&&p.unite).sort((a,b)=>V&&ST.filtrePromo!=="toutes"&&a._d!=null&&b._d!=null?a._d-b._d:(b.date||"").localeCompare(a.date||""));
+  const pourToi=liste.filter(p=>p.ing&&p.unite);
   const autres=liste.filter(p=>!(p.ing&&p.unite));
   const prises=Object.keys(ST.mesPromos);
   const pct=p=>p.avant?'<span class="pct">−'+Math.round((1-p.prix/p.avant)*100)+' %</span>':"";
   const carte=(p,i)=>{ const pris=ST.mesPromos[p.ing]&&ST.mesPromos[p.ing].nom===p.nom&&promoActive(p.ing);
     const n=recettes(p.ing), nl=recettesLongues(p.ing), nomIng=p.ing==="fruit"?"fruits":p.ing==="leg"?"légumes":ING[p.ing].n.toLowerCase();
     const gain=price(p.ing,P)>p.unite*CONTENU[p.ing]&&!promoActive(p.ing);
-    return '<div class="promo'+(pris?" prise":"")+'"><div class="nm"><span class="chez">'+logoHTML(p.enseigne||"",true)+'<small>'+esc((p.magasin||"Magasin")+(p.ville?", "+p.ville:""))+' · vu le '+dateCourte(p.date)+'</small>'+(p._d!=null?'<span class="dist">'+kmTxt(p)+'</span>':"")+'</span>'+
-      '<b>'+esc(p.nom)+'</b><small>'+esc([p.qte,eur(p.unite)+" "+uniteNom(p.ing)].filter(Boolean).join(" · "))+'</small>'+
+    return '<div class="promo'+(pris?" prise":"")+'"><div class="nm"><span class="chez">'+logoHTML(p.enseigne||"",true)+'<small>'+esc((p.magasin||"Magasin")+(p.ville?", "+p.ville:""))+'</small>'+(p._d!=null?'<span class="dist">'+kmTxt(p)+'</span>':"")+'</span>'+
+      quiQuand(p)+'<b>'+esc(p.nom)+'</b><small>'+esc([p.qte,eur(p.unite)+" "+uniteNom(p.ing)].filter(Boolean).join(" · "))+'</small>'+
       '<span style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip ing">'+esc(nomIng)+'</span><span class="chip">'+esc(p.type)+'</span></span></div>'+
       '<div class="px"><b class="num">'+eur(p.prix)+'</b>'+(p.avant?'<s class="num">'+eur(p.avant)+'</s>':"")+pct(p)+'</div>'+
       '<div class="act">'+(pris?'<button type="button" class="btn small ghost" data-lacher="'+p.ing+'">Retirer de mon budget</button><span class="hint">Prise en compte jusqu\'au '+dateCourte(ST.mesPromos[p.ing].jusqua)+'</span>'
         :'<button type="button" class="btn small" data-prendre="'+i+'">Je la prends</button>')+
-      '<span class="hint">'+(n?n+" plat"+(n>1?"s l'utilisent":" l'utilise"):nl?nl+" plat"+(nl>1?"s":"")+" si tu acceptes plus de temps de cuisine":"aucun plat pour ton profil")+(gain&&!pris?" · moins cher que ton prix habituel":"")+'</span></div></div>'; };
-  v.innerHTML='<div><h2>Promos</h2><p class="muted" style="font-size:13.5px">Prix remisés relevés en magasin ces 30 derniers jours'+(PROMOS?", mis à jour le "+dateCourte(PROMOS.maj):"")+'. « Je la prends » l\'ajoute à ton budget et à tes recettes pendant 7 jours.</p></div>'+
+      '<span class="hint">'+(n?n+" plat"+(n>1?"s l'utilisent":" l'utilise"):nl?nl+" plat"+(nl>1?"s":"")+" si tu acceptes plus de temps de cuisine":"aucun plat pour ton profil")+(gain&&!pris?" · moins cher que ton prix habituel":"")+'</span></div>'+votes(p)+'</div>'; };
+  const idx=p=>toutes.indexOf(p);
+  const top=chasseurs(V?pres:visibles).slice(0,5);
+  v.innerHTML='<div><h2>Promos du coin</h2><p class="muted" style="font-size:13.5px"><span class="live-dot" aria-hidden="true"></span><b>En direct</b> · <span id="liveH"></span><br>Repérées en magasin par les gens du coin et partagées sur Open Prices. « Je la prends » l\'ajoute à ton budget et à tes recettes pendant 7 jours.</p></div>'+
+    '<button type="button" class="btn big-cta" id="nouvellePromo">📸 J\'ai vu une promo</button>'+
     (V?'<div class="seg" role="group" aria-label="Où"><button type="button" data-fp="pres" aria-pressed="'+(ST.filtrePromo==="pres")+'">À '+rayon+' km de '+esc(V.nom)+' ('+pres.length+')</button>'+
         '<button type="button" data-fp="presEns" aria-pressed="'+(ST.filtrePromo==="presEns")+'">'+esc(mag)+' à '+rayon+' km ('+presEns.length+')</button>'+
         '<button type="button" data-fp="toutes" aria-pressed="'+(ST.filtrePromo==="toutes")+'">Toute la France</button></div>'
@@ -1428,9 +1612,10 @@ function vuePromos(v,P){
         '<button type="button" data-fp="toutes" aria-pressed="'+(ST.filtrePromo==="toutes")+'">Toute la France</button></div>')+
     (V&&ST.filtrePromo!=="toutes"&&!liste.length?'<div class="banner">Aucune promo relevée à moins de '+rayon+' km de '+esc(V.nom)+' ces 30 derniers jours'+
       (plusProche?' : la plus proche est à '+Math.round(plusProche._d)+' km ('+esc(plusProche.ville||plusProche.magasin||"")+')':"")+
-      '. Les relevés Open Prices viennent de particuliers et restent rares hors des grandes villes.</div>':"")+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button type="button" class="btn" id="scanner">Scanner un prix</button><button type="button" class="btn ghost" id="nouvellePromo">+ J\'ai vu une promo</button></div>'+
+      '. Sois la première personne à en partager une ici : chaque promo partagée apparaît tout de suite chez les gens du coin.</div>':"")+
     blocContrib()+
+    (top.length?'<div class="card chasse"><h3>Chasseurs de promos '+(V?"autour de "+esc(V.nom):"en France")+'</h3><ol>'+top.map(([n,c],i)=>'<li'+(ST.op&&ST.op.user===n?' class="moi"':"")+'><span class="rg num">'+(i+1)+'</span><b>'+esc(ST.op&&ST.op.user===n?n+" (toi)":n)+'</b><span class="num muted">'+c+' promo'+(c>1?"s":"")+'</span></li>').join("")+'</ol>'+
+      '<span class="hint">Sur 30 jours. Partage tes promos pour entrer dans le classement.</span></div>':"")+
     (prises.length?'<div class="group"><h3>Tes promos en cours ('+prises.length+')</h3>'+prises.map(k=>{ const m=ST.mesPromos[k];
         return '<div class="mini">'+logoHTML(P.magasin,true)+'<span class="nm">'+esc(m.nom)+'<small>'+esc([(m.type||"Promo"),m.magasin,"jusqu'au "+dateCourte(m.jusqua)].filter(Boolean).join(" · "))+'</small></span>'+
           '<span class="pp num">'+(m.prix?eur(m.prix):"")+(m.avant?'<s>'+eur(m.avant)+'</s>':"")+'<button type="button" class="btn small ghost" data-lacher="'+k+'" style="margin-top:4px;font-family:var(--f-body);padding:5px 10px">Retirer</button></span></div>'; }).join("")+
@@ -1439,10 +1624,15 @@ function vuePromos(v,P){
     (!PROMOS?'<div class="banner">Promos indisponibles pour l\'instant : vérifie ta connexion.</div>':"")+
     '<h3>Pour tes recettes</h3>'+
     (pourToi.length?pourToi.map(p=>carte(p,toutes.indexOf(p))).join(""):'<p class="muted">Aucune promo relevée sur nos ingrédients ici ces 30 derniers jours.</p>')+
-    (autres.length?'<div class="group"><h3>Autres promos ('+autres.length+')</h3>'+autres.slice(0,60).map(p=>'<div class="mini">'+logoHTML(p.enseigne||"",true)+
-      '<span class="nm">'+esc(p.nom)+'<small>'+esc([p.qte,p.type,(p.magasin||"")+(p.ville?", "+p.ville:""),kmTxt(p),"vu le "+dateCourte(p.date)].filter(Boolean).join(" · "))+'</small></span>'+
-      '<span class="pp num">'+eur(p.prix)+(p.avant?'<s>'+eur(p.avant)+'</s>':"")+'</span></div>').join("")+'</div>':"")+
-    '<p class="foot">Promos relevées par des particuliers dans un magasin précis (Open Prices). Elles peuvent être terminées ou ne valoir que dans ce magasin : vérifie en rayon avant de compter dessus.</p>';
+    (autres.length?'<div class="group"><h3>Autres promos ('+autres.length+')</h3>'+autres.slice(0,60).map(p=>'<div class="mini autre">'+logoHTML(p.enseigne||"",true)+
+      '<span class="nm">'+quiQuand(p)+esc(p.nom)+'<small>'+esc([p.qte,p.type,(p.magasin||"")+(p.ville?", "+p.ville:""),kmTxt(p)].filter(Boolean).join(" · "))+'</small></span>'+
+      '<span class="pp num">'+eur(p.prix)+(p.avant?'<s>'+eur(p.avant)+'</s>':"")+'</span>'+votes(p)+'</div>').join("")+'</div>':"")+
+    '<button type="button" class="btn ghost" id="scanner" style="width:100%">Scanner un prix (sans promo)</button>'+
+    '<p class="foot">Promos relevées par des particuliers dans un magasin précis (Open Prices, licence ODbL). Elles peuvent être terminées ou ne valoir que dans ce magasin : vérifie en rayon avant de compter dessus. « Plus là » la masque seulement sur ton téléphone.</p>';
+  majHeureLive();
+  if(Date.now()-LIVE_T>60000) chargePromosLive().then(n=>{ if(n&&ST.onglet==="promos"&&!$("scrim")) vuePromos(v,P); else majHeureLive(); });
+  v.querySelectorAll("[data-oui]").forEach(b=>b.onclick=()=>{ const p=toutes.find(x=>String(x.id)===b.dataset.oui); if(p) ficheConfirmer(p); });
+  v.querySelectorAll("[data-non]").forEach(b=>b.onclick=()=>{ ST.promosFinies[b.dataset.non]=AUJ; persist(); vuePromos(v,P); toast("Merci, promo masquée."); });
   v.querySelectorAll("[data-fp]").forEach(b=>b.onclick=()=>{ST.filtrePromo=b.dataset.fp;persist();vuePromos(v,P);});
   $("nouvellePromo").onclick=ficheNouvellePromo;
   $("scanner").onclick=ficheScanner;
@@ -1612,7 +1802,15 @@ demarrer();
 /* Prix plus récents trouvés : on recalcule le menu (gardé en cache pour le hors connexion). */
 chargePrix().then(ok=>{ if(ok&&PRIX.maj!==majAvant&&ST.profil&&!$("onb")){ if(!$("scrim")) renderApp(); } });
 const promosAvant=PROMOS&&PROMOS.maj;
-chargePromos().then(ok=>{ if(ok&&PROMOS.maj!==promosAvant&&ST.onglet==="promos"&&ST.profil&&!$("onb")&&!$("scrim")) renderApp(); });
+/* Promos : le fichier du jour, puis Open Prices en direct, puis toutes les minutes tant que l'appli est ouverte. */
+function rafraichitPromos(n){
+  if(!ST.profil||$("onb")) return;
+  if(ST.onglet==="promos"){ if(n&&!$("scrim")){ const y=window.scrollY; renderApp(); window.scrollTo(0,y); } else majHeureLive(); }
+  else majBadgePromos();
+}
+chargePromos().then(ok=>chargePromosLive().then(n=>rafraichitPromos(n+(ok&&PROMOS.maj!==promosAvant?1:0))));
+setInterval(()=>{ if(document.visibilityState==="visible") chargePromosLive().then(rafraichitPromos); },60000);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&Date.now()-LIVE_T>30000) chargePromosLive().then(rafraichitPromos); });
 if("serviceWorker" in navigator && location.protocol==="https:" && !/claude\.ai|claudeusercontent/.test(location.hostname)){
   try{ sessionStorage.removeItem("vc_sans_photo"); }catch(e){}
   try{
