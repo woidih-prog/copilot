@@ -7960,6 +7960,7 @@ $("btnCopyReport").onclick = () => {
 };
 $("btnNew").onclick = () => location.reload();
 </script>
- <script src="./debrief-calibration.js"></script> 
+ <!-- le numéro change à chaque heure : une mise à jour arrive sans avoir à vider le cache du navigateur -->
+ <script>document.write('<script src="./debrief-calibration.js?v=' + Math.floor(Date.now() / 3600000) + '"><\/script>');</script> 
 </body>
 </html>
