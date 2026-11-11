@@ -2627,6 +2627,24 @@ html.perso #home{display:flex;padding:0;align-items:stretch;text-align:left;just
 .cp-graph svg{width:100%;height:auto;display:block}
 .cp-legende{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:8px}
 .cp-legende i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.cp-rel-outils{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 16px;font-size:13px;color:var(--muted)}
+.cp-rel-tete,.cp-rel-l{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,2.3fr) 150px 170px 92px;gap:12px;align-items:center}
+.cp-rel-tete{font-size:11.5px;color:var(--muted);padding-bottom:8px}
+.cp-rel{border-top:1px solid var(--line)}
+.cp-rel-l{padding:12px 0}
+.cp-rel-nom,.cp-rel-dit{background:none;border:0;color:var(--ink);text-align:left;cursor:pointer;padding:0;min-width:0;font-size:14px;line-height:1.4}
+.cp-rel-nom b,.cp-rel-dit b{font-weight:600;display:block;overflow-wrap:anywhere}
+.cp-rel-dit b{font-weight:500}
+.cp-rel small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px;overflow-wrap:anywhere}
+.cp-rel-l input[type=date],.cp-rel-l select{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 8px;color:var(--ink);font-size:13px;margin:0;color-scheme:dark}
+.cp-rel-detail{padding:4px 0 18px}
+.cp-rel-fiche{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:0 22px}
+.cp-rel-champ{margin-bottom:12px}
+.cp-rel-champ span{display:block;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.cp-rel-champ p{font-size:14px;line-height:1.5;margin:0 0 6px;overflow-wrap:anywhere}
+.cp-rel-champ textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink);font-family:inherit;font-size:14.5px;line-height:1.5;resize:vertical}
+.cp-rel-finis summary{cursor:pointer;color:var(--muted);font-size:13.5px;margin:6px 0 12px}
+@media(max-width:820px){.cp-rel-tete{display:none}.cp-rel-l{grid-template-columns:1fr 1fr}.cp-rel-nom,.cp-rel-dit{grid-column:1/-1}.cp-rel-l>.cp-btn{grid-column:1/-1}}
 @media(max-width:560px){.cp-barre{width:70px}.cp-avatar{width:130px;height:130px}.cp-ligne{flex-wrap:wrap}}
 `;
 document.head.appendChild(style);
@@ -2637,6 +2655,7 @@ document.head.appendChild(style);
 const ICO = {
   suivi: '<svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6"/></svg>',
   coach: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/></svg>',
+  relance: '<svg viewBox="0 0 24 24"><path d="M4 6h16v10H9l-5 4z"/><path d="M8 10h8M8 13h5"/></svg>',
   reglages: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>'
 };
 const home = $("home");
@@ -2653,6 +2672,7 @@ function ecran(id, html){
 }
 const ecTracking = ecran("cpTracking", '<div class="cp-page" id="cpTrackingIn"></div>');
 const ecCoaching = ecran("cpCoaching", '<div class="cp-page" id="cpCoachingIn"></div>');
+const ecRelances = ecran("cpRelances", '<div class="cp-page" id="cpRelancesIn"></div>');
 const sec = ecran("coachPerso", `<div class="cp-wrap">
   <div class="cp-tete"><button class="cp-lien" id="cpRetour">← Coaching</button><h2 id="cpTitreSeance">Séance</h2>
     <button class="cp-btn" id="cpPause" title="Tout est gardé : tu reprends quand tu veux">Pause, je reprends plus tard</button>
@@ -2690,7 +2710,7 @@ const sec = ecran("coachPerso", `<div class="cp-wrap">
       <button class="cp-btn" id="cpBouche">Placer la bouche</button><button class="cp-btn" id="cpSansPhoto">Enlever la photo</button></div>
   </details>
 </div>`);
-const ECRANS = [ecTracking, ecCoaching, sec];
+const ECRANS = [ecTracking, ecCoaching, ecRelances, sec];
 function montre(el){
   ECRANS.forEach(e => e.classList.toggle("on", e === el));
   home.style.display = el ? "none" : "flex";
@@ -2707,7 +2727,8 @@ $("cpAncienRetour").onclick = () => { ancien.classList.remove("on"); accueilEl.s
    L'état, gardé dans ton navigateur
    --------------------------------------------------------------------- */
 const CP = {seances: [], actuelle: null, devoirs: [], entrainements: [], regl: {}, suivi: {url: "", mdp: ""},
-            stats: null, statsTout: null, calls: [], suiviErreur: "", charge: null, enCours: false, rec: null, qui: "mix", onglet: "phases"};
+            stats: null, statsTout: null, calls: [], suiviErreur: "", charge: null, enCours: false, rec: null, qui: "mix", onglet: "phases",
+            relances: {}, relOuvert: null, relOccupe: {}, relToutes: "", relFinis: false};
 
 /* --- deux espaces : le tien et celui de ta femme. Chacun a ses séances, ses devoirs,
        ses entraînements et son suivi de calls. Les photos et les voix des coachs sont communes. --- */
@@ -2738,6 +2759,7 @@ async function chargeProfil(){
   CP.seances = (await Store.get(K("coach_perso_seances"))) || [];
   CP.devoirs = (await Store.get(K("coach_perso_devoirs"))) || [];
   CP.entrainements = (await Store.get(K("coach_perso_entrainements"))) || [];
+  CP.relances = (await Store.get(K("coach_perso_relances"))) || {}; CP.relOuvert = null;
   CP.actuelle = null; CP.stats = null; CP.statsTout = null; CP.calls = []; CP.charge = null; CP.suiviErreur = "";
   const autorises = profil().coachs;
   CP.qui = (await Store.get(K("coach_perso_qui"))) || (PROFIL === "woidih" ? (CP.regl._qui || "mix") : autorises[0]);
@@ -3003,6 +3025,9 @@ function rendAccueil(){
       <button class="cp-porte" id="cpPorteCoaching"><div class="cp-ico">${ICO.coach}</div><h3>Coaching</h3>
         <p>Analyse de call, roleplay, questions-réponses. Sur ce que tes calls montrent.</p>
         <div class="cp-chiffre">${enCours.length ? enCours.length + " séance" + (enCours.length > 1 ? "s" : "") + " à reprendre" : (prio ? "Phase prioritaire : " + escapeHTML(prio.nom) : "&nbsp;")}</div></button>
+      ${TESTEUR ? "" : `<button class="cp-porte" id="cpPorteRelances"><div class="cp-ico">${ICO.relance}</div><h3>Relances</h3>
+        <p>Tes prospects à rappeler, ce qui s'est dit, et le message prêt à envoyer.</p>
+        <div class="cp-chiffre">${st ? (n => n ? n + " à faire aujourd'hui" : dossiersRelance().filter(d => d.actif).length + " en cours")(relancesDues().length) : (CP.suiviErreur === "non connecté" ? "À connecter" : "&nbsp;")}</div></button>`}
     </div>
     ${enCours[0] ? `<div class="cp-carte"><h4>À reprendre</h4><div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(enCours[0].titre)}</b><small>${escapeHTML(coachDe(enCours[0].qui).nom)} · commencée le ${jour(enCours[0].debut)} · ${enCours[0].conv.length} échanges</small></div>
       <button class="cp-btn plein" data-reprendre="${enCours[0].id}">Reprendre</button></div></div>` : ""}
@@ -3010,6 +3035,7 @@ function rendAccueil(){
   </div>`;
   $("cpPorteTracking").onclick = ouvreTracking;
   $("cpPorteCoaching").onclick = ouvreCoaching;
+  if($("cpPorteRelances")) $("cpPorteRelances").onclick = ouvreRelances;
   if($("cpVersReglages")) $("cpVersReglages").onclick = () => { accueilEl.style.display = "none"; ancien.classList.add("on"); home.scrollTop = 0; };
   if($("cpChangeCode")) $("cpChangeCode").onclick = () => { try{ localStorage.removeItem("woidih_code_acces"); }catch(_){} location.reload(); };
   accueilEl.querySelectorAll("[data-reprendre]").forEach(b => b.onclick = () => reprend(b.dataset.reprendre));
@@ -3196,6 +3222,209 @@ function graphique(){
   svg += "</svg>";
   return `<div class="cp-graph">${svg}</div><div class="cp-legende"><span><i style="background:#C9B28C"></i>Grille respectée (%)</span>
     <span><i style="background:#A3AEB8"></i>Calls signés (%)</span><span><i style="background:#3A3833;height:9px"></i>Tes entraînements</span></div>`;
+}
+
+/* ---------------------------------------------------------------------
+   Relances : les prospects à rappeler, ce qui s'est dit pendant le call,
+   et le message à leur envoyer. Les calls viennent du suivi ; tes statuts,
+   tes dates et tes fiches restent dans ton navigateur.
+   --------------------------------------------------------------------- */
+const STATUTS_RELANCE = [["a_relancer", "À relancer"], ["relance", "Relancé, j'attends"], ["rdv", "Rendez-vous calé"], ["signe", "Signé"], ["perdu", "Sans suite"]];
+const CANAUX_RELANCE = [["whatsapp", "WhatsApp"], ["email", "E-mail"]];
+const cleProspect = c => (c.prospect || c.titre) ? nomCall(c).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim() : "call " + c.id;
+const sauveRelances = () => Store.set(K("coach_perso_relances"), CP.relances);
+const dansJours = n => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+const jourLong = d => { const x = new Date(d + "T12:00:00"); return isNaN(x) ? String(d || "") : x.toLocaleDateString("fr-FR", {weekday: "long", day: "numeric", month: "long"}); };
+const canalRelance = () => CP.regl._canalRelance === "email" ? "email" : "whatsapp";
+const relance = k => (CP.relances[k] = CP.relances[k] || {});
+
+/* un dossier par prospect : tous ses calls, le plus récent d'abord */
+function dossiersRelance(){
+  const par = new Map();
+  CP.calls.forEach(c => { const k = cleProspect(c); if(!par.has(k)) par.set(k, []); par.get(k).push(c); });
+  return [...par].map(([k, calls]) => {
+    const r = CP.relances[k] || {}, dernier = calls[0];
+    const signe = calls.some(c => /sign|vendu/i.test(c.issue || "")), perdu = /perd|sans suite/i.test(dernier.issue || "");
+    const statut = signe ? "signe" : r.statut || (perdu ? "perdu" : "a_relancer");
+    return {k, calls, dernier, r, statut, actif: ["a_relancer", "relance", "rdv"].includes(statut),
+            prochaine: r.prochaine != null ? r.prochaine : ((r.fiche && r.fiche.prochaine_date) || "")};
+  });
+}
+const relancesDues = () => dossiersRelance().filter(d => d.actif && d.prochaine && d.prochaine <= aujourdhui());
+
+function promptFicheRelance(c, texte){
+  return `Voici la transcription d'un call de vente mené par ${nomProfil()}, closer. Le prospect n'a pas signé pendant le call : il faudra le relancer.
+Call du ${c.date ? jourLong(String(c.date).slice(0, 10)) + " (" + String(c.date).slice(0, 10) + ")" : "?"}${c.etape ? ", " + c.etape : ""}${c.offre ? ", offre : " + c.offre : ""}.
+
+TRANSCRIPTION :
+${texte}
+
+Prépare la fiche de relance. Tu ne t'appuies que sur ce qui est dit dans la transcription : rien d'inventé, et si une information n'y est pas, tu mets une chaîne vide. Quand tu cites le prospect, ce sont ses mots exacts.
+Réponds en JSON seul :
+{"prospect":"son prénom (et son nom s'il est dit)","situation":"qui il est et où il en est, en une phrase","veut":"ce qu'il veut obtenir, avec ses mots","douleur":"ce qui lui pèse vraiment, avec ses mots","blocage":"ce qui l'a empêché de signer (argent, personne à consulter, doute, besoin de preuve…), en une phrase précise","convenu":"ce qui a été convenu à la fin du call : rappel, date, ce qu'il doit faire d'ici là","prochaine_date":"AAAA-MM-JJ si une date de rappel a été fixée (calcule-la à partir de la date du call), sinon chaîne vide","citations":["2 ou 3 phrases exactes du prospect qui comptent pour la relance"],"angle":"le meilleur angle pour le relancer, en une phrase, à partir de ce qu'il a dit","tutoie":true,"chaleur":"chaud|tiede|froid"}`;
+}
+async function prepareFiche(d){
+  const c = d.dernier;
+  let texte = await suivi("/api/call/" + encodeURIComponent(c.id) + "/transcript");
+  if(!String(texte || "").trim()) throw new Error("la transcription de ce call est vide");
+  if(texte.length > 90000) texte = texte.slice(0, 40000) + "\n[… milieu du call coupé …]\n" + texte.slice(-50000);
+  const f = await appelJson(promptFicheRelance(c, texte), 1400, ["situation", "blocage"], {effort: "low"});
+  delete f.__manque;
+  if(!/^\d{4}-\d\d-\d\d$/.test(f.prochaine_date || "")) f.prochaine_date = "";
+  f.citations = (Array.isArray(f.citations) ? f.citations : []).map(String).slice(0, 3);
+  const r = relance(d.k);
+  r.fiche = f; r.ficheCall = c.id; r.ficheT = Date.now();
+  sauveRelances();
+  return f;
+}
+
+function promptMessageRelance(d, canal){
+  const r = CP.relances[d.k] || {}, f = r.fiche || {}, c = d.dernier;
+  const envoyes = (r.messages || []).slice(-3);
+  const jours = c.date ? Math.max(0, Math.round((Date.now() - new Date(c.date).getTime()) / 86400000)) : null;
+  return `Tu écris pour ${nomProfil()}, closer, le message de relance qu'il va envoyer lui-même à un prospect après un call de vente. Il le relira avant de l'envoyer.
+
+LE PROSPECT : ${f.prospect || nomCall(c)}
+Le call : ${c.date ? jourLong(String(c.date).slice(0, 10)) : "date inconnue"}${jours != null ? " (il y a " + jours + " jour" + (jours > 1 ? "s" : "") + ")" : ""}${c.etape ? ", " + c.etape : ""}${c.offre ? ", offre : " + c.offre : ""}.
+Sa situation : ${f.situation || c.resume || "—"}
+Ce qu'il veut : ${f.veut || "—"}
+Ce qui lui pèse : ${f.douleur || "—"}
+Ce qui l'a empêché de signer : ${f.blocage || "—"}
+Ce qui a été convenu : ${f.convenu || "—"}
+Ses mots exacts : ${(f.citations || []).map(x => "« " + x + " »").join(" ; ") || "—"}
+Angle conseillé : ${f.angle || "—"}
+${r.note ? "Ce que " + nomProfil() + " a noté depuis : " + r.note + "\n" : ""}${envoyes.length ? "Relances déjà envoyées, sans signature depuis :\n" + envoyes.map(m => "- le " + jour(m.t) + " : " + m.txt.slice(0, 400)).join("\n") + "\n" : "C'est la première relance.\n"}Aujourd'hui : ${jourLong(aujourdhui())}.
+
+LE MESSAGE :
+- ${canal === "email" ? "Un e-mail : une première ligne « Objet : … » courte et sans majuscules criardes, puis 5 à 8 lignes." : "Un message WhatsApp : 3 à 5 lignes courtes, pas d'objet, pas de formule de politesse."}
+- ${f.tutoie === false ? "Vouvoiement." : "Tutoiement."} Le ton d'un humain qui écrit à un autre, pas d'un vendeur. Pas d'émoji, pas de point d'exclamation en série.
+- Il part de ce que le prospect a dit, avec ses mots à lui, et de ce qui a été convenu. Il montre que ${nomProfil()} a écouté.
+- Une seule question à la fin, à laquelle on répond facilement.
+- Aucune fausse urgence, aucune pression, aucune promesse, remise ou échéance qui n'est pas écrite ci-dessus. Tu n'inventes aucun fait.
+${envoyes.length >= 2 ? "- Il a déjà été relancé " + envoyes.length + " fois : message plus court, et tu lui laisses une vraie porte de sortie (s'il a décidé que non, qu'il le dise simplement).\n" : envoyes.length ? "- Il a déjà été relancé une fois : change d'angle, ne répète pas le message précédent.\n" : ""}- Signé ${nomProfil()}.
+Réponds avec le message seul, prêt à copier.`;
+}
+async function redigeRelance(d){
+  if(!(CP.relances[d.k] || {}).fiche || (CP.relances[d.k].ficheCall !== d.dernier.id)) await prepareFiche(d);
+  const canal = canalRelance();
+  const txt = await appelCerveau(promptMessageRelance(d, canal), {max: 700, effort: "low"});
+  const r = relance(d.k);
+  r.brouillon = {canal, txt: String(txt || "").replace(/<<[\s\S]*?>>/g, "").trim()};
+  sauveRelances();
+}
+
+async function ouvreRelances(){
+  montre(ecRelances);
+  const el = $("cpRelancesIn");
+  el.innerHTML = '<button class="cp-lien" id="cpRelRetour">← Accueil</button><p class="cp-vide" style="margin-top:20px">Je récupère tes calls…</p>';
+  $("cpRelRetour").onclick = accueil;
+  await chargeSuivi();
+  rendRelances();
+}
+function rendRelances(){
+  const el = $("cpRelancesIn");
+  let h = `<div class="cp-haut"><button class="cp-lien" id="cpRelRetour">← Accueil</button>
+    <div class="cp-btns"><button class="cp-btn" id="cpRelMaj">Actualiser</button></div></div>
+    <h1 class="cp-titre">Relances</h1><p class="cp-sous">Tes prospects qui n'ont pas signé pendant le call : ce qui s'est dit, ce qui était convenu, et le message à leur envoyer.</p>`;
+  if(!CP.stats){ el.innerHTML = h + formulaireSuivi(); $("cpRelRetour").onclick = accueil; if($("cpRelMaj")) $("cpRelMaj").onclick = ouvreRelances; brancheFormulaireSuivi(rendRelances); return; }
+  const tous = dossiersRelance(), auj = aujourdhui();
+  const parDate = (a, b) => String(a.prochaine).localeCompare(String(b.prochaine));
+  const dus = tous.filter(d => d.actif && d.prochaine && d.prochaine <= auj).sort(parDate);
+  const sansDate = tous.filter(d => d.actif && !d.prochaine);
+  const aVenir = tous.filter(d => d.actif && d.prochaine > auj).sort(parDate);
+  const finis = tous.filter(d => !d.actif);
+  const sansFiche = tous.filter(d => d.actif && !d.r.fiche);
+  h += `<div class="cp-kpis">
+    <div class="cp-kpi"><span>À faire aujourd'hui</span><b${dus.length ? ' style="color:var(--amber)"' : ""}>${dus.length}</b></div>
+    <div class="cp-kpi"><span>Sans date de relance</span><b>${sansDate.length}</b></div>
+    <div class="cp-kpi"><span>À venir</span><b>${aVenir.length}</b></div>
+    <div class="cp-kpi"><span>Signés</span><b>${tous.filter(d => d.statut === "signe").length}</b></div></div>
+  <div class="cp-rel-outils"><span>J'écris mes relances par</span>${CANAUX_RELANCE.map(([k, n]) => `<button class="cp-btn${canalRelance() === k ? " plein" : ""}" data-canal="${k}">${n}</button>`).join("")}
+    ${sansFiche.length ? `<button class="cp-btn" id="cpRelToutes" style="margin-left:auto"${CP.relToutes ? " disabled" : ""}>${CP.relToutes ? escapeHTML(CP.relToutes) : (sansFiche.length > 1 ? "Préparer les " + Math.min(sansFiche.length, 12) + " fiches qui manquent" : "Préparer la fiche qui manque")}</button>` : ""}</div>`;
+  const bloc = (titre, liste, vide) => `<div class="cp-carte"><h4>${titre}${liste.length ? " · " + liste.length : ""}</h4>${liste.length ? `<div class="cp-rel-tete"><span>Prospect</span><span>Ce qui s'est dit</span><span>Prochaine relance</span><span>Où ça en est</span><span></span></div>` + liste.map(ligneRelance).join("") : `<p class="cp-vide">${vide}</p>`}</div>`;
+  if(!tous.length) h += '<div class="cp-carte"><p class="cp-vide">Aucun call dans ton suivi pour l\'instant.</p></div>';
+  else{
+    h += bloc("À faire aujourd'hui", dus, "Rien en retard. Bien joué.");
+    if(sansDate.length) h += bloc("Sans date de relance", sansDate, "");
+    if(aVenir.length) h += bloc("À venir", aVenir, "");
+    if(finis.length) h += `<details class="cp-rel-finis"${CP.relFinis ? " open" : ""}><summary>Signés et sans suite · ${finis.length}</summary>${bloc("Terminés", finis, "")}</details>`;
+  }
+  el.innerHTML = h;
+  $("cpRelRetour").onclick = accueil;
+  $("cpRelMaj").onclick = async () => { $("cpRelMaj").textContent = "…"; await chargeSuivi(true); rendRelances(); };
+  const fin = el.querySelector(".cp-rel-finis"); if(fin) fin.ontoggle = () => { CP.relFinis = fin.open; };
+  el.querySelectorAll("[data-canal]").forEach(b => b.onclick = () => { CP.regl._canalRelance = b.dataset.canal; sauve(); rendRelances(); });
+  const dossier = k => dossiersRelance().find(d => d.k === k);
+  const occupe = async (k, quoi, fn) => {
+    if(CP.relOccupe[k]) return;
+    CP.relOccupe[k] = quoi; CP.relOuvert = k; rendRelances();
+    try{ await fn(dossier(k)); }catch(e){ toast(e.message || "Ça n'a pas marché."); }
+    delete CP.relOccupe[k]; if(ecRelances.classList.contains("on")) rendRelances();
+  };
+  if($("cpRelToutes")) $("cpRelToutes").onclick = async () => {
+    const liste = dossiersRelance().filter(d => d.actif && !d.r.fiche).slice(0, 12);
+    let rates = 0;
+    for(let i = 0; i < liste.length; i++){
+      CP.relToutes = "Fiche " + (i + 1) + " sur " + liste.length + "…"; if(ecRelances.classList.contains("on")) rendRelances();
+      try{ await prepareFiche(liste[i]); }catch(e){ rates++; if(e.quota) break; }
+    }
+    CP.relToutes = ""; if(rates) toast(rates + " fiche" + (rates > 1 ? "s" : "") + " non préparée" + (rates > 1 ? "s" : "") + ". Réessaie sur la ligne.");
+    if(ecRelances.classList.contains("on")) rendRelances();
+  };
+  el.querySelectorAll("[data-rel-ouvre]").forEach(b => b.onclick = () => { CP.relOuvert = CP.relOuvert === b.dataset.relOuvre ? null : b.dataset.relOuvre; rendRelances(); });
+  el.querySelectorAll("[data-rel-date]").forEach(i => i.onchange = () => { relance(i.dataset.relDate).prochaine = i.value; sauveRelances(); rendRelances(); });
+  el.querySelectorAll("[data-rel-statut]").forEach(s => s.onchange = () => { const r = relance(s.dataset.relStatut); r.statut = s.value; if(s.value === "signe" || s.value === "perdu") r.prochaine = ""; sauveRelances(); rendRelances(); });
+  el.querySelectorAll("[data-rel-fiche]").forEach(b => b.onclick = () => occupe(b.dataset.relFiche, "Je lis le call…", prepareFiche));
+  el.querySelectorAll("[data-rel-redige]").forEach(b => b.onclick = () => occupe(b.dataset.relRedige, "J'écris le message…", redigeRelance));
+  el.querySelectorAll("[data-rel-note]").forEach(t => t.onchange = () => { relance(t.dataset.relNote).note = t.value.trim(); sauveRelances(); });
+  el.querySelectorAll("[data-rel-brouillon]").forEach(t => t.onchange = () => { const r = relance(t.dataset.relBrouillon); r.brouillon = Object.assign({canal: canalRelance()}, r.brouillon, {txt: t.value}); sauveRelances(); });
+  el.querySelectorAll("[data-rel-copie]").forEach(b => b.onclick = () => {
+    const t = el.querySelector(`[data-rel-brouillon="${CSS.escape(b.dataset.relCopie)}"]`); if(!t || !t.value.trim()) return;
+    navigator.clipboard.writeText(t.value).then(() => toast("Message copié"), () => toast("Copie refusée : sélectionne le texte à la main."));
+  });
+  el.querySelectorAll("[data-rel-envoye]").forEach(b => b.onclick = () => {
+    const k = b.dataset.relEnvoye, r = relance(k), t = el.querySelector(`[data-rel-brouillon="${CSS.escape(k)}"]`);
+    if(!t || !t.value.trim()) return toast("Il n'y a pas de message à noter.");
+    r.messages = (r.messages || []).concat({t: Date.now(), canal: (r.brouillon || {}).canal || canalRelance(), txt: t.value.trim()}).slice(-12);
+    r.brouillon = null; r.statut = "relance"; r.prochaine = dansJours(r.messages.length === 1 ? 3 : r.messages.length === 2 ? 5 : 7);
+    sauveRelances(); rendRelances(); toast("Noté. Prochaine relance proposée " + jourLong(r.prochaine) + ".");
+  });
+  el.querySelectorAll("[data-rel-analyse]").forEach(b => b.onclick = () => nouvelleAnalyse(CP.calls.find(c => c.id === b.dataset.relAnalyse)));
+}
+function ligneRelance(d){
+  const c = d.dernier, r = d.r, f = r.fiche, k = escapeHTML(d.k), ouvert = CP.relOuvert === d.k, occ = CP.relOccupe[d.k];
+  const retard = d.actif && d.prochaine && d.prochaine < aujourdhui();
+  const perime = f && r.ficheCall !== c.id;
+  const dit = f ? `<b>${escapeHTML(f.blocage || "—")}</b><small>${f.convenu ? "Convenu : " + escapeHTML(f.convenu) : escapeHTML(f.situation || "")}</small>`
+                : `<small style="margin:0">${escapeHTML(String(c.resume || "Pas encore de fiche pour ce call.").slice(0, 190))}</small>`;
+  let h = `<div class="cp-rel${ouvert ? " ouvert" : ""}"><div class="cp-rel-l">
+    <button class="cp-rel-nom" data-rel-ouvre="${k}"><b>${escapeHTML((f && f.prospect) || nomCall(c))}</b>
+      <small>${escapeHTML(String(c.date || "").slice(0, 10))}${c.etape ? " · " + escapeHTML(c.etape) : ""}${d.calls.length > 1 ? " · " + d.calls.length + " calls" : ""}${(r.messages || []).length ? " · " + r.messages.length + " relance" + (r.messages.length > 1 ? "s" : "") : ""}</small></button>
+    <button class="cp-rel-dit" data-rel-ouvre="${k}">${dit}</button>
+    <div class="cp-rel-quand"><input type="date" data-rel-date="${k}" value="${escapeHTML(d.prochaine)}" aria-label="Prochaine relance"${d.statut === "signe" ? " disabled" : ""}>${retard ? '<small style="color:var(--clay)">en retard</small>' : ""}</div>
+    <select data-rel-statut="${k}" aria-label="Où ça en est"${d.calls.some(x => /sign|vendu/i.test(x.issue || "")) ? " disabled" : ""}>${STATUTS_RELANCE.map(([v, n]) => `<option value="${v}"${v === d.statut ? " selected" : ""}>${n}</option>`).join("")}</select>
+    <button class="cp-btn${d.actif ? " plein" : ""}" data-rel-redige="${k}"${occ ? " disabled" : ""}>${occ ? "…" : "Rédiger"}</button></div>`;
+  if(ouvert){
+    const champ = (nom, v) => v ? `<div class="cp-rel-champ"><span>${nom}</span><p>${escapeHTML(v)}</p></div>` : "";
+    h += `<div class="cp-rel-detail">`;
+    if(occ) h += `<p class="cp-vide">${escapeHTML(occ)}</p>`;
+    if(f) h += `${perime ? `<p class="cp-vide" style="color:var(--amber);margin-bottom:10px">Il y a eu un nouveau call depuis cette fiche.</p>` : ""}
+      <div class="cp-rel-fiche">${champ("Sa situation", f.situation)}${champ("Ce qu'il veut", f.veut)}${champ("Ce qui lui pèse", f.douleur)}${champ("Ce qui a bloqué", f.blocage)}${champ("Ce qui était convenu", f.convenu)}${champ("L'angle de relance", f.angle)}</div>
+      ${(f.citations || []).length ? `<div class="cp-rel-champ"><span>Ses mots</span>${f.citations.map(x => `<p>« ${escapeHTML(x)} »</p>`).join("")}</div>` : ""}`;
+    else if(!occ) h += `<p class="cp-vide">${escapeHTML(c.resume || "Pas encore de fiche.")}</p>`;
+    h += `<div class="cp-rel-champ"><span>Ta note (ce qui s'est passé depuis le call)</span>
+        <textarea data-rel-note="${k}" rows="2" placeholder="Ex. : il m'a écrit hier, il attend sa paie du 30.">${escapeHTML(r.note || "")}</textarea></div>`;
+    if(r.brouillon && r.brouillon.txt) h += `<div class="cp-rel-champ"><span>Le message (${r.brouillon.canal === "email" ? "e-mail" : "WhatsApp"}) : relis-le, change ce que tu veux</span>
+        <textarea data-rel-brouillon="${k}" rows="${r.brouillon.canal === "email" ? 10 : 6}">${escapeHTML(r.brouillon.txt)}</textarea></div>`;
+    h += `<div class="cp-btns" style="flex-wrap:wrap">
+      ${r.brouillon && r.brouillon.txt ? `<button class="cp-btn plein" data-rel-copie="${k}">Copier</button><button class="cp-btn" data-rel-envoye="${k}">Je l'ai envoyé</button>` : ""}
+      <button class="cp-btn" data-rel-redige="${k}"${occ ? " disabled" : ""}>${r.brouillon && r.brouillon.txt ? "Réécrire le message" : "Rédiger le message"}</button>
+      <button class="cp-btn" data-rel-fiche="${k}"${occ ? " disabled" : ""}>${f ? "Refaire la fiche" : "Préparer la fiche"}</button>
+      <button class="cp-btn" data-rel-analyse="${escapeHTML(c.id)}">Analyser ce call avec le coach</button></div>`;
+    if((r.messages || []).length) h += `<div class="cp-rel-champ" style="margin-top:14px"><span>Déjà envoyé</span>${r.messages.slice().reverse().map(m => `<p><small style="display:inline;color:var(--muted)">${jour(m.t)} · ${m.canal === "email" ? "e-mail" : "WhatsApp"}</small><br>${escapeHTML(m.txt).replace(/\n/g, "<br>")}</p>`).join("")}</div>`;
+    h += `</div>`;
+  }
+  return h + `</div>`;
 }
 
 /* ---------------------------------------------------------------------
