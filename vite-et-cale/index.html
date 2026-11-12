@@ -137,7 +137,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within
 .stepper button{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--surface);font-size:20px;font-weight:700}
 .stepper b{font-family:var(--f-display);font-size:28px;min-width:2ch;text-align:center}
 input[type=range]{width:100%;accent-color:var(--leaf)}
-input[type=text],input[type=number],input[type=date],input[type=password],select.in{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:100%}
+input[type=text],input[type=number],input[type=date],input[type=password],input[type=email],input[type=tel],select.in{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:100%}
 .rangeval{font-family:var(--f-display);font-size:28px;font-weight:800}
 .hint{font-size:13px;color:var(--muted)}
 
@@ -228,6 +228,9 @@ nav.tabs .nb{position:absolute;top:7px;left:calc(50% + 6px);min-width:17px;heigh
 details.finies summary{cursor:pointer;font-weight:700;padding:12px 14px}
 .invite{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
 .invite b{flex:1 1 200px;font-size:14.5px}
+.beta-card{display:grid;gap:8px;border-color:var(--leaf)}
+.beta-card .row{display:flex;gap:8px;flex-wrap:wrap}
+textarea.in{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);resize:vertical}
 .promo-sem .btn{justify-self:start}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
 .card ul,.card ol{margin:0;padding-left:20px}
@@ -1046,7 +1049,7 @@ function renderOnb(){
   $("next").onclick=()=>{
     if(s<steps.length-1){ ONB.step++; renderOnb(); window.scrollTo(0,0); return; }
     $("next").disabled=true; ST.profil=P;
-    prepare(()=>{ nouveauPlan(); ST.onglet="semaine"; ST.jour=(new Date().getDay()+6)%7; persist(); renderApp(); });
+    prepare(()=>{ nouveauPlan(); ST.onglet="semaine"; ST.jour=(new Date().getDay()+6)%7; persist(); renderApp(); compteUtilisateur(); });
   };
 }
 
@@ -1131,6 +1134,8 @@ function vueSemaine(v,P,tk){
     heroSoir(d,P)+
     SLOTS.filter(k=>d[k]&&k!=="soir").map(k=>carteRepas(k,d[k],P)).join("")+
     prepDimanche(plan.days)+
+    (!ST.beta&&!ST.betaPlusTard?'<div class="card beta-card"><b>💬 Rejoins les bêta-testeurs</b><span class="muted">L\'appli est toute neuve : dis-nous ce qui va et ce qui coince, on t\'écrit de temps en temps.</span>'+
+      '<div class="row"><button type="button" class="btn small" id="goBeta">Je m\'inscris</button><button type="button" class="btn small ghost" id="betaNon">Plus tard</button></div></div>':"")+
     '<button type="button" class="btn ghost" id="regen">Nouvelle semaine ↻</button>'+
     '<p class="foot">Calories et protéines estimées par personne. Si tu as encore faim, ajoute du pain complet, un fruit ou un yaourt.</p>';
   v.querySelectorAll("[data-day]").forEach(b=>b.onclick=()=>{ST.jour=+b.dataset.day;persist();renderApp();});
@@ -1138,6 +1143,8 @@ function vueSemaine(v,P,tk){
   v.querySelectorAll("[data-swap]").forEach(b=>b.onclick=()=>ficheEchange(b.dataset.swap));
   $("regen").onclick=()=>prepare(()=>{nouveauPlan();renderApp();toast("Nouvelle semaine prête.");});
   /* On garde la semaine actuelle (déjà moins chère avec les promos) sauf si une nouvelle l'est encore plus. */
+  if($("goBeta")) $("goBeta").onclick=()=>ficheBeta("beta");
+  if($("betaNon")) $("betaNon").onclick=()=>{ ST.betaPlusTard=AUJ; persist(); renderApp(); };
   if($("avecPromos")) $("avecPromos").onclick=()=>{ const avant=tk.total; utiles.forEach(prendPromo); persist();
     prepare(()=>{ let best=null, cur=ticket(ST.plan.days,P).total;
       for(let i=0;i<3;i++){ const s=Math.floor(Math.random()*1e6)+1, g=generer(P,s); if(g.err||!g.ok) continue;
@@ -1764,17 +1771,68 @@ function vueProfil(v){
       '<div class="card">'+sectionLieu(draft)+'</div><div class="card">'+sectionSante(draft)+'</div><div class="card">'+sectionBudget(draft)+'</div>'+
       '<button type="button" class="btn" id="save">Enregistrer et refaire ma semaine</button>'+
       sectionOpenPrices()+
+      '<div class="card"><h3>Ton avis compte</h3><p class="muted" style="font-size:13.5px;margin:4px 0 10px">'+(ST.beta?"Tu es inscrit·e comme bêta-testeur. Merci !":"Rejoins les bêta-testeurs pour nous aider à améliorer l'appli.")+'</p>'+
+        '<div class="row">'+(ST.beta?"":'<button type="button" class="btn small" id="pBeta">Rejoindre les bêta-testeurs</button>')+'<button type="button" class="btn small ghost" id="pAvis">Donner mon avis</button></div></div>'+
+      '<details class="card"><summary><b>Ce que l\'appli envoie</b></summary><p class="muted" style="font-size:13.5px">Ton profil, ton budget, ton frigo et tes semaines restent sur ton téléphone. L\'appli envoie seulement :</p><ul class="muted" style="font-size:13.5px;margin:0;padding-left:20px">'+
+        '<li>une seule fois, un signal anonyme quand tu crées ta première semaine (ton département, ton enseigne et le nombre de personnes), pour compter les utilisateurs ;</li>'+
+        '<li>ton prénom, ton e-mail et ton avis, seulement si tu t\'inscris comme bêta-testeur ou donnes ton avis ;</li>'+
+        '<li>les promos que tu choisis de partager, sur Open Prices.</li></ul><p class="muted" style="font-size:13.5px">Pour faire effacer tes informations, écris-le dans « Donner mon avis » avec ton e-mail.</p></details>'+
       '<button type="button" class="btn ghost" id="reset">Tout effacer et recommencer</button>'+
       '<p class="foot" id="resetMsg" hidden></p>';
     bindForm(v,draft,draw);
     $("prenom2").oninput=e=>{draft.prenom=e.target.value.slice(0,30);};
     bindOpenPrices(()=>{ draft.osm=ST.profil.osm; draw(); });
+    if($("pBeta")) $("pBeta").onclick=()=>ficheBeta("beta");
+    $("pAvis").onclick=()=>ficheBeta("avis");
     $("save").onclick=()=>{ draft.osm=ST.profil.osm; ST.profil=draft; prepare(()=>{ nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Profil enregistré, nouvelle semaine prête."); }); };
     let arm=false;
     $("reset").onclick=()=>{ if(!arm){ arm=true; $("reset").textContent="Toucher encore pour tout effacer"; return; }
       ST={profil:null,plan:null,coches:[],onglet:"semaine",jour:null,filtre:"tous",stock:{},mesPromos:{}}; persist(); demarrer(); };
   };
   draw();
+}
+
+/* ================= Suivi : Google Forms du créateur de l'appli =================
+   Envoi direct au formulaire (sans compte Google). Seuls ces envois quittent le téléphone :
+   - une fois par téléphone, un signal anonyme « nouvel utilisateur » (département, enseigne, nombre de personnes) ;
+   - l'inscription bêta-testeur ou l'avis, seulement quand la personne le décide. */
+const FORM_URL="https://docs.google.com/forms/d/e/1FAIpQLSdHEuXOKKw73L0pTrJowG-axvCTKqHeAYc5OdSvXTYmC5S_5w/formResponse";
+const FORM_CHAMPS={nom:"entry.2005620554",email:"entry.1045781291",dep:"entry.1065046570",tel:"entry.1166974658",com:"entry.839337160"};
+function envoiForm(d){
+  const b=new URLSearchParams(); Object.keys(FORM_CHAMPS).forEach(k=>{ if(d[k]) b.append(FORM_CHAMPS[k],String(d[k]).slice(0,2000)); });
+  return fetch(FORM_URL,{method:"POST",mode:"no-cors",body:b});   // réponse illisible (no-cors) : une erreur réseau seule fait échouer
+}
+function depDe(P){ return (P&&P.ville&&P.ville.dep)||(P&&P.region==="re"?"974":"inconnu"); }
+function compteUtilisateur(){
+  try{ if(localStorage.getItem("vc_compte")) return; localStorage.setItem("vc_compte",AUJ); }catch(e){ return; }
+  const P=ST.profil;
+  envoiForm({nom:"Compteur (anonyme)",email:"compteur@example.com",dep:depDe(P),
+    com:"Nouvel utilisateur · "+magasin(P)[1]+" · "+P.personnes+" pers. · "+(P.ville?"ville choisie":"sans ville")}).catch(()=>{ try{ localStorage.removeItem("vc_compte"); }catch(e){} });
+}
+const EMAIL_OK=/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+function ficheBeta(mode){   // mode "beta" : inscription ; "avis" : juste un avis
+  const P=ST.profil, beta=mode!=="avis";
+  ouvrirPanneau('<div class="head"><h2>'+(beta?"Rejoins les bêta-testeurs":"Donner mon avis")+'</h2><button type="button" class="x" data-close aria-label="Fermer">×</button></div>'+
+    '<p class="muted" style="margin:0 0 10px">'+(beta?"Tu testes l'appli pour de vrai et tu nous dis ce qui va et ce qui coince. On t'écrit de temps en temps pour avoir ton avis, jamais pour te vendre quelque chose.":"Ce qui te plaît, ce qui coince, ce qui manque : tout nous aide.")+'</p>'+
+    '<form class="form" id="fBeta" novalidate>'+
+    '<div class="f"><label for="bNom">Prénom'+(beta?"":" (facultatif)")+'</label><input type="text" id="bNom" autocomplete="given-name" value="'+esc(P.prenom||"")+'"></div>'+
+    '<div class="f"><label for="bMail">E-mail'+(beta?"":" (facultatif, pour qu'on puisse te répondre)")+'</label><input type="email" id="bMail" autocomplete="email" inputmode="email"></div>'+
+    (beta?'<div class="f"><label for="bTel">Téléphone (facultatif)</label><input type="tel" id="bTel" autocomplete="tel" inputmode="tel"></div>':"")+
+    '<div class="f"><label for="bAvis">'+(beta?"Un premier avis ? (facultatif)":"Ton avis")+'</label><textarea id="bAvis" rows="4" class="in"></textarea></div>'+
+    (beta?'<label class="check"><input type="checkbox" id="bOk"><span>J\'accepte que Vite &amp; Calé m\'écrive à propos de l\'appli. Je peux me désinscrire à tout moment en le demandant par e-mail.</span></label>':"")+
+    '<div id="bMsg"></div><button type="submit" class="btn" id="bGo">'+(beta?"Je m'inscris":"Envoyer mon avis")+'</button></form>',
+  sh=>{ const msg=(t,err)=>{ $("bMsg").innerHTML='<div class="etat'+(err?" err":"")+'">'+esc(t)+'</div>'; };
+    $("fBeta").onsubmit=e=>{ e.preventDefault();
+      const nom=$("bNom").value.trim().slice(0,60), mail=$("bMail").value.trim().slice(0,120), avis=$("bAvis").value.trim(), tel=$("bTel")?$("bTel").value.trim().slice(0,30):"";
+      if(beta&&!nom){ msg("Indique ton prénom.",true); return; }
+      if((beta||mail)&&!EMAIL_OK.test(mail)){ msg("Cette adresse e-mail ne semble pas complète.",true); return; }
+      if(!beta&&!avis){ msg("Écris ton avis avant d'envoyer.",true); return; }
+      if(beta&&!$("bOk").checked){ msg("Coche la case pour qu'on puisse t'écrire.",true); return; }
+      $("bGo").disabled=true; msg("Envoi…");
+      envoiForm({nom:nom||"Avis anonyme",email:mail||"anonyme@example.com",dep:depDe(P),tel,com:(beta?"[Bêta-testeur] ":"[Avis] ")+(avis||"")})
+        .then(()=>{ if(beta){ ST.beta=AUJ; persist(); } fermerPanneau(); renderApp(); toast(beta?"Merci ! Tu fais partie des bêta-testeurs.":"Merci pour ton avis !"); })
+        .catch(()=>{ $("bGo").disabled=false; msg("Envoi impossible : vérifie ta connexion et réessaie.",true); }); };
+  });
 }
 
 /* ================= Panneaux ================= */
