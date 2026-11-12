@@ -246,6 +246,12 @@ def ingredient_du_nom(nom):
     return None
 
 
+def fin_du_commentaire(c):
+    """Date de fin écrite par l'appli dans le commentaire Open Prices (« Valable jusqu'au AAAA-MM-JJ »)."""
+    m = re.search(r"jusqu.au (\d{4}-\d{2}-\d{2})", c or "", re.I)
+    return m.group(1) if m else None
+
+
 def promos():
     depuis = (dt.date.today() - dt.timedelta(days=JOURS_PROMOS)).isoformat()
     par_cat = {cfg["cat"]: ing for ing, cfg in INGREDIENTS.items() if "cat" in cfg}
@@ -289,7 +295,7 @@ def promos():
             "id": pr.get("id"), "par": pr.get("owner"), "cree": pr.get("created"), "loc": loc.get("id"),
             "osm": [loc.get("osm_type"), loc.get("osm_id")] if loc.get("osm_id") else None,
             "code": pr.get("product_code"), "cat": pr.get("category_tag"), "remise": pr.get("discount_type"),
-            "per": pr.get("price_per"),
+            "per": pr.get("price_per"), "fin": fin_du_commentaire(pr.get("owner_comment")),
         })
         if len(out) >= MAX_PROMOS:
             break

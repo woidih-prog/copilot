@@ -221,6 +221,11 @@ nav.tabs .nb{position:absolute;top:7px;left:calc(50% + 6px);min-width:17px;heigh
 .chasse .rg{font-family:var(--f-display);font-weight:800;color:var(--leaf)}
 .promo-sem{display:grid;gap:6px;border-color:var(--warn)}
 .vote.part{margin-left:auto}
+.fr{font-style:normal;font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 7px;margin-right:6px}
+.fr.ok{background:var(--leaf-soft);color:var(--leaf)}
+.fr.verif{background:var(--squash-soft);color:var(--squash)}
+.fr.old{background:var(--line);color:var(--muted)}
+details.finies summary{cursor:pointer;font-weight:700;padding:12px 14px}
 .invite{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
 .invite b{flex:1 1 200px;font-size:14.5px}
 .promo-sem .btn{justify-self:start}
@@ -628,8 +633,9 @@ function promoDepuisOP(pr,RG){
     reunion:lat!=null&&lon!=null&&lat>-21.5&&lat<-20.8&&lon>55.1&&lon<56,date:pr.date,lat,lon,prix:pr.price,avant:avant&&avant>pr.price?avant:null,
     type:RG.types[pr.discount_type]||"Remise",qte,unite:unite?Math.round(unite*1000)/1000:null,
     id:pr.id,par:pr.owner,cree:pr.created,loc:loc.id,osm:loc.osm_id?[loc.osm_type,loc.osm_id]:null,code:pr.product_code,cat:pr.category_tag,
-    remise:pr.discount_type,per:pr.price_per,live:true};
+    remise:pr.discount_type,per:pr.price_per,fin:finDuCommentaire(pr.owner_comment),live:true};
 }
+function finDuCommentaire(c){ const m=/jusqu.au (\d{4}-\d{2}-\d{2})/i.exec(c||""); return m?m[1]:null; }
 function clePromo(p){ return [p.code||p.cat||p.nom,p.loc,p.prix].join("|"); }
 function fusionPromos(nouv){
   if(!PROMOS||!PROMOS.promos) return 0;
@@ -1095,7 +1101,8 @@ function promosUtiles(P){
     if(!best[p.ing]||p.unite<best[p.ing].unite) best[p.ing]=p; });
   return Object.values(best);
 }
-function prendPromo(p){ ST.mesPromos[p.ing]={unite:p.unite,nom:p.nom,prix:p.prix,avant:p.avant,magasin:p.magasin,type:p.type,jusqua:new Date(Date.now()+7*864e5).toISOString().slice(0,10)}; }
+function prendPromo(p){ const f7=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
+  ST.mesPromos[p.ing]={unite:p.unite,nom:p.nom,prix:p.prix,avant:p.avant,magasin:p.magasin,type:p.type,jusqua:finPromo(p)<f7?finPromo(p):f7}; }
 function tagPromo(r){ return r.ing.some(([i])=>promoActive(i))?' <span class="tag promo">promo</span>':""; }
 function vueSemaine(v,P,tk){
   const plan=ST.plan;
@@ -1259,6 +1266,7 @@ function opPrix(promo,proofId,osm){
   const prix={price:promo.prix,currency:"EUR",date:AUJ,location_osm_id:osm.id,location_osm_type:osm.type,proof_id:proofId,price_is_discounted:!!promo.typeOP};
   if(promo.typeOP) prix.discount_type=promo.typeOP;
   if(promo.avant) prix.price_without_discount=promo.avant;
+  if(promo.fin&&promo.fin>=AUJ) prix.owner_comment="Valable jusqu'au "+promo.fin+" (Vite & Calé)";
   if(promo.categorie){ prix.type="CATEGORY"; prix.category_tag=promo.categorie; prix.price_per=promo.per||"KILOGRAM"; }
   else { prix.type="PRODUCT"; prix.product_code=promo.code; if(promo.nom) prix.product_name=promo.nom; }
   return fetch(OP_API+"/prices",{method:"POST",headers:{Authorization:"Bearer "+ST.op.token,"Content-Type":"application/json"},body:JSON.stringify(prix)}).then(r=>r.ok?r.json():opEchec(r));
@@ -1449,7 +1457,7 @@ function ficheConfirmer(p){
       if(!(prix>0)){ msg("Indique le prix.",true); return; }
       if(!photo){ msg("Ajoute la photo de l'étiquette.",true); return; }
       $("cOk").disabled=true; msg("Envoi à Open Prices…");
-      const promo={prix,avant:p.avant&&p.avant>prix?p.avant:null,nom:p.nom,typeOP:p.remise||"SALE",per:p.per};
+      const promo={prix,avant:p.avant&&p.avant>prix?p.avant:null,nom:p.nom,typeOP:p.remise||"SALE",per:p.per,fin:p.fin&&p.fin>=AUJ?p.fin:null};
       if(p.cat) promo.categorie=p.cat; else promo.code=p.code;
       opPreuve(photo,false,osm).then(id=>opPrix(promo,id,osm)).then(()=>{ ST.contrib.prix++; persist();
           fermerPanneau(); toast("Merci ! Promo confirmée pour tout le monde."); return chargePromosLive(); })
@@ -1463,7 +1471,7 @@ function ficheConfirmer(p){
 function ficheNouvellePromo(){
   const P=ST.profil, ids=Object.keys(ING).filter(id=>!interdits(P).ing.has(id));
   const parRayon={}; ids.forEach(id=>(parRayon[RAYON[id]]=parRayon[RAYON[id]]||[]).push(id));
-  const fin=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
+  const fin=new Date(Date.now()+7*864e5).toISOString().slice(0,10), finParDefaut=fin;
   /* Magasins : le tien (Profil) puis ceux déjà connus d'Open Prices autour de toi */
   const mags=[], vus=new Set();
   if(P.osm){ mags.push(P.osm); vus.add(String(P.osm.id)); }
@@ -1478,7 +1486,7 @@ function ficheNouvellePromo(){
       '<div class="f"><label for="pAvant">Prix normal (€)</label><input type="number" id="pAvant" inputmode="decimal" step="0.01" min="0" placeholder="facultatif"></div></div>'+
     '<div class="row2"><div class="f"><label for="pQte" id="pQteL">Contenu</label><input type="number" id="pQte" inputmode="decimal" step="0.001" min="0.001"></div>'+
       '<div class="f"><label for="pType">Type</label><select class="in" id="pType">'+TYPES_PROMO.map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join("")+'</select></div></div>'+
-    '<div class="f"><label for="pFin">Valable jusqu\'au</label><input type="date" id="pFin" value="'+fin+'" min="'+AUJ+'"></div>'+
+    '<div class="f"><label for="pFin">Valable jusqu\'au (si c\'est écrit sur l\'étiquette)</label><input type="date" id="pFin" value="'+fin+'" min="'+AUJ+'"></div>'+
     '<div class="card" style="padding:12px 14px"><label class="check"><input type="checkbox" id="pOP"'+(peutEnvoyer?" checked":" disabled")+'><span>Partager aussi sur Open Prices'+
       (peutEnvoyer?'<br><small class="muted">Toutes les personnes autour la verront tout de suite. Une photo de l\'étiquette est demandée.</small>'
         :!ST.op?'<br><small class="muted">Connecte-toi ci-dessous pour la partager avec les gens du coin.</small>'
@@ -1529,7 +1537,7 @@ function ficheNouvellePromo(){
       persist(); majPill();
       if(!envoyer){ fermerPanneau(); renderApp(); toast("Promo enregistrée : elle compte dans ton budget."); return; }
       $("pOk").disabled=true; msg("Promo enregistrée. Envoi à Open Prices…");
-      opEnvoi({prix,avant,nom,code,categorie,typeOP:$("pType").value},photo.files[0],mag)
+      opEnvoi({prix,avant,nom,code,categorie,typeOP:$("pType").value,fin:fin!==finParDefaut?fin:null},photo.files[0],mag)
         .then(()=>{ fermerPanneau(); toast("Merci ! Ta promo est visible par les gens du coin."); return chargePromosLive(); }).then(()=>renderApp())
         .catch(err=>{ $("pOk").disabled=false; $("pOk").textContent="Réessayer l'envoi";
           msg((err&&err.message&&!/fetch|network|Failed/i.test(err.message)?err.message:"Envoi impossible : vérifie ta connexion. Depuis l'aperçu claude.ai, l'envoi ne marche pas : utilise l'appli installée.")+" La promo reste enregistrée dans ton budget.",true); });
@@ -1556,9 +1564,24 @@ function blocProspectus(P){
 /* ================= Promos ================= */
 function dateCourte(iso){ return new Date(iso+"T12:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); }
 /* Promos visibles pour ce profil : ni masquées (« plus là »), ni simples confirmations d'une promo déjà listée. */
-function promosVisibles(P){
+/* Durée de vie d'une promo selon son type (en jours, jour du relevé compris), sauf date de fin indiquée par la personne qui l'a vue. */
+const DUREE_PROMO={EXPIRES_SOON:2,SALE:7,LOYALTY_PROGRAM:14,QUANTITY:14,SEASONAL:14};
+const NOM_DUREE={2:"2 jours",7:"7 jours",14:"14 jours"};
+function dureePromo(p){ return DUREE_PROMO[p.remise]||7; }
+function plusJours(iso,n){ const d=new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+function finPromo(p){ return p.fin||plusJours(p.date||AUJ,dureePromo(p)-1); }
+function promoEnCours(p){ return finPromo(p)>=AUJ; }
+function agePromo(p){ return Math.max(0,Math.round((Date.parse(AUJ)-Date.parse(p.date||AUJ))/864e5)); }
+/* 1 = toute fraîche, vers 0,75 en fin de vie : la carte pâlit avec l'âge */
+function opacitePromo(p){ const t=Math.min(1,agePromo(p)/Math.max(1,dureePromo(p))); return promoEnCours(p)?(1-0.25*t).toFixed(2):"0.6"; }
+function fraicheur(p){ const a=agePromo(p);
+  if(!promoEnCours(p)) return '<i class="fr old">Sans doute finie</i>';
+  if(a===0) return '<i class="fr ok">Vue aujourd\'hui</i>';
+  if(a===1) return '<i class="fr ok">Vue hier</i>';
+  return a>=3||a>=dureePromo(p)/2?'<i class="fr verif">À vérifier</i>':""; }
+function promosVisibles(P,avecFinies){
   const I=interdits(P), V=P.ville, fin=ST.promosFinies||{};
-  return ((PROMOS&&PROMOS.promos)||[]).filter(p=>!p.doublon&&!fin[p.id]&&!(p.ing&&I.ing.has(p.ing))&&(P.region==="re"?true:!p.reunion))
+  return ((PROMOS&&PROMOS.promos)||[]).filter(p=>!p.doublon&&!fin[p.id]&&(avecFinies||promoEnCours(p))&&!(p.ing&&I.ing.has(p.ing))&&(P.region==="re"?true:!p.reunion))
     .map(p=>{ p._d=V&&p.lat!=null&&p.lon!=null?distanceKm(V,{lat:p.lat,lon:p.lon}):null; return p; });
 }
 function promosPres(P){ const r=+P.rayon||20; return promosVisibles(P).filter(p=>p._d!=null&&p._d<=r); }
@@ -1575,8 +1598,8 @@ function majHeureLive(){ const h=$("liveH"); if(h) h.textContent=LIVE_T?"Actuali
 function chasseurs(liste){ const c={}; liste.forEach(p=>{ if(p.par) c[p.par]=(c[p.par]||0)+1; });
   return Object.entries(c).sort((a,b)=>b[1]-a[1]); }
 function quiQuand(p){ const v=vuesPar(p), moi=ST.op&&p.par===ST.op.user;
-  return '<span class="qui">'+(p.live&&p.cree&&Date.now()-Date.parse(p.cree)<6*3600e3?'<i class="direct">En direct</i>':"")+
-    esc(ilYa(p))+(p.par?' · par <b>'+esc(moi?"toi":p.par)+'</b>':"")+(v.size>1?' · <span class="conf">✓ vue par '+v.size+' personnes</span>':"")+'</span>'; }
+  return '<span class="qui">'+(p.live&&p.cree&&Date.now()-Date.parse(p.cree)<6*3600e3?'<i class="direct">En direct</i>':"")+fraicheur(p)+
+    esc(ilYa(p))+(p.fin&&promoEnCours(p)?' · jusqu\'au '+esc(dateCourte(p.fin)):"")+(p.par?' · par <b>'+esc(moi?"toi":p.par)+'</b>':"")+(v.size>1?' · <span class="conf">✓ vue par '+v.size+' personnes</span>':"")+'</span>'; }
 /* Partager : la feuille de partage du téléphone, sinon WhatsApp. Chaque promo partagée fait connaître l'appli. */
 const URL_APPLI="https://woidih-prog.github.io/copilot/vite-et-cale/";
 function partage(texte){
@@ -1591,7 +1614,8 @@ function votes(p){ return p.id&&p.osm?'<div class="votes"><span>Toujours là ?</
   '<button type="button" class="vote part" data-part="'+p.id+'" aria-label="Partager cette promo">↗ Partager</button></div>':""; }
 function vuePromos(v,P){
   cleanPromos(); ST.promosVues=Date.now(); ST.promosFinies=ST.promosFinies||{}; persist();
-  const mag=magasin(P)[1], toutes=(PROMOS&&PROMOS.promos)||[], visibles=promosVisibles(P);
+  const recent=(a,b)=>(b.cree||b.date||"").localeCompare(a.cree||a.date||"");
+  const mag=magasin(P)[1], toutes=(PROMOS&&PROMOS.promos)||[], tout30=promosVisibles(P,true), visibles=tout30.filter(promoEnCours);
   const V=P.ville, rayon=+P.rayon||20;
   if(!ST.filtrePromo||(!V&&ST.filtrePromo!=="toutes"&&ST.filtrePromo!=="enseigne")) ST.filtrePromo=V?"pres":"enseigne";
   if(V&&ST.filtrePromo==="enseigne") ST.filtrePromo="pres";
@@ -1599,7 +1623,6 @@ function vuePromos(v,P){
   const pres=V?visibles.filter(p=>p._d!=null&&p._d<=rayon):[];
   const presEns=pres.filter(p=>p.enseigne===P.magasin);
   const dansEns=visibles.filter(p=>p.enseigne===P.magasin);
-  const recent=(a,b)=>(b.cree||b.date||"").localeCompare(a.cree||a.date||"");
   const liste=(ST.filtrePromo==="pres"?pres:ST.filtrePromo==="presEns"?presEns:ST.filtrePromo==="enseigne"?dansEns:visibles).slice().sort(recent);
   const plusProche=V?visibles.filter(p=>p._d!=null).sort((a,b)=>a._d-b._d)[0]:null;
   const kmTxt=p=>p._d==null?"":p._d<1?"à moins d'1 km":"à "+Math.round(p._d)+" km";
@@ -1613,7 +1636,7 @@ function vuePromos(v,P){
   const carte=(p,i)=>{ const pris=ST.mesPromos[p.ing]&&ST.mesPromos[p.ing].nom===p.nom&&promoActive(p.ing);
     const n=recettes(p.ing), nl=recettesLongues(p.ing), nomIng=p.ing==="fruit"?"fruits":p.ing==="leg"?"légumes":ING[p.ing].n.toLowerCase();
     const gain=price(p.ing,P)>p.unite*CONTENU[p.ing]&&!promoActive(p.ing);
-    return '<div class="promo'+(pris?" prise":"")+'"><div class="nm"><span class="chez">'+logoHTML(p.enseigne||"",true)+'<small>'+esc((p.magasin||"Magasin")+(p.ville?", "+p.ville:""))+'</small>'+(p._d!=null?'<span class="dist">'+kmTxt(p)+'</span>':"")+'</span>'+
+    return '<div class="promo'+(pris?" prise":"")+'" style="opacity:'+opacitePromo(p)+'"><div class="nm"><span class="chez">'+logoHTML(p.enseigne||"",true)+'<small>'+esc((p.magasin||"Magasin")+(p.ville?", "+p.ville:""))+'</small>'+(p._d!=null?'<span class="dist">'+kmTxt(p)+'</span>':"")+'</span>'+
       quiQuand(p)+'<b>'+esc(p.nom)+'</b><small>'+esc([p.qte,eur(p.unite)+" "+uniteNom(p.ing)].filter(Boolean).join(" · "))+'</small>'+
       '<span style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip ing">'+esc(nomIng)+'</span><span class="chip">'+esc(p.type)+'</span></span></div>'+
       '<div class="px"><b class="num">'+eur(p.prix)+'</b>'+(p.avant?'<s class="num">'+eur(p.avant)+'</s>':"")+pct(p)+'</div>'+
@@ -1621,7 +1644,8 @@ function vuePromos(v,P){
         :'<button type="button" class="btn small" data-prendre="'+i+'">Je la prends</button>')+
       '<span class="hint">'+(n?n+" plat"+(n>1?"s l'utilisent":" l'utilise"):nl?nl+" plat"+(nl>1?"s":"")+" si tu acceptes plus de temps de cuisine":"aucun plat pour ton profil")+(gain&&!pris?" · moins cher que ton prix habituel":"")+'</span></div>'+votes(p)+'</div>'; };
   const idx=p=>toutes.indexOf(p);
-  const top=chasseurs(V?pres:visibles).slice(0,5);
+  const top=chasseurs(V?tout30.filter(p=>p._d!=null&&p._d<=rayon):tout30).slice(0,5);
+  const finies=(V?tout30.filter(p=>p._d!=null&&p._d<=rayon):tout30).filter(p=>!promoEnCours(p)).sort(recent);
   v.innerHTML='<div><h2>Promos du coin</h2><p class="muted" style="font-size:13.5px"><span class="live-dot" aria-hidden="true"></span><b>En direct</b> · <span id="liveH"></span><br>Repérées en magasin par les gens du coin et partagées sur Open Prices. « Je la prends » l\'ajoute à ton budget et à tes recettes pendant 7 jours.</p></div>'+
     '<button type="button" class="btn big-cta" id="nouvellePromo">📸 J\'ai vu une promo</button>'+
     (V?'<div class="seg" role="group" aria-label="Où"><button type="button" data-fp="pres" aria-pressed="'+(ST.filtrePromo==="pres")+'">À '+rayon+' km de '+esc(V.nom)+' ('+pres.length+')</button>'+
@@ -1644,10 +1668,13 @@ function vuePromos(v,P){
     blocProspectus(P)+
     (!PROMOS?'<div class="banner">Promos indisponibles pour l\'instant : vérifie ta connexion.</div>':"")+
     '<h3>Pour tes recettes</h3>'+
-    (pourToi.length?pourToi.map(p=>carte(p,toutes.indexOf(p))).join(""):'<p class="muted">Aucune promo relevée sur nos ingrédients ici ces 30 derniers jours.</p>')+
-    (autres.length?'<div class="group"><h3>Autres promos ('+autres.length+')</h3>'+autres.slice(0,60).map(p=>'<div class="mini autre">'+logoHTML(p.enseigne||"",true)+
+    (pourToi.length?pourToi.map(p=>carte(p,toutes.indexOf(p))).join(""):'<p class="muted">Aucune promo en cours sur nos ingrédients ici pour l\'instant.</p>')+
+    (autres.length?'<div class="group"><h3>Autres promos ('+autres.length+')</h3>'+autres.slice(0,60).map(p=>'<div class="mini autre" style="opacity:'+opacitePromo(p)+'">'+logoHTML(p.enseigne||"",true)+
       '<span class="nm">'+quiQuand(p)+esc(p.nom)+'<small>'+esc([p.qte,p.type,(p.magasin||"")+(p.ville?", "+p.ville:""),kmTxt(p)].filter(Boolean).join(" · "))+'</small></span>'+
       '<span class="pp num">'+eur(p.prix)+(p.avant?'<s>'+eur(p.avant)+'</s>':"")+'</span>'+votes(p)+'</div>').join("")+'</div>':"")+
+    (finies.length?'<details class="group finies"><summary>Promos sans doute finies ('+finies.length+')</summary><p class="hint" style="padding:0 14px">Une promo reste affichée 2 jours (date courte), 7 jours (promo) ou 14 jours (carte fidélité, lot), sauf date de fin indiquée. Tu l\'as revue en rayon ? Confirme-la avec 👍.</p>'+
+      finies.slice(0,40).map(p=>'<div class="mini autre" style="opacity:.75">'+logoHTML(p.enseigne||"",true)+'<span class="nm">'+quiQuand(p)+esc(p.nom)+'<small>'+esc([p.type,(p.magasin||"")+(p.ville?", "+p.ville:""),kmTxt(p)].filter(Boolean).join(" · "))+'</small></span>'+
+        '<span class="pp num">'+eur(p.prix)+'</span>'+votes(p)+'</div>').join("")+'</details>':"")+
     '<button type="button" class="btn ghost" id="scanner" style="width:100%">Scanner un prix (sans promo)</button>'+
     '<p class="foot">Promos relevées par des particuliers dans un magasin précis (Open Prices, licence ODbL). Elles peuvent être terminées ou ne valoir que dans ce magasin : vérifie en rayon avant de compter dessus. « Plus là » la masque seulement sur ton téléphone.</p>';
   majHeureLive();
@@ -1661,7 +1688,7 @@ function vuePromos(v,P){
   $("scanner").onclick=ficheScanner;
   if($("choisirVille")) $("choisirVille").onclick=()=>{ ST.onglet="profil"; persist(); renderApp(); setTimeout(()=>{ const q=$("villeQ"); if(q){ q.scrollIntoView({block:"center"}); q.focus(); } },50); };
   v.querySelectorAll("[data-prendre]").forEach(b=>b.onclick=()=>{ const p=toutes[+b.dataset.prendre];
-    const fin=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
+    const f7=new Date(Date.now()+7*864e5).toISOString().slice(0,10), fin=finPromo(p)<f7?finPromo(p):f7;
     ST.mesPromos[p.ing]={unite:p.unite,nom:p.nom,prix:p.prix,magasin:p.magasin,jusqua:fin}; persist(); majPill(); vuePromos(v,P); toast("Promo ajoutée à ton budget."); });
   v.querySelectorAll("[data-lacher]").forEach(b=>b.onclick=()=>{ delete ST.mesPromos[b.dataset.lacher]; persist(); majPill(); vuePromos(v,P); });
   if($("refairePromo")) $("refairePromo").onclick=()=>prepare(()=>{ nouveauPlan(); ST.onglet="semaine"; persist(); renderApp(); toast("Semaine refaite avec tes promos."); });
