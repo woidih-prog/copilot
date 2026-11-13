@@ -30,7 +30,7 @@ Une seule page (`index.html`), sans serveur ni compte : le profil, la semaine et
 - **Hors connexion** une fois ouverte une première fois (`sw.js`), et installable sur l'écran d'accueil (`manifest.json`).
 
 ## Accès payant (Whop), désactivé par défaut
-L'appli reste gratuite tant que `WHOP.app`, `WHOP.produit` et `WHOP.paiement` sont vides dans `index.html`. Une fois remplis :
+Les identifiants Whop sont renseignés dans `index.html`, mais l'appli reste gratuite tant que `WHOP.actif` vaut `false`. Pour essayer le paiement sur un seul téléphone avant le lancement, ouvrir l'appli avec `?whop=test` (`?whop=fin` pour revenir en arrière). Une fois `WHOP.actif` à `true` :
 
 - après le questionnaire, la personne voit un aperçu flouté de sa semaine et le bouton « Voir ma semaine », qui ouvre la page de paiement Whop (carte, essai gratuit et codes promo se règlent dans le tableau de bord Whop) ;
 - de retour dans l'appli, « me connecter » ouvre la connexion Whop (OAuth 2.1 + PKCE, sans secret) puis l'appli demande à Whop si ce compte a accès au produit (`GET /users/{id}/access/{produit}`) ;

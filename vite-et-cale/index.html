@@ -2044,21 +2044,27 @@ window.addEventListener("error",e=>{ if(!e.message) return; const t=$("toast"); 
   t.textContent="Oups, un problème est survenu : "+e.message+". Fais une capture d'écran et envoie-la, merci !"; t.hidden=false;
   clearTimeout(toast.h); toast.h=setTimeout(()=>t.hidden=true,8000); });
 /* ================= Accès payant : Whop =================
-   Tant que WHOP.app, WHOP.produit ou WHOP.paiement est vide, l'appli reste gratuite et rien de ce bloc ne s'exécute.
+   Tant que WHOP.actif est false, l'appli reste gratuite et rien de ce bloc ne s'exécute (sauf en essai, voir plus bas).
    - Le paiement se fait sur la page Whop (WHOP.paiement) : carte, essai gratuit, code promo, tout se règle dans le tableau de bord Whop.
    - L'appli vérifie l'accès sans serveur : « Se connecter avec Whop » (OAuth 2.1 + PKCE, sans secret), puis
      GET /users/{id}/access/{produit}. Seuls des identifiants publics figurent ici, jamais de clé d'API.
    - Bêta-testeurs : un code promo à 100 % ou un lien de paiement gratuit créé dans Whop leur donne le même accès.
    Une page web ne peut pas être verrouillée à 100 % : ce contrôle arrête l'usage normal, pas une personne décidée à modifier le code. */
 const WHOP={
-  app:"",        // identifiant de l'appli Whop, « app_… » (Whop > Developer)
-  produit:"",    // identifiant du produit, « prod_… »
-  paiement:"",   // lien de paiement, « https://whop.com/checkout/plan_… »
+  actif:false,   // false : l'appli reste gratuite pour tout le monde, sauf sur un téléphone passé en essai avec « ?whop=test »
+  app:"app_RLzTeUQTh4rfOq",          // identifiant de l'appli Whop (Whop > Developer)
+  produit:"biz_QQtoMDdK3f5MIp",      // ce dont on vérifie l'accès : l'entreprise Whop (« biz_… ») ou un produit (« prod_… »)
+  paiement:"https://whop.com/viteetcale/viteetcale-coffee-insider-community",   // page où l'on paie
   prix:"2,99 € par mois ou 19,99 € par an",
   essai:""       // ex. « 7 jours gratuits, puis » : à remplir seulement si l'essai est activé sur le lien Whop
 };
 const WHOP_API="https://api.whop.com", K_ACCES="vc_acces", K_JETONS="vc_whop", K_PKCE="vc_whop_pkce";
-const PAYANT=!!(WHOP.app&&WHOP.produit&&WHOP.paiement);
+/* Essai avant lancement : ouvrir l'appli avec « ?whop=test » active le paiement sur ce téléphone seulement ; « ?whop=fin » le retire. */
+try{ const w=new URLSearchParams(location.search).get("whop");
+  if(w==="test") localStorage.setItem("vc_whop_test","1"); else if(w==="fin"){ ["vc_whop_test","vc_acces","vc_whop","vc_whop_pkce"].forEach(k=>localStorage.removeItem(k)); }
+  if(w) history.replaceState(null,"",location.pathname); }catch(e){}
+const WHOP_ESSAI=(()=>{ try{ return localStorage.getItem("vc_whop_test")==="1"; }catch(e){ return false; } })();
+const PAYANT=!!(WHOP.app&&WHOP.produit&&WHOP.paiement)&&(WHOP.actif||WHOP_ESSAI);
 const WHOP_RETOUR=location.origin+location.pathname;          // à déclarer comme « redirect URI » dans l'appli Whop
 const JOUR_MS=864e5, GRACE_JOURS=7;                           // sans réseau, l'accès tient 7 jours après la dernière vérification
 let MUR_MSG="";
@@ -2105,7 +2111,7 @@ async function whopRetour(){
     ecrit(K_ACCES,null);
     await whopJeton({grant_type:"authorization_code",code:code,redirect_uri:WHOP_RETOUR,code_verifier:pkce.v});
     MUR_MSG=(await whopVerifie())?"":"Aucun accès actif sur ce compte Whop. Si tu viens de payer, attends une minute puis réessaie.";
-  }catch(e){ MUR_MSG="Impossible de vérifier ton accès pour l'instant. Vérifie ta connexion puis réessaie."; }
+  }catch(e){ MUR_MSG="Impossible de vérifier ton accès pour l'instant. Vérifie ta connexion puis réessaie."+(WHOP_ESSAI?" [essai : "+(e&&e.message)+"]":""); }
 }
 /* Une fois par jour, on redemande à Whop : un abonnement arrêté referme l'appli, une panne de réseau non. */
 function whopRevue(){
