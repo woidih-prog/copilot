@@ -331,8 +331,11 @@ textarea.in{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--lin
 .budgetbar.over .barre i{background:var(--warn)}
 .budgetbar span{font-size:13.5px}
 .budgetbar.over b{color:var(--warn)}
+<<<<<<< HEAD
 .banner.budget{display:grid;gap:8px;background:var(--squash-soft);color:var(--ink)}
 .banner.budget .btn{justify-self:start}
+=======
+>>>>>>> origin/main
 </style>
 </head>
 <body>
@@ -967,7 +970,7 @@ function bandeauBudget(P){
   const pl=ST.plan; if(!pl||!pl.days) return "";
   const r=pl.retires, n=r?r.encas+r.matin+r.midi+r.soir:0, tps=pl.temps&&(TEMPS.find(t=>t[0]===pl.temps)||[])[1];
   if(!n&&!tps) return "";
-  const nb=(k,un,pl2)=>{ const c=7-(r?r[k]:0); return c+" "+(c>1?pl2:un); };
+  const nb=(k,un,pl2)=>{ const c=7-(r?r[k]:0); return c?c+" "+(c>1?pl2:un):"aucun "+un; };
   return '<div class="banner budget"><span>'+
     (n?'<b>Pour tenir '+P.budget+' € pour '+P.personnes+(P.personnes>1?" personnes":" personne")+'</b>, ta liste couvre '+nb("soir","dîner","dîners")+', '+nb("midi","déjeuner","déjeuners")+', '+
       nb("matin","petit-déjeuner","petits-déjeuners")+' et '+nb("encas","en-cas","en-cas")+' sur 7. La semaine complète coûterait environ '+Math.ceil(pl.complet)+' €.':"")+
@@ -1322,7 +1325,11 @@ function vueCourses(v,P,tk){
       '<span class="pr num">'+(m&&avant>r.packCost+0.005?'<s>'+eur(avant)+'</s><b>'+eur(r.cost)+'</b>':eur(r.cost))+'</span></label>'+
       (vue?'<div class="ipromo"><span>🏷️ Promo vue'+(vue.magasin?" chez "+esc(vue.magasin):"")+' : '+eur(vue.unite*CONTENU[r.id])+' au lieu de '+eur(price(r.id,P))+'</span>'+
         '<button type="button" class="btn small" data-prendre="'+r.id+'">Je la prends</button></div>':""); };
+<<<<<<< HEAD
   v.innerHTML=bandeauBudget(P)+
+=======
+  v.innerHTML=
+>>>>>>> origin/main
     '<div class="budgetbar'+(depasse?" over":"")+'"><div class="barre"><i style="width:'+Math.min(100,Math.round(tk.total/P.budget*100))+'%"></i></div>'+
       '<span><b class="num">'+eur(tk.total)+'</b> sur '+P.budget+' € par semaine pour '+P.personnes+(P.personnes>1?" personnes":" personne")+' · '+
       (depasse?'<b class="num">'+eur(tk.total-P.budget)+' de trop</b>':'il te reste <b class="num">'+eur(P.budget-tk.total)+'</b>')+'</span></div>'+
@@ -1348,7 +1355,11 @@ function vueCourses(v,P,tk){
       '<button type="button" class="btn dark" id="copier">Copier la liste</button><button type="button" class="btn ghost" id="decocher">Tout décocher</button></div>'+
     (achats.length?'<p class="hint">« J\'ai fait les courses » range ce que tu as coché (ou toute la liste si rien n\'est coché) dans Chez moi.</p>':"")+
     '<p class="foot">'+esc(resumePrix(P))+' Les prix peuvent varier d\'un magasin à l\'autre.</p>';
+<<<<<<< HEAD
   traceDessins(v); brancheBandeau(v);
+=======
+  traceDessins(v);
+>>>>>>> origin/main
   v.querySelectorAll("[data-prendre]").forEach(b=>b.onclick=()=>{ const pr=vues[b.dataset.prendre]; if(!pr) return; prendPromo(pr); persist(); renderApp(); toast("Promo comptée dans ton budget."); });
   v.querySelectorAll("[data-coche]").forEach(c=>c.onchange=()=>{ const id=c.dataset.coche; const s=new Set(ST.coches); c.checked?s.add(id):s.delete(id); ST.coches=[...s]; persist(); vueCourses(v,P,tk); });
   $("decocher").onclick=()=>{ST.coches=[];persist();vueCourses(v,P,tk);};
