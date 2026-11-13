@@ -331,6 +331,8 @@ textarea.in{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--lin
 .budgetbar.over .barre i{background:var(--warn)}
 .budgetbar span{font-size:13.5px}
 .budgetbar.over b{color:var(--warn)}
+.banner.budget{display:grid;gap:8px;background:var(--squash-soft);color:var(--ink)}
+.banner.budget .btn{justify-self:start}
 </style>
 </head>
 <body>
@@ -934,14 +936,49 @@ function prepare(fin){
 function nouveauPlan(seed){
   const s=seed||Math.floor(Math.random()*1e6)+1;
   consommeSemainePassee();
-  const g=generer(ST.profil,s);
-  ST.plan=g.err?{err:g.err,seed:s}:{days:g.days,seed:s,cree:Date.now(),horsBudget:!g.ok};
+  const g=generePourBudget(ST.profil,s);
+  ST.plan=g.err?{err:g.err,seed:s}:{days:g.days,seed:s,cree:Date.now(),horsBudget:!g.ok,temps:g.temps,retires:g.retires,complet:g.complet};
   ST.coches=[]; persist();
 }
+/* Le budget passe avant tout. Si la semaine complète le dépasse :
+   1. on autorise des plats plus longs à cuisiner (ils sont moins chers), en le disant ;
+   2. s'il le faut encore, on retire des repas de la liste, les moins essentiels d'abord
+      (en-cas, puis petits-déjeuners, puis déjeuners, puis dîners), jusqu'à tenir dans le budget.
+   La liste ne dépasse donc jamais le budget demandé, et on dit ce qu'elle couvre. */
+function generePourBudget(P,seed){
+  let g=generer(P,seed), temps=null;
+  if(g.err||g.ok) return g;
+  const ordre=TEMPS.map(t=>t[0]);
+  for(let i=ordre.indexOf(P.temps)+1;i>0&&i<ordre.length&&!g.ok;i++){
+    const e=generer(Object.assign({},P,{temps:ordre[i]}),seed);
+    if(!e.err&&(e.ok||e.total<g.total-0.5)){ g=e; temps=ordre[i]; } }
+  if(g.ok) return {days:g.days,ok:true,total:g.total,temps};
+  const days=g.days.map(d=>Object.assign({},d)), retires={encas:0,matin:0,midi:0,soir:0}, cout=()=>ticket(days,P).total;
+  let t=cout(); const complet=t;
+  for(const k of ["encas","matin","midi","soir"]) while(t>P.budget+0.005){
+    let best=-1, bt=Infinity;
+    days.forEach((d,i)=>{ if(!d[k]) return; const o=d[k]; d[k]=null; const c=cout(); d[k]=o; if(c<bt){ bt=c; best=i; } });
+    if(best<0) break;
+    days[best][k]=null; retires[k]++; t=bt; }
+  return {days,ok:t<=P.budget+0.005,total:t,temps,retires,complet};
+}
+/* Ce que la liste couvre quand le budget ne permet pas la semaine complète. */
+function bandeauBudget(P){
+  const pl=ST.plan; if(!pl||!pl.days) return "";
+  const r=pl.retires, n=r?r.encas+r.matin+r.midi+r.soir:0, tps=pl.temps&&(TEMPS.find(t=>t[0]===pl.temps)||[])[1];
+  if(!n&&!tps) return "";
+  const nb=(k,un,pl2)=>{ const c=7-(r?r[k]:0); return c+" "+(c>1?pl2:un); };
+  return '<div class="banner budget"><span>'+
+    (n?'<b>Pour tenir '+P.budget+' € pour '+P.personnes+(P.personnes>1?" personnes":" personne")+'</b>, ta liste couvre '+nb("soir","dîner","dîners")+', '+nb("midi","déjeuner","déjeuners")+', '+
+      nb("matin","petit-déjeuner","petits-déjeuners")+' et '+nb("encas","en-cas","en-cas")+' sur 7. La semaine complète coûterait environ '+Math.ceil(pl.complet)+' €.':"")+
+    (tps?(n?" ":"")+'Pour baisser le prix, j\'ai pris des plats plus longs à cuisiner ('+esc(tps.toLowerCase())+').':"")+'</span>'+
+    (n?'<button type="button" class="btn small" data-budget="'+Math.ceil(pl.complet)+'">Tout couvrir : passer à '+Math.ceil(pl.complet)+' €</button>':"")+'</div>';
+}
+function brancheBandeau(v){ v.querySelectorAll("[data-budget]").forEach(b=>b.onclick=()=>{ ST.profil.budget=+b.dataset.budget; prepare(()=>{ nouveauPlan(); persist(); renderApp(); toast("Budget passé à "+ST.profil.budget+" €."); }); }); }
 /* Un plat retiré du profil (allergie ajoutée…) ne doit pas rester dans la semaine. */
 function planValide(){
   if(!ST.plan||!ST.plan.days) return false;
-  const P=ST.profil, I=interdits(P);
+  const P=ST.plan.temps?Object.assign({},ST.profil,{temps:ST.plan.temps}):ST.profil, I=interdits(P);
   return ST.plan.days.every(d=>SLOTS.every(k=>!d[k]||(RID[d[k]]&&permis(RID[d[k]],P,I))));
 }
 
@@ -1214,6 +1251,7 @@ function vueSemaine(v,P,tk){
       '<button type="button" class="btn small" id="avecPromos">Refaire ma semaine avec</button></div>':"")+
     (tk.total>P.budget+0.005?'<div class="banner">'+(ST.plan.horsBudget?'Avec ton profil, la semaine la moins chère que je trouve coûte '+eur(tk.total)+', soit '+eur(tk.total-P.budget)+' au-dessus de ton budget. Pour rester à '+P.budget+' €, autorise plus de temps de cuisine, retire un « je n\'aime pas », ou monte le budget à '+Math.ceil(tk.total)+' €.'
       :'Tes changements de plats font dépasser ton budget de '+eur(tk.total-P.budget)+'. Touche « Nouvelle semaine » pour revenir dans ton budget.')+'</div>':"")+
+    bandeauBudget(P)+
     '<div class="stats"><div class="stat"><b class="num">'+Math.round(prot/7)+' g</b><span>protéines / jour</span></div>'+
       '<div class="stat"><b class="num">≈ '+Math.round(kcal/7/50)*50+'</b><span>kcal / jour</span></div>'+
       '<div class="stat"><b class="num">'+Math.round(mins/7)+' min</b><span>en cuisine / jour</span></div></div>'+
@@ -1229,6 +1267,7 @@ function vueSemaine(v,P,tk){
     '<p class="foot">Calories et protéines estimées par personne. Si tu as encore faim, ajoute du pain complet, un fruit ou un yaourt.</p>';
   v.querySelectorAll("[data-day]").forEach(b=>b.onclick=()=>{ST.jour=+b.dataset.day;persist();renderApp();});
   v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>ficheRecette(b.dataset.open,b.dataset.slot));
+  brancheBandeau(v);
   v.querySelectorAll("[data-swap]").forEach(b=>b.onclick=()=>ficheEchange(b.dataset.swap));
   $("regen").onclick=()=>prepare(()=>{nouveauPlan();renderApp();toast("Nouvelle semaine prête.");});
   /* On garde la semaine actuelle (déjà moins chère avec les promos) sauf si une nouvelle l'est encore plus. */
@@ -1283,7 +1322,7 @@ function vueCourses(v,P,tk){
       '<span class="pr num">'+(m&&avant>r.packCost+0.005?'<s>'+eur(avant)+'</s><b>'+eur(r.cost)+'</b>':eur(r.cost))+'</span></label>'+
       (vue?'<div class="ipromo"><span>🏷️ Promo vue'+(vue.magasin?" chez "+esc(vue.magasin):"")+' : '+eur(vue.unite*CONTENU[r.id])+' au lieu de '+eur(price(r.id,P))+'</span>'+
         '<button type="button" class="btn small" data-prendre="'+r.id+'">Je la prends</button></div>':""); };
-  v.innerHTML=
+  v.innerHTML=bandeauBudget(P)+
     '<div class="budgetbar'+(depasse?" over":"")+'"><div class="barre"><i style="width:'+Math.min(100,Math.round(tk.total/P.budget*100))+'%"></i></div>'+
       '<span><b class="num">'+eur(tk.total)+'</b> sur '+P.budget+' € par semaine pour '+P.personnes+(P.personnes>1?" personnes":" personne")+' · '+
       (depasse?'<b class="num">'+eur(tk.total-P.budget)+' de trop</b>':'il te reste <b class="num">'+eur(P.budget-tk.total)+'</b>')+'</span></div>'+
@@ -1309,7 +1348,7 @@ function vueCourses(v,P,tk){
       '<button type="button" class="btn dark" id="copier">Copier la liste</button><button type="button" class="btn ghost" id="decocher">Tout décocher</button></div>'+
     (achats.length?'<p class="hint">« J\'ai fait les courses » range ce que tu as coché (ou toute la liste si rien n\'est coché) dans Chez moi.</p>':"")+
     '<p class="foot">'+esc(resumePrix(P))+' Les prix peuvent varier d\'un magasin à l\'autre.</p>';
-  traceDessins(v);
+  traceDessins(v); brancheBandeau(v);
   v.querySelectorAll("[data-prendre]").forEach(b=>b.onclick=()=>{ const pr=vues[b.dataset.prendre]; if(!pr) return; prendPromo(pr); persist(); renderApp(); toast("Promo comptée dans ton budget."); });
   v.querySelectorAll("[data-coche]").forEach(c=>c.onchange=()=>{ const id=c.dataset.coche; const s=new Set(ST.coches); c.checked?s.add(id):s.delete(id); ST.coches=[...s]; persist(); vueCourses(v,P,tk); });
   $("decocher").onclick=()=>{ST.coches=[];persist();vueCourses(v,P,tk);};
