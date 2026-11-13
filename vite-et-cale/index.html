@@ -297,6 +297,16 @@ textarea.in{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--lin
 .foot{font-size:12px;color:var(--muted)}
 @media (min-width:600px){.cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .22s ease-out}@keyframes up{from{transform:translateY(24px)}to{transform:none}}}
+
+/* Écran d'accès payant (Whop) */
+.mur{align-items:stretch}
+.mur .apercu{display:grid;gap:8px;position:relative}
+.mur .apercu .flou{filter:blur(5px);user-select:none;pointer-events:none}
+.mur .apercu .l{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.mur .cadenas{position:absolute;inset:0;display:grid;place-items:center;font-weight:700;text-align:center;padding:0 24px}
+.mur .cadenas span{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 16px;box-shadow:0 6px 18px rgba(0,0,0,.08)}
+.mur .actions{display:grid;gap:10px}
+.mur .prix{font-family:var(--f-display);font-weight:800;font-size:19px}
 </style>
 </head>
 <body>
@@ -1055,6 +1065,7 @@ function renderOnb(){
 
 /* ================= Appli ================= */
 function renderApp(){
+  if(!accesOK()){ renderMur(); return; }
   const P=ST.profil;
   if(!ST.plan || (ST.plan.days && !planValide())) nouveauPlan();
   const plan=ST.plan;
@@ -1901,12 +1912,103 @@ function ficheEchange(slot){
 window.addEventListener("error",e=>{ if(!e.message) return; const t=$("toast"); if(!t) return;
   t.textContent="Oups, un problème est survenu : "+e.message+". Fais une capture d'écran et envoie-la, merci !"; t.hidden=false;
   clearTimeout(toast.h); toast.h=setTimeout(()=>t.hidden=true,8000); });
+/* ================= Accès payant : Whop =================
+   Tant que WHOP.app, WHOP.produit ou WHOP.paiement est vide, l'appli reste gratuite et rien de ce bloc ne s'exécute.
+   - Le paiement se fait sur la page Whop (WHOP.paiement) : carte, essai gratuit, code promo, tout se règle dans le tableau de bord Whop.
+   - L'appli vérifie l'accès sans serveur : « Se connecter avec Whop » (OAuth 2.1 + PKCE, sans secret), puis
+     GET /users/{id}/access/{produit}. Seuls des identifiants publics figurent ici, jamais de clé d'API.
+   - Bêta-testeurs : un code promo à 100 % ou un lien de paiement gratuit créé dans Whop leur donne le même accès.
+   Une page web ne peut pas être verrouillée à 100 % : ce contrôle arrête l'usage normal, pas une personne décidée à modifier le code. */
+const WHOP={
+  app:"",        // identifiant de l'appli Whop, « app_… » (Whop > Developer)
+  produit:"",    // identifiant du produit, « prod_… »
+  paiement:"",   // lien de paiement, « https://whop.com/checkout/plan_… »
+  prix:"2,99 € par mois ou 19,99 € par an",
+  essai:""       // ex. « 7 jours gratuits, puis » : à remplir seulement si l'essai est activé sur le lien Whop
+};
+const WHOP_API="https://api.whop.com", K_ACCES="vc_acces", K_JETONS="vc_whop", K_PKCE="vc_whop_pkce";
+const PAYANT=!!(WHOP.app&&WHOP.produit&&WHOP.paiement);
+const WHOP_RETOUR=location.origin+location.pathname;          // à déclarer comme « redirect URI » dans l'appli Whop
+const JOUR_MS=864e5, GRACE_JOURS=7;                           // sans réseau, l'accès tient 7 jours après la dernière vérification
+let MUR_MSG="";
+function lit(k){ try{ return JSON.parse(localStorage.getItem(k)||"null"); }catch(e){ return null; } }
+function ecrit(k,v){ try{ if(v==null) localStorage.removeItem(k); else localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+function accesOK(){ if(!PAYANT) return true; const a=lit(K_ACCES); return !!(a&&a.ok&&Date.now()-a.vu<GRACE_JOURS*JOUR_MS); }
+function b64url(octets){ return btoa(String.fromCharCode.apply(null,octets)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+function alea(n){ return b64url(crypto.getRandomValues(new Uint8Array(n))); }
+async function whopConnexion(){
+  const pkce={v:alea(32),etat:alea(16),nonce:alea(16)}; ecrit(K_PKCE,pkce);
+  const defi=b64url(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(pkce.v))));
+  location.href=WHOP_API+"/oauth/authorize?"+new URLSearchParams({response_type:"code",client_id:WHOP.app,redirect_uri:WHOP_RETOUR,
+    scope:"openid profile",state:pkce.etat,nonce:pkce.nonce,code_challenge:defi,code_challenge_method:"S256"});
+}
+async function whopJeton(corps){
+  const r=await fetch(WHOP_API+"/oauth/token",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign({client_id:WHOP.app},corps))});
+  if(!r.ok){ const e=new Error("jeton "+r.status); e.refus=r.status===400||r.status===401; throw e; }
+  const j=await r.json(); j.recu=Date.now(); ecrit(K_JETONS,j); return j;
+}
+async function whopJetonValide(){
+  const j=lit(K_JETONS); if(!j) { const e=new Error("pas connecté"); e.refus=true; throw e; }
+  if(Date.now()<j.recu+(j.expires_in-300)*1000) return j;
+  return whopJeton({grant_type:"refresh_token",refresh_token:j.refresh_token});
+}
+/* Vrai ou faux selon Whop ; lève une erreur si la question n'a pas pu être posée (hors connexion…). */
+async function whopVerifie(){
+  const j=await whopJetonValide(), ent={Authorization:"Bearer "+j.access_token};
+  let a=lit(K_ACCES), id=a&&a.user;
+  if(!id){ const r=await fetch(WHOP_API+"/oauth/userinfo",{headers:ent}); if(!r.ok) throw new Error("profil "+r.status); id=(await r.json()).sub; }
+  const r=await fetch(WHOP_API+"/api/v1/users/"+encodeURIComponent(id)+"/access/"+encodeURIComponent(WHOP.produit),{headers:ent});
+  if(!r.ok) throw new Error("accès "+r.status);
+  const ok=!!(await r.json()).has_access;
+  ecrit(K_ACCES,{ok:ok,vu:Date.now(),user:id}); return ok;
+}
+/* Retour de Whop après connexion (?code=…&state=…) ou après paiement (?status=…). */
+async function whopRetour(){
+  const q=new URLSearchParams(location.search), code=q.get("code"), etat=q.get("state"), paye=q.get("status")||q.get("payment")||q.get("payment_id");
+  if(!code&&!q.get("error")&&!paye) return;
+  history.replaceState(null,"",location.pathname);
+  if(!code){ MUR_MSG=q.get("error")?"La connexion à Whop a été annulée.":"Paiement terminé ? Connecte-toi avec le compte Whop utilisé pour payer."; return; }
+  const pkce=lit(K_PKCE); ecrit(K_PKCE,null);
+  if(!pkce||pkce.etat!==etat){ MUR_MSG="La connexion n'a pas abouti. Réessaie depuis ce téléphone."; return; }
+  try{
+    ecrit(K_ACCES,null);
+    await whopJeton({grant_type:"authorization_code",code:code,redirect_uri:WHOP_RETOUR,code_verifier:pkce.v});
+    MUR_MSG=(await whopVerifie())?"":"Aucun accès actif sur ce compte Whop. Si tu viens de payer, attends une minute puis réessaie.";
+  }catch(e){ MUR_MSG="Impossible de vérifier ton accès pour l'instant. Vérifie ta connexion puis réessaie."; }
+}
+/* Une fois par jour, on redemande à Whop : un abonnement arrêté referme l'appli, une panne de réseau non. */
+function whopRevue(){
+  const a=lit(K_ACCES); if(!PAYANT||!a||!a.ok||Date.now()-a.vu<JOUR_MS||!navigator.onLine) return;
+  whopVerifie().then(ok=>{ if(!ok){ MUR_MSG="Ton accès a pris fin."; if(!$("scrim")) demarrer(); } })
+    .catch(e=>{ if(e.refus){ ecrit(K_ACCES,null); ecrit(K_JETONS,null); MUR_MSG="Reconnecte-toi pour retrouver ton accès."; if(!$("scrim")) demarrer(); } });
+}
+function renderMur(){
+  const P=ST.profil; if(!ST.plan||(ST.plan.days&&!planValide())) nouveauPlan();
+  const plan=ST.plan, tk=plan.days?ticket(plan.days,P):null;
+  const soirs=plan.days?plan.days.map((d,i)=>[JOURS[i],RID[d.soir]]).filter(x=>x[1]):[];
+  $("root").innerHTML='<div id="onb" class="page mur">'+
+    '<div class="onb-body"><h1>Ta semaine est <em>prête</em>'+(P.prenom?", "+esc(P.prenom):"")+'</h1>'+
+      '<p>'+(tk?'7 jours de repas pour '+P.personnes+(P.personnes>1?" personnes":" personne")+', '+eur(tk.total)+' de courses pour un budget de '+P.budget+' €.':"7 jours de repas adaptés à ton profil.")+'</p></div>'+
+    '<div class="apercu" aria-hidden="true"><div class="flou">'+soirs.map(([j,r])=>'<div class="l"><b>'+j+'</b><span>'+esc(r.n)+'</span><span class="num">'+eur(mealCost(r,P))+'</span></div>').join("")+'</div>'+
+      '<div class="cadenas"><span>🔒 Tes plats, tes recettes et ta liste de courses</span></div></div>'+
+    (MUR_MSG?'<div class="etat">'+esc(MUR_MSG)+'</div>':"")+
+    '<div class="actions"><p class="prix">'+esc((WHOP.essai?WHOP.essai+" ":"")+WHOP.prix)+'</p>'+
+      '<a class="btn" id="murPayer" href="'+esc(WHOP.paiement)+'" style="text-align:center;text-decoration:none">Voir ma semaine</a>'+
+      '<button type="button" class="btn ghost" id="murConnexion">J\'ai déjà un accès : me connecter</button>'+
+      '<p class="hint">Le paiement est géré par Whop. Un code bêta-testeur se saisit sur la page de paiement. Après le paiement, reviens ici et connecte-toi avec le même compte.</p>'+
+      '<button type="button" class="btn small ghost" id="murProfil" style="justify-self:start">Modifier mes réponses</button></div></div>';
+  $("murConnexion").onclick=()=>{ $("murConnexion").disabled=true; whopConnexion().catch(()=>{ MUR_MSG="Connexion impossible pour l'instant."; renderMur(); }); };
+  $("murProfil").onclick=()=>{ ONB={step:1,draft:JSON.parse(JSON.stringify(ST.profil))}; renderOnb(); };
+  window.scrollTo(0,0);
+}
+
 function demarrer(){
   if(!ST.profil){ ONB={step:0,draft:JSON.parse(JSON.stringify(PROFIL_DEFAUT))}; renderOnb(); }
   else renderApp();
 }
 const majAvant=PRIX&&PRIX.maj;
-demarrer();
+if(PAYANT&&/[?&](code|error|status|payment|payment_id)=/.test(location.search)){ $("root").innerHTML='<div class="page"><p class="muted" style="padding:40px 0">Vérification de ton accès…</p></div>'; whopRetour().then(demarrer); }
+else{ demarrer(); whopRevue(); }
 /* Prix plus récents trouvés : on recalcule le menu (gardé en cache pour le hors connexion). */
 chargePrix().then(ok=>{ if(ok&&PRIX.maj!==majAvant&&ST.profil&&!$("onb")){ if(!$("scrim")) renderApp(); } });
 const promosAvant=PROMOS&&PROMOS.maj;

@@ -27,6 +27,18 @@ Une seule page (`index.html`), sans serveur ni compte : le profil, la semaine et
 - **Plats** : tous les plats permis par le profil, avec le prix par assiette.
 - **Hors connexion** une fois ouverte une première fois (`sw.js`), et installable sur l'écran d'accueil (`manifest.json`).
 
+## Accès payant (Whop), désactivé par défaut
+L'appli reste gratuite tant que `WHOP.app`, `WHOP.produit` et `WHOP.paiement` sont vides dans `index.html`. Une fois remplis :
+
+- après le questionnaire, la personne voit un aperçu flouté de sa semaine et le bouton « Voir ma semaine », qui ouvre la page de paiement Whop (carte, essai gratuit et codes promo se règlent dans le tableau de bord Whop) ;
+- de retour dans l'appli, « me connecter » ouvre la connexion Whop (OAuth 2.1 + PKCE, sans secret) puis l'appli demande à Whop si ce compte a accès au produit (`GET /users/{id}/access/{produit}`) ;
+- l'accès est revérifié une fois par jour ; sans réseau il tient 7 jours ;
+- un bêta-testeur passe par la même page avec un code promo à 100 % ou un lien de paiement gratuit créé dans Whop.
+
+À faire dans Whop : créer le produit et son lien de paiement, puis une appli (Developer) avec pour « redirect URI » l'adresse exacte de l'appli (`https://woidih-prog.github.io/copilot/vite-et-cale/`). Seuls des identifiants publics (`app_…`, `prod_…`, lien de paiement) vont dans le code, jamais de clé d'API.
+
+Limites : testé avec un Whop simulé, pas encore avec un vrai compte ; une page web ne se verrouille pas à 100 % (le contrôle se fait dans le navigateur) ; sur iPhone, l'appli installée sur l'écran d'accueil et Safari ne partagent pas leur mémoire, la connexion est à vérifier sur un vrai téléphone.
+
 ## Les prix
 Les prix viennent d'[Open Prices](https://prices.openfoodfacts.org) (Open Food Facts), une base ouverte de prix relevés en magasin (licence ODbL).
 
