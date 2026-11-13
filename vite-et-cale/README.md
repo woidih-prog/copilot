@@ -23,9 +23,22 @@ Une seule page (`index.html`), sans serveur ni compte : le profil, la semaine et
 - **Partage sur Open Prices** (facultatif) : avec un compte Open Food Facts et son magasin choisi sur OpenStreetMap (recherche Nominatim), la promo est envoyée à Open Prices avec la photo de l'étiquette comme preuve (code-barres lu sur la photo quand le navigateur le permet ; les fruits et légumes au kilo partent par catégorie). Le mot de passe n'est pas gardé, seul le jeton de connexion l'est, sur le téléphone. L'envoi ne marche que depuis l'appli en ligne, pas depuis l'aperçu claude.ai.
 - **Prospectus de la semaine** : liens vers la page des prospectus de sa ville sur Tiendeo et vers le site officiel de l'enseigne.
 - **Chez moi** : ce qu'on a au frigo, au congélateur et au placard. C'est retiré de la liste de courses, la semaine suivante l'utilise en priorité, et l'appli montre ce qu'on peut cuisiner tout de suite. « J'ai cuisiné ce plat » retire les ingrédients, « J'ai fait les courses » les range.
+- **La liste d'abord** : après le questionnaire, on arrive sur Courses (premier onglet), Promos vient juste après. En tête, une jauge « dépensé sur budget, pour N personnes ». Chaque produit a son dessin au trait, qui se trace quand la ligne arrive à l'écran, et son prix en face : une promo notée affiche le prix habituel barré et le prix remisé, une promo vue près de chez soi est proposée sous la ligne (« Je la prends »).
 - **Courses** : les produits qui se gardent (riz, pâtes, farine, beurre, oignons, pommes de terre…) dont la semaine n'utilise qu'une partie vont dans « Réserves : seulement si tu n'en as plus », avec un bouton « J'en ai » ; seule la part utilisée compte dans le budget. Liste par rayon à cocher, total estimé chez le magasin choisi, prix du paquet et prix au kilo de chaque produit, liste de tous les prix de l'enseigne avec leur origine, économie grâce à ce qu'on a déjà, copie de la liste.
 - **Plats** : tous les plats permis par le profil, avec le prix par assiette.
 - **Hors connexion** une fois ouverte une première fois (`sw.js`), et installable sur l'écran d'accueil (`manifest.json`).
+
+## Accès payant (Whop), désactivé par défaut
+L'appli reste gratuite tant que `WHOP.app`, `WHOP.produit` et `WHOP.paiement` sont vides dans `index.html`. Une fois remplis :
+
+- après le questionnaire, la personne voit un aperçu flouté de sa semaine et le bouton « Voir ma semaine », qui ouvre la page de paiement Whop (carte, essai gratuit et codes promo se règlent dans le tableau de bord Whop) ;
+- de retour dans l'appli, « me connecter » ouvre la connexion Whop (OAuth 2.1 + PKCE, sans secret) puis l'appli demande à Whop si ce compte a accès au produit (`GET /users/{id}/access/{produit}`) ;
+- l'accès est revérifié une fois par jour ; sans réseau il tient 7 jours ;
+- un bêta-testeur passe par la même page avec un code promo à 100 % ou un lien de paiement gratuit créé dans Whop.
+
+À faire dans Whop : créer le produit et son lien de paiement, puis une appli (Developer) avec pour « redirect URI » l'adresse exacte de l'appli (`https://woidih-prog.github.io/copilot/vite-et-cale/`). Seuls des identifiants publics (`app_…`, `prod_…`, lien de paiement) vont dans le code, jamais de clé d'API.
+
+Limites : testé avec un Whop simulé, pas encore avec un vrai compte ; une page web ne se verrouille pas à 100 % (le contrôle se fait dans le navigateur) ; sur iPhone, l'appli installée sur l'écran d'accueil et Safari ne partagent pas leur mémoire, la connexion est à vérifier sur un vrai téléphone.
 
 ## Les prix
 Les prix viennent d'[Open Prices](https://prices.openfoodfacts.org) (Open Food Facts), une base ouverte de prix relevés en magasin (licence ODbL).
