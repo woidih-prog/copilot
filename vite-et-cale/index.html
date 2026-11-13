@@ -2065,7 +2065,7 @@ try{ const w=new URLSearchParams(location.search).get("whop");
   if(w) history.replaceState(null,"",location.pathname); }catch(e){}
 const WHOP_ESSAI=(()=>{ try{ return localStorage.getItem("vc_whop_test")==="1"; }catch(e){ return false; } })();
 const PAYANT=!!(WHOP.app&&WHOP.produit&&WHOP.paiement)&&(WHOP.actif||WHOP_ESSAI);
-const WHOP_RETOUR=location.origin+location.pathname;          // à déclarer comme « redirect URI » dans l'appli Whop
+const WHOP_RETOUR=location.origin+location.pathname.replace(/index\.html$/,"");   // toujours la même adresse, que l'appli soit ouverte avec ou sans « index.html » ; à déclarer comme « redirect URI » dans l'appli Whop
 const JOUR_MS=864e5, GRACE_JOURS=7;                           // sans réseau, l'accès tient 7 jours après la dernière vérification
 let MUR_MSG="";
 function lit(k){ try{ return JSON.parse(localStorage.getItem(k)||"null"); }catch(e){ return null; } }
