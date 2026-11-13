@@ -588,7 +588,7 @@ const RAYON = {avoine:"Épicerie",pates:"Épicerie",riz:"Épicerie",semoule:"Ép
   baguette:"Boulangerie",confiture:"Épicerie",cereales:"Épicerie",citron:"Fruits et légumes",cacahuete:"Épicerie"};
 const RAYONS = ["Fruits et légumes","Boucherie et charcuterie","Poissonnerie","Frais","Surgelés","Conserves","Épicerie","Boulangerie","Boissons"];
 
-const PROFIL_DEFAUT = {prenom:"",region:"fr",magasin:"lidl",marche:false,allergies:[],regime:"tout",degouts:[],styles:[],personnes:1,budget:45,temps:"10",ville:null,rayon:20,
+const PROFIL_DEFAUT = {prenom:"",region:"fr",magasin:"lidl",marche:false,allergies:[],regime:"tout",degouts:[],styles:[],personnes:1,budget:30,temps:"20",ville:null,rayon:20,
   equip:["plaques","four","microondes","bouilloire"]};
 
 /* ================= Stockage ================= */
@@ -806,7 +806,8 @@ function permis(r,P,I){
   return r.t <= +P.temps;
 }
 function pools(P){ const I=interdits(P); const f=s=>R.filter(r=>r.slot===s && permis(r,P,I)); return {matin:f("matin"),repas:f("repas"),encas:f("encas")}; }
-const SLOTS=["matin","midi","soir","encas"];
+/* La semaine planifie le midi et le soir. Les fiches du matin et du goûter restent dans recettes.js, mais ne sont plus proposées ni comptées. */
+const SLOTS=["midi","soir"];
 /* Ce qu'on a déjà (onglet Chez moi) est retiré des achats : l'optimiseur préfère donc les plats qui l'utilisent. */
 /* Produits qui se gardent longtemps : quand la semaine n'en utilise qu'une partie, ils vont dans les « réserves »
    (à acheter seulement si on n'en a plus) et seule la part utilisée compte dans le budget de la semaine. */
@@ -943,7 +944,7 @@ function nouveauPlan(seed){
 /* Le budget passe avant tout. Si la semaine complète le dépasse :
    1. on autorise des plats plus longs à cuisiner (ils sont moins chers), en le disant ;
    2. s'il le faut encore, on retire des repas de la liste, les moins essentiels d'abord
-      (en-cas, puis petits-déjeuners, puis déjeuners, puis dîners), jusqu'à tenir dans le budget.
+      (les déjeuners d'abord, puis les dîners), jusqu'à tenir dans le budget.
    La liste ne dépasse donc jamais le budget demandé, et on dit ce qu'elle couvre. */
 function generePourBudget(P,seed){
   let g=generer(P,seed), temps=null;
@@ -953,9 +954,9 @@ function generePourBudget(P,seed){
     const e=generer(Object.assign({},P,{temps:ordre[i]}),seed);
     if(!e.err&&(e.ok||e.total<g.total-0.5)){ g=e; temps=ordre[i]; } }
   if(g.ok) return {days:g.days,ok:true,total:g.total,temps};
-  const days=g.days.map(d=>Object.assign({},d)), retires={encas:0,matin:0,midi:0,soir:0}, cout=()=>ticket(days,P).total;
+  const days=g.days.map(d=>Object.assign({},d)), retires={midi:0,soir:0}, cout=()=>ticket(days,P).total;
   let t=cout(); const complet=t;
-  for(const k of ["encas","matin","midi","soir"]) while(t>P.budget+0.005){
+  for(const k of ["midi","soir"]) while(t>P.budget+0.005){
     let best=-1, bt=Infinity;
     days.forEach((d,i)=>{ if(!d[k]) return; const o=d[k]; d[k]=null; const c=cout(); d[k]=o; if(c<bt){ bt=c; best=i; } });
     if(best<0) break;
@@ -965,12 +966,11 @@ function generePourBudget(P,seed){
 /* Ce que la liste couvre quand le budget ne permet pas la semaine complète. */
 function bandeauBudget(P){
   const pl=ST.plan; if(!pl||!pl.days) return "";
-  const r=pl.retires, n=r?r.encas+r.matin+r.midi+r.soir:0, tps=pl.temps&&(TEMPS.find(t=>t[0]===pl.temps)||[])[1];
+  const r=pl.retires, n=r?(r.midi||0)+(r.soir||0):0, tps=pl.temps&&(TEMPS.find(t=>t[0]===pl.temps)||[])[1];
   if(!n&&!tps) return "";
   const nb=(k,un,pl2)=>{ const c=7-(r?r[k]:0); return c?c+" "+(c>1?pl2:un):"aucun "+un; };
   return '<div class="banner budget"><span>'+
-    (n?'<b>Pour tenir '+P.budget+' € pour '+P.personnes+(P.personnes>1?" personnes":" personne")+'</b>, ta liste couvre '+nb("soir","dîner","dîners")+', '+nb("midi","déjeuner","déjeuners")+', '+
-      nb("matin","petit-déjeuner","petits-déjeuners")+' et '+nb("encas","en-cas","en-cas")+' sur 7. La semaine complète coûterait environ '+Math.ceil(pl.complet)+' €.':"")+
+    (n?'<b>Pour tenir '+P.budget+' € pour '+P.personnes+(P.personnes>1?" personnes":" personne")+'</b>, ta liste couvre '+nb("soir","dîner","dîners")+' et '+nb("midi","déjeuner","déjeuners")+' sur 7. La semaine complète coûterait environ '+Math.ceil(pl.complet)+' €.':"")+
     (tps?(n?" ":"")+'Pour baisser le prix, j\'ai pris des plats plus longs à cuisiner ('+esc(tps.toLowerCase())+').':"")+'</span>'+
     (n?'<button type="button" class="btn small" data-budget="'+Math.ceil(pl.complet)+'">Tout couvrir : passer à '+Math.ceil(pl.complet)+' €</button>':"")+'</div>';
 }
@@ -1059,8 +1059,8 @@ function sectionBudget(P){
     '<button type="button" data-step="-1" aria-label="Une personne de moins">−</button><b class="num">'+P.personnes+'</b>'+
     '<button type="button" data-step="1" aria-label="Une personne de plus">+</button><span class="muted">'+(P.personnes>1?"personnes":"personne")+'</span></div></div>'+
     '<div class="field"><label class="lbl" for="budget">Budget courses par semaine</label><span class="rangeval num" id="budgetVal">'+P.budget+' €</span>'+
-    '<input id="budget" type="range" min="'+(15*P.personnes)+'" max="'+(70*P.personnes)+'" step="1" value="'+P.budget+'" data-range="budget">'+
-    '<p class="hint">Repère avec les prix relevés en magasin : environ '+(P.region==="re"?55:45)+' € par personne pour 3 repas et un en-cas par jour.</p></div>'+
+    '<input id="budget" type="range" min="'+(10*P.personnes)+'" max="'+(50*P.personnes)+'" step="1" value="'+P.budget+'" data-range="budget">'+
+    '<p class="hint">Repère avec les prix relevés en magasin : environ '+(P.region==="re"?40:30)+' € pour une personne seule, '+(P.region==="re"?26:20)+' € par personne à partir de deux, pour le midi et le soir, 7 jours sur 7.</p></div>'+
     '<div class="field"><span class="lbl">Ton équipement</span><div class="opts">'+
     EQUIP.map(([v,nm,d])=>'<button type="button" class="opt eq" data-toggle="equip" data-v="'+v+'" aria-pressed="'+equipDe(P).includes(v)+'">'+iconeEquip(v)+'<span>'+nm+(d?'<small>'+d+'</small>':"")+'</span></button>').join("")+'</div>'+
     '<p class="hint">Les recettes s\'adaptent : un plat au four se fait aussi à l\'air fryer, une soupe ou un mijoté au robot cuiseur.</p></div>'+
@@ -1253,8 +1253,8 @@ function vueSemaine(v,P,tk){
     (tk.total>P.budget+0.005?'<div class="banner">'+(ST.plan.horsBudget?'Avec ton profil, la semaine la moins chère que je trouve coûte '+eur(tk.total)+', soit '+eur(tk.total-P.budget)+' au-dessus de ton budget. Pour rester à '+P.budget+' €, autorise plus de temps de cuisine, retire un « je n\'aime pas », ou monte le budget à '+Math.ceil(tk.total)+' €.'
       :'Tes changements de plats font dépasser ton budget de '+eur(tk.total-P.budget)+'. Touche « Nouvelle semaine » pour revenir dans ton budget.')+'</div>':"")+
     bandeauBudget(P)+
-    '<div class="stats"><div class="stat"><b class="num">'+Math.round(prot/7)+' g</b><span>protéines / jour</span></div>'+
-      '<div class="stat"><b class="num">≈ '+Math.round(kcal/7/50)*50+'</b><span>kcal / jour</span></div>'+
+    '<div class="stats"><div class="stat"><b class="num">'+Math.round(prot/7)+' g</b><span>protéines, midi + soir</span></div>'+
+      '<div class="stat"><b class="num">≈ '+Math.round(kcal/7/50)*50+'</b><span>kcal, midi + soir</span></div>'+
       '<div class="stat"><b class="num">'+Math.round(mins/7)+' min</b><span>en cuisine / jour</span></div></div>'+
     '<div class="days" role="group" aria-label="Jour">'+JOURS.map((j,i)=>'<button type="button" data-day="'+i+'" aria-pressed="'+(i===ST.jour)+'"><b>'+j.slice(0,3)+'</b><span class="num">'+
       eur(SLOTS.reduce((s,k)=>s+(RID[plan.days[i][k]]?mealCost(RID[plan.days[i][k]],P):0),0)*P.personnes).replace(" €","€")+'</span></button>').join("")+'</div>'+
@@ -1265,7 +1265,7 @@ function vueSemaine(v,P,tk){
     (!ST.beta&&!ST.betaPlusTard?'<div class="card beta-card"><b>💬 Rejoins les bêta-testeurs</b><span class="muted">L\'appli est toute neuve : dis-nous ce qui va et ce qui coince, on t\'écrit de temps en temps.</span>'+
       '<div class="row"><button type="button" class="btn small" id="goBeta">Je m\'inscris</button><button type="button" class="btn small ghost" id="betaNon">Plus tard</button></div></div>':"")+
     '<button type="button" class="btn ghost" id="regen">Nouvelle semaine ↻</button>'+
-    '<p class="foot">Calories et protéines estimées par personne. Si tu as encore faim, ajoute du pain complet, un fruit ou un yaourt.</p>';
+    '<p class="foot">Calories et protéines estimées par personne et par jour, pour le midi et le soir. Si tu as encore faim, ajoute du pain complet, un fruit ou un yaourt.</p>';
   v.querySelectorAll("[data-day]").forEach(b=>b.onclick=()=>{ST.jour=+b.dataset.day;persist();renderApp();});
   v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>ficheRecette(b.dataset.open,b.dataset.slot));
   brancheBandeau(v);
@@ -1858,7 +1858,7 @@ function nomCourt(id){ return id==="fruit"?"un fruit de saison":id==="leg"?"des 
 function vueStock(v,P){
   const I=interdits(P);
   const nb=Object.keys(ST.stock).filter(k=>ST.stock[k]>0).length;
-  const perm=R.filter(r=>permis(r,P,I));
+  const perm=R.filter(r=>r.slot==="repas"&&permis(r,P,I));
   const prets=perm.filter(r=>manques(r,P).length===0), presque=perm.filter(r=>manques(r,P).length===1);
   const ligneRecette=(r,txt)=>'<button type="button" class="alt" data-open="'+r.id+'">'+plateSVG(r.id)+'<span><b>'+esc(r.n)+'</b><br><span class="muted" style="font-size:12.5px">'+esc(txt)+'</span></span><span class="c">'+eur(mealCost(r,P))+'</span></button>';
   v.innerHTML='<div><h2>Chez moi</h2><p class="muted" style="font-size:13.5px">Note ce que tu as déjà. La liste de courses le retire, et ta prochaine semaine l\'utilisera en priorité.</p></div>'+
@@ -1887,17 +1887,15 @@ function majPill(){ const el=document.querySelector(".top .pill"); if(!el||!ST.p
 
 function vuePlats(v,P){
   const I=interdits(P);
-  const F=[["tous","Tous"],["repas","Midi et soir"],["matin","Matin"],["encas","Goûter"]];
-  const order={repas:0,matin:1,encas:2}, KIND={repas:"Midi ou soir",matin:"Matin",encas:"Goûter"};
+    const order={repas:0,matin:1,encas:2}, KIND={repas:"Midi ou soir",matin:"Matin",encas:"Goûter"};
   const P90={...P,temps:"90"};                      // la galerie montre tout, même les plats plus longs que ton réglage
   if(!ST.origine) ST.origine="toutes";
-  const ok=r=>permis(r,P90,I);
+  const ok=r=>r.slot==="repas"&&permis(r,P90,I);
   const origs=["toutes"].concat(Object.keys(ORIGINES).filter(o=>R.some(r=>r.origine===o&&ok(r))));
-  const list=R.filter(r=>ok(r)&&(ST.filtre==="tous"||r.slot===ST.filtre)&&(ST.origine==="toutes"||r.origine===ST.origine))
+  const list=R.filter(r=>ok(r)&&(ST.origine==="toutes"||r.origine===ST.origine))
     .sort((a,b)=>order[a.slot]-order[b.slot]||(aime(b,P)?1:0)-(aime(a,P)?1:0)||mealCost(a,P)-mealCost(b,P));
-  const exclus=R.filter(r=>!ok(r)).length;
+  const exclus=R.filter(r=>r.slot==="repas"&&!permis(r,P90,I)).length;
   v.innerHTML='<div><h2>Les plats et leur prix</h2><p class="muted" style="font-size:13.5px">Prix par assiette chez '+esc(magasin(P)[1])+'. Les images sont des illustrations.</p></div>'+
-    '<div class="seg" role="group" aria-label="Moment">'+F.map(([k,n])=>'<button type="button" data-f="'+k+'" aria-pressed="'+(ST.filtre===k)+'">'+n+'</button>').join("")+'</div>'+
     '<div class="seg" role="group" aria-label="Origine">'+origs.map(o=>'<button type="button" data-o="'+o+'" aria-pressed="'+(ST.origine===o)+'">'+esc(o==="toutes"?"Toutes les cuisines":ORIGINES[o])+'</button>').join("")+'</div>'+
     '<div class="cards">'+list.map(r=>'<button type="button" class="dish" data-open="'+r.id+'"><div class="dpic">'+plateSVG(r.id)+'<span class="badge">'+r.p+' g</span>'+(aime(r,P)?'<span class="pourtoi">Pour toi</span>':"")+'</div>'+
       '<div class="body"><span>'+esc(r.origine&&r.origine!=="classique"?ORIGINES[r.origine]:KIND[r.slot])+' · '+(r.t?r.t+" min":"sans préparation")+'</span><b>'+esc(r.n)+'</b><span><span class="price num">'+eur(mealCost(r,P))+'</span> · '+r.kcal+' kcal</span></div></button>').join("")+'</div>'+
