@@ -1,0 +1,67 @@
+schema: "paperclip/v1"
+agents:
+  communaut:
+    role: "general"
+    capabilities: "Rédige les publications pour les groupes Facebook (bons plans, petits budgets, étudiants, La Réunion), répond aux commentaires et aux avis des bêta-testeurs, recrute des chasseurs de promos."
+    adapter:
+      type: "claude_local"
+    permissions:
+      canCreateSkills: true
+    permissionGrants:
+      -
+        permissionKey: "tasks:assign"
+  croissance:
+    role: "researcher"
+    capabilities: "Cherche où se trouve le public (groupes, forums, médias locaux, associations étudiantes, CROUS, épiceries solidaires), prépare les messages de prise de contact et suit ce qui amène des utilisateurs."
+    adapter:
+      type: "claude_local"
+    permissions:
+      canCreateSkills: true
+    permissionGrants:
+      -
+        permissionKey: "tasks:assign"
+  direction:
+    role: "ceo"
+    capabilities: "Fixe les priorités de lancement de Vite & Calé, répartit le travail entre les agents, relit ce qui est produit."
+    adapter:
+      type: "claude_local"
+    permissions:
+      canCreateAgents: true
+      canCreateSkills: true
+    permissionGrants:
+      -
+        permissionKey: "agents:configure"
+      -
+        permissionKey: "skills:create"
+      -
+        permissionKey: "tasks:assign"
+  produit:
+    role: "engineer"
+    capabilities: "Vérifie l'appli (vite-et-cale/index.html), corrige les défauts, ajoute des recettes rapides végétariennes et sans gluten, et prépare le passage au payant avec Whop."
+    adapter:
+      type: "claude_local"
+    permissions:
+      canCreateSkills: true
+    permissionGrants:
+      -
+        permissionKey: "tasks:assign"
+  vid-o:
+    role: "cmo"
+    capabilities: "Écrit les scripts TikTok, Reels et Shorts de Vite & Calé (accroche en 2 secondes, démonstration de l'appli, appel à l'action), à partir des 16 vidéos déjà montées dans vite-et-cale/videos."
+    adapter:
+      type: "claude_local"
+    permissions:
+      canCreateSkills: true
+    permissionGrants:
+      -
+        permissionKey: "tasks:assign"
+company:
+  attachmentMaxBytes: 10485760
+schemaVersion: 7
+sidebar:
+  agents:
+    - "direction"
+    - "communaut"
+    - "croissance"
+    - "produit"
+    - "vid-o"

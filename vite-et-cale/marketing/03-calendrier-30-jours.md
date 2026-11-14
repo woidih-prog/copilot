@@ -10,14 +10,14 @@ Une publication par jour, à la même heure. Les vidéos numérotées sont celle
 |---|---|---|
 | 1 | Vidéo 1 (59 € à deux) | Mettre le lien en bio, épingler la vidéo |
 | 2 | Vidéo 8 (nuggets à 1,99 €) | |
-| 3 | Script 1 (ton ticket de caisse) | Publication n° 1 dans deux groupes Facebook |
+| 3 | Script 1 (ton ticket de caisse) | Publication n° 1 dans un groupe Facebook |
 | 4 | Vidéo 2 (promos du coin) | |
 | 5 | Script 4 (promo du jour en rayon) | |
 | 6 | Vidéo 7 (90 € tenus) | |
 | 7 | Script 8 (le dimanche, 45 minutes) | Regarder les chiffres de la semaine |
 | 8 | Vidéo 14 (il manque une chose) | |
 | 9 | Script 11 (réponse à un commentaire) | |
-| 10 | Vidéo 11 (pas le temps) | Publication n° 2 dans deux autres groupes |
+| 10 | Vidéo 11 (pas le temps) | Publication n° 2 dans un autre groupe |
 | 11 | Script 3 (le prix de l'assiette) | |
 | 12 | Vidéo 12 (plats du monde) | |
 | 13 | Script 5 (le frigo vide) | |
