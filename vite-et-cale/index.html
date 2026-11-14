@@ -2051,7 +2051,7 @@ window.addEventListener("error",e=>{ if(!e.message) return; const t=$("toast"); 
    - Bêta-testeurs : un code promo à 100 % ou un lien de paiement gratuit créé dans Whop leur donne le même accès.
    Une page web ne peut pas être verrouillée à 100 % : ce contrôle arrête l'usage normal, pas une personne décidée à modifier le code. */
 const WHOP={
-  actif:false,   // false : l'appli reste gratuite pour tout le monde, sauf sur un téléphone passé en essai avec « ?whop=test »
+  actif:true,    // true : l'appli est payante. false : gratuite pour tout le monde, sauf sur un téléphone passé en essai avec « ?whop=test »
   app:"app_RLzTeUQTh4rfOq",          // identifiant de l'appli Whop (Whop > Developer)
   produit:"prod_PRHwI1nWIW1t5",      // ce dont on vérifie l'accès : le produit payant « vite et calé » (pas l'entreprise entière, qui a aussi un produit gratuit)
   paiement:"https://whop.com/viteetcale/viteetcale-coffee-insider-community",   // page où l'on paie
@@ -2070,7 +2070,29 @@ const JOUR_MS=864e5, GRACE_JOURS=7;                           // sans réseau, l
 let MUR_MSG="";
 function lit(k){ try{ return JSON.parse(localStorage.getItem(k)||"null"); }catch(e){ return null; } }
 function ecrit(k,v){ try{ if(v==null) localStorage.removeItem(k); else localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
-function accesOK(){ if(!PAYANT) return true; const a=lit(K_ACCES); return !!(a&&a.ok&&Date.now()-a.vu<GRACE_JOURS*JOUR_MS); }
+/* Bêta-testeurs : un lien « …/vite-et-cale/?beta=CODE » donne l'accès sans passer par Whop.
+   Seule l'empreinte (SHA-256) de chaque code figure ici : retirer une ligne coupe l'accès du code correspondant. */
+const BETA_CODES=["916ad4d7e4b452f8f6c648b599b34a2e6c8d431729fb3603fb52228d88650f9d",
+  "d58cfd69147ff67b95feb92b1a8db5f42eed88f191cce46a1ad98f78c29d93c8",
+  "a2d0e652ace3262d98744c6410dce4853cdb4cc25e4832be8112debf61618a6c",
+  "89bece29411606b07e3aa658b2c5759b22af3bc7401860b60a24d9ab92712cd4",
+  "4cfce3025d47a2a4a8cd7bf08110a3a2babcf53a2c0f912ac0a6b9b6338d5d4c",
+  "f2f437840c53e061b7e4317f011f8557c0ae7f2946b23603953235b34b17f7fd",
+  "d36863095e4487f2095a1e89f9c9aeda65582b42f0bc0263199caf92bdcedbc5",
+  "b4f611648dad37feca632c45d723d38d9ed604a11b55d16b4348144d043b509d",
+  "61fdd416382c0e4f10044d84f3a970730c103c565e5dd0a2b1a93b8bae176b67",
+  "1b6844667df6287e738803d8b87fa0e452be72479ea061ef3793a57605aaaf0b"];
+let BETA_OK=false;
+async function betaVerifie(){
+  try{ const q=new URLSearchParams(location.search).get("beta");
+    if(q){ localStorage.setItem("vc_beta",q.trim().toUpperCase()); history.replaceState(null,"",location.pathname); }
+    const c=localStorage.getItem("vc_beta"); if(!c||!PAYANT) return;
+    const h=[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(c)))].map(x=>x.toString(16).padStart(2,"0")).join("");
+    BETA_OK=BETA_CODES.includes(h);
+    if(!BETA_OK){ localStorage.removeItem("vc_beta"); MUR_MSG="Ce lien bêta-testeur n'est pas ou plus valable."; }
+  }catch(e){}
+}
+function accesOK(){ if(!PAYANT||BETA_OK) return true; const a=lit(K_ACCES); return !!(a&&a.ok&&Date.now()-a.vu<GRACE_JOURS*JOUR_MS); }
 function b64url(octets){ return btoa(String.fromCharCode.apply(null,octets)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 function alea(n){ return b64url(crypto.getRandomValues(new Uint8Array(n))); }
 async function whopConnexion(){
@@ -2132,7 +2154,7 @@ function renderMur(){
     '<div class="actions"><p class="prix">'+esc((WHOP.essai?WHOP.essai+" ":"")+WHOP.prix)+'</p>'+
       '<a class="btn" id="murPayer" href="'+esc(WHOP.paiement)+'" style="text-align:center;text-decoration:none">Voir ma liste de courses</a>'+
       '<button type="button" class="btn ghost" id="murConnexion">J\'ai déjà un accès : me connecter</button>'+
-      '<p class="hint">Le paiement est géré par Whop. Un code bêta-testeur se saisit sur la page de paiement. Après le paiement, reviens ici et connecte-toi avec le même compte.</p>'+
+      '<p class="hint">Le paiement est géré par Whop. Bêta-testeur : ouvre le lien que tu as reçu. Après le paiement, reviens ici et connecte-toi avec le même compte.</p>'+
       '<button type="button" class="btn small ghost" id="murProfil" style="justify-self:start">Modifier mes réponses</button></div></div>';
   $("murConnexion").onclick=()=>{ $("murConnexion").disabled=true; whopConnexion().catch(()=>{ MUR_MSG="Connexion impossible pour l'instant."; renderMur(); }); };
   $("murProfil").onclick=()=>{ ONB={step:1,draft:JSON.parse(JSON.stringify(ST.profil))}; renderOnb(); };
@@ -2144,8 +2166,10 @@ function demarrer(){
   else renderApp();
 }
 const majAvant=PRIX&&PRIX.maj;
-if(PAYANT&&/[?&](code|error|status|payment|payment_id)=/.test(location.search)){ $("root").innerHTML='<div class="page"><p class="muted" style="padding:40px 0">Vérification de ton accès…</p></div>'; whopRetour().then(demarrer); }
-else{ demarrer(); whopRevue(); }
+betaVerifie().then(()=>{
+if(PAYANT&&!BETA_OK&&/[?&](code|error|status|payment|payment_id)=/.test(location.search)){ $("root").innerHTML='<div class="page"><p class="muted" style="padding:40px 0">Vérification de ton accès…</p></div>'; whopRetour().then(demarrer); }
+else{ demarrer(); if(!BETA_OK) whopRevue(); }
+});
 /* Prix plus récents trouvés : on recalcule le menu (gardé en cache pour le hors connexion). */
 /* Les prix ont changé depuis que la semaine a été faite : si elle dépasse maintenant le budget, on la refait avec le même tirage,
    sauf si la personne a déjà commencé ses courses ou choisi elle-même un plat (là, c'est le bandeau de la semaine qui le dit). */
