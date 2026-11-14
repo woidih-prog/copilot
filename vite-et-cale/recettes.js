@@ -247,6 +247,38 @@ const R = [
   ing:[["pdt",250],["fb",200],["oignon",15]],
   steps:["Pommes de terre piquées, 8 min au micro-ondes.","Fromage blanc, échalote ou oignon très finement haché, ail, ciboulette, un filet d'huile et de vinaigre.","Sur les pommes de terre ouvertes en deux."]},
 
+ /* Végétariens et sans gluten, en 20 minutes ou moins */
+ {id:"p67",slot:"repas",origine:"asie",n:"Riz sauté aux œufs, légumes et cacahuètes",t:15,cook:"poêle",kcal:600,p:26,tags:["oeuf"],
+  ing:[["riz",80],["oeuf",2],["surg",150],["noix",25]],
+  steps:["Utilise du riz cuit la veille, il colle moins à la poêle.","Légumes surgelés et cacahuètes concassées, 3 min à la poêle avec un peu d'huile.","Ajoute les œufs battus, laisse prendre, puis le riz : 5 min en remuant, sauce soja."]},
+ {id:"p68",slot:"repas",origine:"classique",n:"Salade de pois chiches, crudités et fromage",t:8,cook:"aucune",kcal:470,p:22,tags:["lait"],
+  ing:[["pchiche",0.5],["leg",150],["fromage",30],["citron",15]],
+  steps:["Égoutte et rince les pois chiches.","Crudités en dés ou râpées, fromage râpé par-dessus.","Un filet de citron et d'huile, sel, poivre."]},
+ {id:"p69",slot:"repas",origine:"amerique",n:"Chili sin carne aux haricots rouges",t:20,actif:15,cook:"casserole",kcal:600,p:28,tags:[],
+  ing:[["hrouge",1],["tomate",150],["oignon",40],["riz",70]],
+  steps:["Cuis le riz.","Oignon 3 min à l'huile, puis haricots rouges égouttés, tomates, cumin, paprika et un peu de piment : 12 min à feu doux.","Sers avec le riz."]},
+ {id:"p70",slot:"repas",origine:"classique",n:"Pommes de terre sautées, œufs et fromage",t:20,actif:12,cook:"poêle",kcal:480,p:27,tags:["oeuf","lait"],
+  ing:[["pdt",150],["oeuf",3],["fromage",25],["oignon",20]],
+  steps:["Pommes de terre en très petits dés, 8 min à la poêle à couvert avec un peu d'huile.","Ajoute l'oignon, 3 min pour dorer.","Verse les œufs battus et le fromage, 6 min à feu doux à couvert."]},
+ {id:"p71",slot:"repas",origine:"asie",n:"Curry de pois chiches et patate douce au lait de coco",t:20,actif:15,cook:"casserole",kcal:650,p:16,tags:[],
+  ing:[["pchiche",0.5],["patate",150],["coco",80],["tomate",100],["riz",60]],
+  steps:["Cuis le riz.","Patate douce en petits dés, 10 min à la casserole avec un fond d'eau.","Pois chiches égouttés, tomates, lait de coco et 1 c. à café de curry : 8 min à feu doux. Sers avec le riz."]},
+ {id:"p72",slot:"repas",origine:"classique",n:"Omelette minute au fromage",t:8,cook:"poêle",kcal:420,p:27,tags:["oeuf","lait"],
+  ing:[["oeuf",3],["fromage",25],["beurre",8]],
+  steps:["Bats les œufs avec sel et poivre.","Fais fondre le beurre dans la poêle, verse les œufs.","Le fromage sur la moitié dès que les œufs commencent à prendre, plie en deux, 1 min de plus."]},
+ {id:"p73",slot:"repas",origine:"reunion",n:"Riz, lentilles corail et rougail tomate",t:20,actif:15,cook:"casserole",kcal:550,p:22,tags:[],
+  ing:[["lcorail",70],["tomate",100],["oignon",30],["riz",70]],
+  steps:["Cuis le riz.","Lentilles corail couvertes d'eau avec la moitié de l'oignon et du curcuma : 12 min à feu doux en remuant.","Rougail : tomates, le reste de l'oignon en petits dés, piment, un filet d'huile. Sers le tout ensemble."]},
+ {id:"p74",slot:"repas",origine:"espagne",n:"Œufs à la tomate et aux haricots blancs",t:15,cook:"poêle",kcal:520,p:30,tags:["oeuf"],
+  ing:[["hblanc",1],["tomate",150],["oignon",30],["oeuf",2]],
+  steps:["Oignon 3 min à l'huile avec du paprika.","Haricots blancs égouttés et tomates, 7 min à feu doux.","Casse les œufs dessus, couvre 4 min."]},
+ {id:"p75",slot:"repas",origine:"classique",n:"Purée de haricots blancs, citron et crudités",t:8,cook:"aucune",kcal:430,p:22,tags:["lait"],
+  ing:[["hblanc",1],["citron",20],["fb",100],["leg",150]],
+  steps:["Écrase à la fourchette les haricots blancs égouttés avec le fromage blanc, le citron, sel et poivre.","Un filet d'huile.","Avec les crudités en bâtonnets pour tremper."]},
+ {id:"p76",slot:"repas",origine:"italie",legNom:"champignons ou poireau",n:"Riz crémeux au fromage et aux légumes",t:20,actif:18,cook:"casserole",kcal:570,p:18,tags:["lait"],
+  ing:[["riz",80],["leg",120],["creme",40],["fromage",25],["beurre",10]],
+  steps:["Riz 1 min dans le beurre fondu, puis de l'eau chaude petit à petit en remuant : 15 min.","Les légumes en petits dés les 5 dernières minutes.","Hors du feu, la crème et le fromage râpé, bien mélanger."]},
+
  /* ===================== En-cas et goûters ===================== */
  {id:"e01",slot:"encas",origine:"classique",n:"Fruit de saison",t:0,cook:"aucune",kcal:80,p:1,tags:[],ing:[["fruit",1]],steps:["Rien à faire."]},
  {id:"e02",slot:"encas",origine:"classique",n:"Yaourt et fruit",t:0,cook:"aucune",kcal:140,p:5,tags:["lait"],ing:[["yaourt",1],["fruit",1]],steps:["Rien à faire."]},
@@ -281,6 +313,9 @@ const VIZ = {
  p58:[["salad",1.8],["egg",.7],["bread",.5]], p59:[["chickpea",1],["beans",1],["salad",1]], p60:[["potato",1.4],["tuna",.6],["egg",.5],["salad",.5]],
  p61:[["bread",1.8],["salad",.6],["carrot",.6]], p62:[["bread",1.6],["tuna",.6],["egg",.4],["tomatoRaw",.4]], p63:[["semoule",1.8],["tuna",.6],["tomatoRaw",.6]],
  p64:[["tuna",1],["chickpea",1],["tomatoRaw",1]], p65:[["wrap",2],["salad",1]], p66:[["potato",1.5],["fb",1.5]],
+ p67:[["friedrice",2.2],["nuts",.8]], p68:[["chickpea",1],["salad",1],["cheese",1]], p69:[["chili",1.6],["rice",1.4]], p70:[["potato",1.6],["scrambled",1.4]],
+ p71:[["curry",1.6],["rice",1.4]], p72:[["omelette",2],["cheese",1]], p73:[["lentils",1.4],["rougail",.8],["rice",1.2]], p74:[["whitebeans",1.6],["egg",1],["tomatoRaw",.4]],
+ p75:[["whitebeans",1.8],["salad",1],["carrot",.6]], p76:[["rice",1.6],["creamsauce",.8],["veg",.8]],
  e01:[["fruit",1]], e02:[["yogurt",1.5],["fruit",1]], e03:[["bread",1.5],["jam",1]], e04:[["cake",2]], e05:[["compote",2]]
 };
 
@@ -358,6 +393,16 @@ const DESCRIPTIONS = {
  "p64": "Thon, pois chiches et tomates : prête en 5 minutes.",
  "p65": "Wraps frais au thon et aux crudités, sans rien cuire.",
  "p66": "Pommes de terre chaudes et fromage blanc aux herbes, à la lyonnaise.",
+ "p67": "Riz sauté bien parfumé, avec le croquant des cacahuètes : prêt en un quart d'heure.",
+ "p68": "Une salade fraîche qui cale, prête en moins de 10 minutes, sans rien cuire.",
+ "p69": "Le chili qui réconforte, sans viande, aussi copieux que l'original.",
+ "p70": "Pommes de terre dorées, œufs et fromage fondant : simple et complet.",
+ "p71": "Patate douce et pois chiches dans une sauce coco et curry, douce et parfumée.",
+ "p72": "L'omelette au fromage, moelleuse et prête en moins de 10 minutes.",
+ "p73": "Lentilles corail fondantes et rougail tomate, le goût de La Réunion sans viande.",
+ "p74": "Des œufs cuits dans une sauce tomate aux haricots blancs et au paprika.",
+ "p75": "Une purée de haricots blancs au citron, sans cuisson, où tremper ses crudités.",
+ "p76": "Un riz façon risotto tout simple, crémeux et plein de légumes.",
  "e01": "Un fruit de saison, tout simplement.",
  "e02": "Un yaourt nature et un fruit.",
  "e03": "Le goûter d'enfance : tartine beurre-confiture.",
@@ -375,7 +420,7 @@ const PHOTOS = {
    calculées dans index.html : « monde » = origine non classique, « vege » = sans viande ni poisson, « copieux » = 700 kcal et plus). */
 const STYLES_PLATS = {
   fastfood:["p09","p16","p17","p18","p23","p31","p41","p61","p62","p65","p02","p12","p32"],
-  healthy:["p10","p11","p17","p19","p33","p34","p35","p37","p39","p40","p43","p46","p47","p48","p52","p55","p56","p57","p59","p60","p63","p64","p65","p66"],
+  healthy:["p10","p11","p17","p19","p33","p34","p35","p37","p39","p40","p43","p46","p47","p48","p52","p55","p56","p57","p59","p60","p63","p64","p65","p66","p68","p69","p71","p73","p75"],
   tradition:["p01","p04","p07","p08","p13","p15","p20","p21","p22","p24","p25","p26","p27","p28","p29","p38","p58"]
 };
 
@@ -1384,6 +1429,137 @@ const PHASES = {
   ],
   "service": [
    "Laisse refroidir avant de démouler. Se garde 4 jours dans une boîte."
+  ]
+ },
+ "p67": {
+  "prep": [
+   "Si tu n'as pas de riz cuit, cuis-le d'abord et laisse-le refroidir : froid, il ne colle pas.",
+   "Concasse les cacahuètes, bats les œufs avec une pincée de sel."
+  ],
+  "cuisson": [
+   "Poêle bien chaude avec un peu d'huile : légumes surgelés et cacahuètes, 3 min.",
+   "Pousse-les sur le côté, verse les œufs, laisse prendre puis brouille.",
+   "Ajoute le riz, 5 min à feu vif en remuant."
+  ],
+  "service": [
+   "Un trait de sauce soja, goûte avant de saler."
+  ]
+ },
+ "p68": {
+  "prep": [
+   "Égoutte et rince les pois chiches.",
+   "Coupe ou râpe les crudités."
+  ],
+  "cuisson": [],
+  "service": [
+   "Mélange le tout avec le fromage râpé, le jus de citron, un filet d'huile, sel et poivre.",
+   "Se garde jusqu'au lendemain au frigo."
+  ]
+ },
+ "p69": {
+  "prep": [
+   "Émince l'oignon, égoutte et rince les haricots rouges."
+  ],
+  "cuisson": [
+   "Lance le riz dans une casserole d'eau bouillante salée.",
+   "Dans une autre casserole, l'oignon 3 min à l'huile.",
+   "Ajoute haricots, tomates, 1 c. à café de cumin, 1 de paprika et un peu de piment : 12 min à feu doux."
+  ],
+  "service": [
+   "Sers le chili sur le riz. Encore meilleur réchauffé le lendemain."
+  ]
+ },
+ "p70": {
+  "prep": [
+   "Épluche les pommes de terre et coupe-les en très petits dés (1 cm), pour qu'elles cuisent vite.",
+   "Émince l'oignon, bats les œufs avec sel et poivre."
+  ],
+  "cuisson": [
+   "Pommes de terre à la poêle avec un peu d'huile, 8 min à couvert en remuant deux fois.",
+   "Ajoute l'oignon, 3 min à découvert pour dorer.",
+   "Verse les œufs et le fromage, couvre : 6 min à feu doux, jusqu'à ce que le dessus soit pris."
+  ],
+  "service": [
+   "Fais glisser sur une assiette et coupe en parts."
+  ]
+ },
+ "p71": {
+  "prep": [
+   "Épluche la patate douce et coupe-la en petits dés.",
+   "Égoutte et rince les pois chiches."
+  ],
+  "cuisson": [
+   "Lance le riz dans une casserole d'eau bouillante salée.",
+   "Patate douce dans une autre casserole avec un fond d'eau, 10 min à couvert.",
+   "Ajoute pois chiches, tomates, lait de coco et 1 c. à café de curry : 8 min à feu doux."
+  ],
+  "service": [
+   "Sers sur le riz, sale à la fin."
+  ]
+ },
+ "p72": {
+  "prep": [
+   "Bats les œufs à la fourchette avec sel et poivre, sans trop insister."
+  ],
+  "cuisson": [
+   "Fais mousser le beurre dans la poêle à feu moyen, verse les œufs.",
+   "Ramène les bords vers le centre pendant 2 min.",
+   "Fromage sur une moitié, plie en deux, 1 min de plus."
+  ],
+  "service": [
+   "À manger tout de suite, baveuse ou bien cuite selon ton goût."
+  ]
+ },
+ "p73": {
+  "prep": [
+   "Rince les lentilles corail.",
+   "Coupe l'oignon en petits dés et sépare-le en deux parts."
+  ],
+  "cuisson": [
+   "Lance le riz dans une casserole d'eau bouillante salée.",
+   "Lentilles couvertes de deux fois leur volume d'eau, avec la moitié de l'oignon et une pincée de curcuma : 12 min à feu doux, en remuant.",
+   "Rougail : mélange les tomates, le reste de l'oignon, un peu de piment et un filet d'huile, sans cuire."
+  ],
+  "service": [
+   "Riz, lentilles et rougail côte à côte dans l'assiette. Sale les lentilles à la fin."
+  ]
+ },
+ "p74": {
+  "prep": [
+   "Émince l'oignon, égoutte et rince les haricots blancs."
+  ],
+  "cuisson": [
+   "Oignon 3 min à l'huile avec 1 c. à café de paprika.",
+   "Haricots et tomates, 7 min à feu doux.",
+   "Creuse deux puits, casse les œufs dedans, couvre : 4 min, le blanc doit être pris."
+  ],
+  "service": [
+   "Sers dans la poêle, sel et poivre sur les œufs."
+  ]
+ },
+ "p75": {
+  "prep": [
+   "Égoutte et rince les haricots blancs.",
+   "Coupe les crudités en bâtonnets."
+  ],
+  "cuisson": [],
+  "service": [
+   "Écrase les haricots à la fourchette avec le fromage blanc, le jus de citron, sel et poivre.",
+   "Un filet d'huile dessus, les crudités autour pour tremper."
+  ]
+ },
+ "p76": {
+  "prep": [
+   "Coupe les légumes en petits dés.",
+   "Fais chauffer de l'eau (bouilloire ou casserole)."
+  ],
+  "cuisson": [
+   "Fais fondre le beurre dans une casserole, ajoute le riz, 1 min en remuant.",
+   "Verse l'eau chaude petit à petit, en remuant souvent : 15 min.",
+   "Ajoute les légumes pour les 5 dernières minutes."
+  ],
+  "service": [
+   "Hors du feu, la crème et le fromage râpé, mélange bien. Sale, poivre, sers tout de suite."
   ]
  },
  "e05": {

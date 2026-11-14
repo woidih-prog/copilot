@@ -22,7 +22,7 @@ Vite & Calé prépare ta semaine à ta place :
 - **Les prix de ton magasin.** Lidl, Leclerc, Carrefour, Auchan, Intermarché, Super U et les autres : les prix viennent de relevés faits en rayon.
 - **Les promos de ton quartier.** Celles que les gens du coin ont vues et prises en photo.
 - **Ce que tu as déjà compte.** Ton frigo et ton placard sont retirés de la liste.
-- **66 plats, à ta façon.** Sans porc, végétarien, allergies, air fryer ou simple plaque, 10 minutes ou zéro cuisson.
+- **76 plats, à ta façon.** Sans porc, végétarien, allergies, air fryer ou simple plaque, 10 minutes ou zéro cuisson.
 
 Pas de publicité. Ton profil reste sur ton téléphone.
 
