@@ -1575,3 +1575,47 @@ const PHASES = {
   ]
  }
 };
+
+/* Compléments des fiches : matériel, repères pour réussir, conservation, variante. */
+const DETAILS = {
+ p01:{materiel:"Une grande casserole pour les pâtes, une casserole ou une sauteuse pour la sauce, une passoire, une cuillère en bois.",
+  reussir:["Laisse la viande dorer sans la remuer tout le temps : c'est la couleur brune qui donne le goût.","La sauce est prête quand elle est épaisse et qu'il n'y a plus d'eau autour : une cuillère tirée au fond laisse un sillon.","Compte 1 litre d'eau et 1 cuillère à café rase de gros sel pour 100 g de pâtes. Goûte une pâte une minute avant la fin du temps du paquet."],
+  garder:"La sauce se garde 3 jours au frigo dans une boîte fermée, 3 mois au congélateur. Les pâtes cuites se gardent 2 jours.",
+  variante:"Sans viande : remplace le steak par des lentilles cuites, ajoutées avec les tomates."},
+ p02:{materiel:"Une grande casserole, une poêle, une passoire, un bol et une fourchette.",
+  reussir:["Le mélange à l'œuf se verse toujours hors du feu, sinon il cuit en grumeaux comme une omelette.","Garde un demi-verre d'eau de cuisson avant d'égoutter : c'est elle qui rend la sauce crémeuse.","Ne sale pas la sauce : les lardons et le fromage le font déjà. Poivre généreusement."],
+  garder:"À manger tout de suite. Réchauffée, la sauce devient sèche.",
+  variante:"Sans porc : des dés de poulet dorés ou des champignons à la place des lardons."},
+ p05:{materiel:"Un plat à gratin d'environ 20 × 30 cm, deux casseroles, un fouet, une cuillère en bois.",
+  reussir:["Pour la béchamel, verse le lait froid en trois ou quatre fois en fouettant sans arrêt : pas de grumeaux. Elle est prête quand elle nappe le dos de la cuillère.","Garde la bolognaise assez liquide : les plaques sèches boivent le jus pendant la cuisson.","Commence par une fine couche de sauce au fond du plat pour que les plaques n'accrochent pas, et finis par la béchamel et le fromage.","Si le dessus dore trop vite, couvre d'une feuille de papier cuisson."],
+  garder:"3 jours au frigo. Se congèle en parts, 3 mois. Réchauffe 20 min au four à 160 °C ou 3 min au micro-ondes.",
+  variante:"Version végétarienne : remplace la viande par des légumes surgelés revenus à la poêle."},
+ p08:{materiel:"Un grand plat allant au four, un couteau, une planche, une cuillère pour arroser.",
+  reussir:["Sèche la peau du poulet avec du papier absorbant avant de l'assaisonner : elle sera croustillante.","Étale les pommes de terre sur une seule couche : entassées, elles cuisent à la vapeur au lieu de dorer.","C'est cuit quand la chair se détache facilement de l'os et que le jus est clair, sans trace rose."],
+  garder:"3 jours au frigo. Le reste de poulet se mange froid en sandwich ou en salade le lendemain.",
+  variante:"Ajoute des carottes ou des patates douces en morceaux avec les pommes de terre."},
+ p16:{materiel:"Une plaque de four, du papier cuisson, une poêle avec un couvercle, un torchon propre.",
+  reussir:["Sèche bien les bâtonnets de pommes de terre dans le torchon : mouillés, ils ramollissent au lieu de dorer.","Espace les frites sur la plaque, sans les superposer, et retourne-les à mi-cuisson.","Ne presse pas le steak dans la poêle : il perd son jus. Retourne-le une seule fois.","Toaste le pain : il ne se détrempe pas avec la sauce."],
+  garder:"Le burger se mange tout de suite. Les frites se réchauffent 5 min au four chaud, pas au micro-ondes.",
+  variante:"Steak de haricots rouges écrasés avec un œuf et de la farine pour une version sans viande."},
+ p18:{materiel:"Une ou deux plaques de four, du papier cuisson, trois assiettes creuses, une fourchette.",
+  reussir:["Coupe le poulet en morceaux de même taille, environ 3 cm, pour qu'ils cuisent tous en même temps.","Utilise une main pour la farine et la chapelure, l'autre pour l'œuf : tes doigts ne s'enrobent pas.","Appuie la chapelure sur le poulet pour qu'elle tienne, puis retourne les nuggets à mi-cuisson.","Coupe un nugget en deux pour vérifier : la chair doit être blanche jusqu'au centre."],
+  garder:"2 jours au frigo. Réchauffe 8 min au four à 200 °C pour retrouver le croustillant.",
+  variante:"Pas de chapelure : écrase des biscottes ou des pétales de maïs nature."},
+ p30:{materiel:"Une cocotte ou une sauteuse avec un couvercle, une casserole pour le riz, une cuillère en bois.",
+  reussir:["Fais bien dorer les saucisses au début : c'est leur gras grillé qui parfume toute la sauce.","Si les saucisses sont très salées ou fumées, fais-les bouillir 5 min dans l'eau avant, puis jette l'eau.","La sauce est prête quand elle est épaisse et brillante, sans eau au fond. Si elle accroche, ajoute deux cuillères d'eau.","Pour le riz : rince-le, puis compte une fois et demie son volume d'eau, couvre, 12 min à feu très doux sans soulever le couvercle."],
+  garder:"3 jours au frigo, encore meilleur réchauffé. Se congèle 3 mois, sans le riz.",
+  variante:"Même recette avec des œufs durs coupés en deux à la place des saucisses."},
+ p69:{materiel:"Deux casseroles, une passoire, une cuillère en bois.",
+  reussir:["Rince les haricots sous l'eau froide jusqu'à ce que l'eau soit claire : le jus de la boîte donne un goût de conserve.","Fais chauffer les épices 30 secondes avec l'oignon avant d'ajouter les tomates : elles ont plus de goût.","Écrase quelques haricots contre le bord de la casserole pour épaissir la sauce."],
+  garder:"4 jours au frigo, 3 mois au congélateur. Encore meilleur le lendemain.",
+  variante:"Sers-le dans des tortillas avec du fromage râpé, ou ajoute du maïs en boîte."},
+ p72:{materiel:"Une poêle antiadhésive d'environ 24 cm, un bol, une fourchette, une spatule.",
+  reussir:["Bats les œufs juste assez pour mélanger le blanc et le jaune : trop battue, l'omelette est sèche.","Le beurre doit mousser sans brunir avant de verser les œufs. S'il fume, la poêle est trop chaude.","Arrête la cuisson quand le dessus est encore un peu brillant : l'omelette continue de cuire dans l'assiette."],
+  garder:"À manger tout de suite.",
+  variante:"Ajoute un reste de pommes de terre cuites, du jambon ou des oignons revenus avant de plier."},
+ p73:{materiel:"Deux casseroles dont une avec un couvercle, un bol, une passoire fine.",
+  reussir:["Les lentilles corail cuisent vite : après 12 min elles s'écrasent en purée, c'est normal et c'est ce qu'on cherche.","Sale les lentilles seulement à la fin : salées au début, elles restent fermes.","Remue de temps en temps et ajoute un peu d'eau si ça accroche au fond.","Prépare le rougail en premier : dix minutes de repos lui donnent plus de goût."],
+  garder:"Les lentilles se gardent 3 jours au frigo et se congèlent. Le rougail cru se mange dans la journée.",
+  variante:"Ajoute un œuf dur par personne pour un plat plus complet."}
+};

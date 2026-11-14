@@ -118,6 +118,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within
 @keyframes tourne{to{transform:rotate(360deg)}}
 .phase{display:flex;flex-direction:column;gap:4px;padding-top:6px}
 .phase+.phase{border-top:1px dashed var(--line);padding-top:10px}
+.pts{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px}
 .phase h4{margin:0;font-family:var(--f-display);font-size:15px;font-weight:700;color:var(--leaf)}
 .phase ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
 .prayon{padding:10px 14px 4px;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line)}
@@ -624,6 +625,11 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const eur = v => v.toFixed(2).replace(".",",")+" €";
 const RID = Object.fromEntries(R.map(r=>[r.id,r]));
+/* Mes recettes : ajoutées par l'utilisateur, gardées sur son téléphone, proposées comme les autres. */
+ORIGINES.perso="Mes recettes";
+const TAG_ING={viande:["jambon","lardons","saucisse","cuisse","poulet","steak","merguez","boeuf"],poisson:["thon","maq","colin","moules"]};
+function chargeMesRecettes(){ (ST.mesRecettes||[]).forEach(r=>{ if(!RID[r.id]){ R.push(r); RID[r.id]=r; } if(r.photo) PHOTOS[r.id]=r.photo; else SANS_PHOTO.add(r.id); }); }
+chargeMesRecettes();
 const MOIS_COURANT = new Date().getMonth();
 function rng(seed){ let a=seed>>>0; return ()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}; }
 
@@ -1133,7 +1139,8 @@ function nomIng(id){ return id==="fruit"?"Fruits":id==="leg"?"Légumes":ING[id].
 /* Étape « Chez moi » : une touche = j'en ai un paquet. Le détail des quantités se règle ensuite dans l'onglet Chez moi. */
 function sectionChezMoi(P,stock){
   const I=interdits(P);
-  return '<div class="field"><button type="button" class="btn ghost" id="chezPhoto">📷 Prendre mon frigo en photo</button>'+
+  return '<div class="field"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button type="button" class="btn ghost" data-bientot="frigo">📷 Photo du frigo<br><small>arrive bientôt</small></button>'+
+    '<button type="button" class="btn ghost" data-bientot="placard">📷 Photo du placard<br><small>arrive bientôt</small></button></div>'+
     '<p class="hint">Ou touche ce que tu as déjà : ce sera retiré de ta liste de courses.</p></div>'+
     LIEUX.map(([lieu,ids])=>'<div class="field"><span class="lbl">'+lieu+'</span><div class="chez">'+ids.filter(id=>!I.ing.has(id)).map(id=>
       '<button type="button" data-chez="'+id+'" aria-pressed="'+(!!stock[id])+'"><i aria-hidden="true">'+(PICTO[id]||"🛒")+'</i>'+esc(nomIng(id))+'</button>').join("")+'</div></div>').join("");
@@ -1159,7 +1166,7 @@ function renderOnb(){
   bindForm($("onbForm"),P,renderOnb);
   $("onbForm").querySelectorAll("[data-chez]").forEach(b=>b.addEventListener("click",()=>{ const id=b.dataset.chez;
     if(ONB.stock[id]) delete ONB.stock[id]; else ONB.stock[id]=ING[id].size; b.setAttribute("aria-pressed",!!ONB.stock[id]); }));
-  if($("chezPhoto")) $("chezPhoto").onclick=()=>toast("La photo du frigo arrive bientôt. En attendant, touche ce que tu as.");
+  $("onbForm").querySelectorAll("[data-bientot]").forEach(b=>b.addEventListener("click",()=>toast("La photo du "+b.dataset.bientot+" arrive bientôt. En attendant, touche ce que tu as.")));
   const pr=$("prenom"); if(pr) pr.oninput=e=>{P.prenom=e.target.value.slice(0,30);};
   if($("prev")) $("prev").onclick=()=>{ONB.step--;renderOnb();window.scrollTo(0,0);};
   $("next").onclick=()=>{
@@ -1239,7 +1246,7 @@ function heroSoir(d,P){
     '<div class="htxt"><span class="lbl">Ce soir'+(r.origine&&r.origine!=="classique"?' · '+esc(ORIGINES[r.origine]):"")+(r.fun?' · plaisir':"")+tagPromo(r)+'</span>'+
     '<h3 data-open="'+r.id+'" data-slot="soir" role="button" tabindex="0">'+esc(r.n)+'</h3>'+
     (DESCRIPTIONS[r.id]?'<p class="desc">'+esc(DESCRIPTIONS[r.id])+'</p>':"")+
-    '<span class="meta"><span>'+tempsTxt(r)+'</span>'+(appareilTxt(r)?'<span>'+esc(appareilTxt(r))+'</span>':"")+'<span class="p">'+r.p+' g prot.</span><span class="c num">'+eur(mealCost(r,P))+' l\'assiette</span></span>'+
+    '<span class="meta"><span>'+tempsTxt(r)+'</span>'+(appareilTxt(r)?'<span>'+esc(appareilTxt(r))+'</span>':"")+''+(r.p?'<span class="p">'+r.p+' g prot.</span>':"")+'<span class="c num">'+eur(mealCost(r,P))+' l\'assiette</span></span>'+
     '<div class="row"><button type="button" class="btn small" data-open="'+r.id+'" data-slot="soir">Voir la recette</button><button type="button" class="btn small ghost" data-swap="soir">Changer</button></div></div></div>';
 }
 function carteRepas(k,id,P){
@@ -1248,7 +1255,7 @@ function carteRepas(k,id,P){
   return '<div class="meal"><button type="button" class="pic" data-open="'+id+'" data-slot="'+k+'" aria-label="Voir la recette">'+plateSVG(id)+'</button>'+
     '<div class="txt"><span class="lbl">'+SLOT_NOM[k]+(r.origine&&r.origine!=="classique"?' · '+esc(ORIGINES[r.origine]):"")+(r.cook==="aucune"?' · <span class="tag">sans cuisson</span>':"")+(r.fun?' <span class="tag fun">plaisir</span>':"")+tagPromo(r)+'</span>'+
     '<button type="button" class="open" data-open="'+id+'" data-slot="'+k+'">'+esc(r.n)+'</button>'+
-    '<span class="meta"><span>'+tempsTxt(r)+'</span>'+(appareilTxt(r)?'<span>'+esc(appareilTxt(r))+'</span>':"")+'<span class="p">'+r.p+' g prot.</span><span class="c num">'+eur(c)+(P.personnes>1?" /pers.":"")+'</span></span>'+
+    '<span class="meta"><span>'+tempsTxt(r)+'</span>'+(appareilTxt(r)?'<span>'+esc(appareilTxt(r))+'</span>':"")+''+(r.p?'<span class="p">'+r.p+' g prot.</span>':"")+'<span class="c num">'+eur(c)+(P.personnes>1?" /pers.":"")+'</span></span>'+
     '<button type="button" class="swap" data-swap="'+k+'">Changer ce plat</button></div></div>';
 }
 
@@ -1982,12 +1989,63 @@ function vuePlats(v,P){
   const exclus=R.filter(r=>r.slot==="repas"&&!permis(r,P90,I)).length;
   v.innerHTML='<div><h2>Les plats et leur prix</h2><p class="muted" style="font-size:13.5px">Prix par assiette chez '+esc(magasin(P)[1])+'. Les images sont des illustrations.</p></div>'+
     '<div class="seg" role="group" aria-label="Origine">'+origs.map(o=>'<button type="button" data-o="'+o+'" aria-pressed="'+(ST.origine===o)+'">'+esc(o==="toutes"?"Toutes les cuisines":ORIGINES[o])+'</button>').join("")+'</div>'+
-    '<div class="cards">'+list.map(r=>'<button type="button" class="dish" data-open="'+r.id+'"><div class="dpic">'+plateSVG(r.id)+'<span class="badge">'+r.p+' g</span>'+(aime(r,P)?'<span class="pourtoi">Pour toi</span>':"")+'</div>'+
-      '<div class="body"><span>'+esc(r.origine&&r.origine!=="classique"?ORIGINES[r.origine]:KIND[r.slot])+' · '+(r.t?r.t+" min":"sans préparation")+'</span><b>'+esc(r.n)+'</b><span><span class="price num">'+eur(mealCost(r,P))+'</span> · '+r.kcal+' kcal</span></div></button>').join("")+'</div>'+
+    '<div class="cards">'+list.map(r=>'<button type="button" class="dish" data-open="'+r.id+'"><div class="dpic">'+plateSVG(r.id)+''+(r.p?'<span class="badge">'+r.p+' g</span>':"")+''+(aime(r,P)?'<span class="pourtoi">Pour toi</span>':"")+'</div>'+
+      '<div class="body"><span>'+esc(r.origine&&r.origine!=="classique"?ORIGINES[r.origine]:KIND[r.slot])+' · '+(r.t?r.t+" min":"sans préparation")+'</span><b>'+esc(r.n)+'</b><span><span class="price num">'+eur(mealCost(r,P))+'</span>'+(r.kcal?' · '+r.kcal+' kcal':"")+'</span></div></button>').join("")+'</div>'+
+    '<button type="button" class="btn dark" id="ajoutRecette">+ Ajouter ma recette</button>'+
     (exclus?'<p class="foot">'+exclus+' plat'+(exclus>1?"s":"")+' masqué'+(exclus>1?"s":"")+' à cause de ton profil (allergies, régime ou goûts).</p>':"");
   v.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{ST.filtre=b.dataset.f;persist();vuePlats(v,P);});
   v.querySelectorAll("[data-o]").forEach(b=>b.onclick=()=>{ST.origine=b.dataset.o;persist();vuePlats(v,P);});
   v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>ficheRecette(b.dataset.open,null));
+  $("ajoutRecette").onclick=()=>ficheMaRecette();
+}
+function reduitPhoto(fichier){ return createImageBitmap(fichier).then(img=>{ const c=document.createElement("canvas"), t=Math.min(img.width,img.height), d=Math.min(480,t); c.width=c.height=d;
+  c.getContext("2d").drawImage(img,(img.width-t)/2,(img.height-t)/2,t,t,0,0,d,d); return c.toDataURL("image/jpeg",0.72); }); }
+function ficheMaRecette(){
+  const D={ing:[["",""]],photo:null};
+  const CUISSONS=[["poêle","À la poêle"],["casserole","À la casserole"],["four","Au four"],["micro-ondes","Au micro-ondes"],["cocotte-minute","À la cocotte-minute"],["aucune","Sans cuisson"]];
+  const ids=Object.keys(ING).sort((a,b)=>nomIng(a).localeCompare(nomIng(b),"fr")), unite=id=>!id?"":ING[id].u==="pc"?"pièce(s)":ING[id].u;
+  const lignes=()=>D.ing.map(([id,q],i)=>'<div style="display:grid;grid-template-columns:minmax(0,1fr) 76px 58px 34px;gap:6px;align-items:center">'+
+    '<select class="in" data-ri="'+i+'" aria-label="Ingrédient"><option value="">Choisir…</option>'+ids.map(x=>'<option value="'+x+'"'+(x===id?" selected":"")+'>'+esc(nomIng(x))+'</option>').join("")+'</select>'+
+    '<input type="number" inputmode="decimal" min="0" step="any" data-rq="'+i+'" value="'+esc(String(q))+'" aria-label="Quantité par personne">'+
+    '<span class="muted" style="font-size:12.5px">'+esc(unite(id))+'</span><button type="button" class="btn small ghost" data-rx="'+i+'" aria-label="Retirer" style="padding:6px 0">×</button></div>').join("");
+  ouvrirPanneau('<div class="head"><div><span class="lbl">Mes recettes</span><h2>Ajouter ma recette</h2></div><button type="button" class="x" data-close aria-label="Fermer">×</button></div>'+
+    '<div class="form" style="display:flex;flex-direction:column;gap:12px">'+
+    '<div class="f"><label for="rNom">Nom du plat</label><input type="text" id="rNom" maxlength="60" placeholder="Gratin de ma grand-mère"></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div class="f"><label for="rT">Temps (minutes)</label><input type="number" inputmode="numeric" id="rT" min="0" max="240" value="20"></div>'+
+      '<div class="f"><label for="rCook">Cuisson</label><select class="in" id="rCook">'+CUISSONS.map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join("")+'</select></div></div>'+
+    '<div class="f"><label>Ingrédients pour une personne</label><div id="rIng" style="display:flex;flex-direction:column;gap:6px"></div>'+
+      '<button type="button" class="btn small ghost" id="rPlus" style="align-self:flex-start">+ Un ingrédient</button>'+
+      '<span class="hint">Choisis dans la liste pour que l\'appli calcule le prix. Sel, huile et épices : écris-les dans les étapes.</span></div>'+
+    '<div class="f"><label for="rSteps">Les étapes (une par ligne)</label><textarea id="rSteps" rows="6" class="in" placeholder="Épluche et coupe les pommes de terre.&#10;Fais-les dorer 10 min à la poêle."></textarea></div>'+
+    '<div class="f"><label for="rPhoto">Photo du plat (facultatif)</label><input type="file" id="rPhoto" accept="image/*"></div>'+
+    '<div class="etat" id="rErr" hidden></div><button type="button" class="btn" id="rOk">Enregistrer ma recette</button>'+
+    '<p class="hint">Ta recette reste sur ton téléphone. Elle sera proposée dans tes semaines comme les autres plats.</p></div>',
+    s=>{ const q=x=>s.querySelector(x), dessine=()=>{ q("#rIng").innerHTML=lignes(); };
+      dessine();
+      q("#rIng").onchange=e=>{ const t=e.target; if(t.dataset.ri!=null){ D.ing[+t.dataset.ri][0]=t.value; dessine(); } };
+      q("#rIng").oninput=e=>{ const t=e.target; if(t.dataset.rq!=null) D.ing[+t.dataset.rq][1]=t.value; };
+      q("#rIng").onclick=e=>{ const b=e.target.closest("[data-rx]"); if(!b) return; D.ing.splice(+b.dataset.rx,1); if(!D.ing.length) D.ing.push(["",""]); dessine(); };
+      q("#rPlus").onclick=()=>{ D.ing.push(["",""]); dessine(); };
+      q("#rPhoto").onchange=()=>{ const f=q("#rPhoto").files[0]; if(f) reduitPhoto(f).then(u=>D.photo=u).catch(()=>{ D.photo=null; }); };
+      q("#rOk").onclick=()=>{ const err=m=>{ const e=q("#rErr"); e.textContent=m; e.hidden=false; };
+        const n=q("#rNom").value.trim(), t=Math.max(0,Math.min(240,Math.round(+q("#rT").value||0)));
+        const ing=D.ing.filter(([id,v])=>id&&+String(v).replace(",",".")>0).map(([id,v])=>[id,+String(v).replace(",",".")]);
+        const steps=q("#rSteps").value.split("\n").map(x=>x.trim()).filter(Boolean);
+        if(n.length<3) return err("Donne un nom à ton plat.");
+        if(!ing.length) return err("Ajoute au moins un ingrédient avec sa quantité.");
+        if(new Set(ing.map(x=>x[0])).size<ing.length) return err("Un ingrédient est en double.");
+        if(!steps.length) return err("Écris au moins une étape.");
+        const r={id:"u"+Date.now().toString(36),perso:true,slot:"repas",origine:"perso",n,t,cook:q("#rCook").value,kcal:0,p:0,
+          tags:Object.keys(TAG_ING).filter(k=>ing.some(([id])=>TAG_ING[k].includes(id))),ing,steps};
+        if(D.photo) r.photo=D.photo;
+        ST.mesRecettes=(ST.mesRecettes||[]).concat([r]); chargeMesRecettes(); ST.origine="perso"; persist();
+        fermerPanneau(); renderApp(); toast("Recette ajoutée."); };
+    });
+}
+function supprimeMaRecette(id){
+  ST.mesRecettes=(ST.mesRecettes||[]).filter(r=>r.id!==id); const i=R.findIndex(r=>r.id===id); if(i>=0) R.splice(i,1); delete RID[id]; delete PHOTOS[id];
+  if(ST.plan&&ST.plan.days&&ST.plan.days.some(d=>Object.values(d).includes(id))) ST.plan=null;
+  ST.origine="toutes"; persist(); fermerPanneau(); renderApp(); toast("Recette supprimée.");
 }
 
 function vueProfil(v){
@@ -2076,10 +2134,14 @@ function ouvrirPanneau(html,onBind){
 function fermerPanneau(){ const s=$("scrim"); if(s){ s.remove(); document.body.style.overflow=""; } }
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") fermerPanneau(); });
 
+function detailsHTML(id){ const D=typeof DETAILS!=="undefined"&&DETAILS[id]; if(!D) return "";
+  return (D.reussir&&D.reussir.length?'<div class="phase"><h4>Pour réussir</h4><ul class="pts">'+D.reussir.map(x=>"<li>"+esc(x)+"</li>").join("")+'</ul></div>':"")+
+    (D.garder?'<div class="phase"><h4>Se garde</h4><p style="margin:0">'+esc(D.garder)+'</p></div>':"")+
+    (D.variante?'<div class="phase"><h4>Variante</h4><p style="margin:0">'+esc(D.variante)+'</p></div>':""); }
 function ficheRecette(id,slot){
   const P=ST.profil, r=RID[id], c=mealCost(r,P), se=saison(P.region,MOIS_COURANT); let fi=0,li=0;
   const facons=faconsPossibles(r,P), f=faconChoisie(r,P), {st,astuce,phases}=etapesPour(r,f);
-  const touteFacons=(FACONS[r.cook]||[]).filter(x=>x!=="aucune");
+  const touteFacons=(FACONS[r.cook]||[]).filter(x=>x!=="aucune"), D=typeof DETAILS!=="undefined"&&DETAILS[r.id];
   const ing=r.ing.map(([i,q])=>{ let n=ING[i].n.toLowerCase();
     if(i==="fruit") n="fruit de saison ("+se.fruits[(fi++)%se.fruits.length]+")";
     if(i==="leg") n=r.legNom||"crudités de saison ("+se.legs[(li++)%se.legs.length]+")";
@@ -2089,9 +2151,10 @@ function ficheRecette(id,slot){
     '<div class="head"><div><span class="lbl">'+esc(ORIGINES[r.origine]||"")+(r.fun?' · plaisir':"")+'</span><h2>'+esc(r.n)+'</h2></div><button type="button" class="x" data-close aria-label="Fermer">×</button></div>'+
     (DESCRIPTIONS[r.id]?'<p class="desc">'+esc(DESCRIPTIONS[r.id])+'</p>':"")+
     '<div class="big">'+plateSVG(id)+'</div>'+
-    '<div class="facts"><div><b class="num">'+eur(c).replace(" €","€")+'</b><span>par assiette</span></div><div><b class="num">'+r.p+' g</b><span>protéines</span></div>'+
-      '<div><b class="num">'+r.kcal+'</b><span>kcal</span></div><div><b class="num">'+(f==="airfryer"?Math.round((r.t||0)*0.85):(r.t||0))+' min</b><span>'+esc(r.actif&&r.actif<r.t?"dont "+r.actif+" actives":r.cook==="aucune"?"sans cuisson":EQUIP_NOM[f]||r.cook)+'</span></div></div>'+
+    '<div class="facts"><div><b class="num">'+eur(c).replace(" €","€")+'</b><span>par assiette</span></div>'+(r.perso?"":'<div><b class="num">'+r.p+' g</b><span>protéines</span></div>'+
+      '<div><b class="num">'+r.kcal+'</b><span>kcal</span></div>')+'<div><b class="num">'+(f==="airfryer"?Math.round((r.t||0)*0.85):(r.t||0))+' min</b><span>'+esc(r.actif&&r.actif<r.t?"dont "+r.actif+" actives":r.cook==="aucune"?"sans cuisson":EQUIP_NOM[f]||r.cook)+'</span></div></div>'+
     '<div class="card"><h3>Ingrédients'+(P.personnes>1?" pour "+P.personnes:"")+'</h3><div class="igrid">'+ing+'</div></div>'+
+    (D&&D.materiel?'<div class="card"><h3>Ce qu\'il te faut</h3><p style="margin:0">'+esc(D.materiel)+'</p></div>':"")+
     '<div class="card"><h3>Comment faire</h3>'+
       (facons.length>1?'<div class="seg" role="group" aria-label="Appareil">'+facons.map(x=>'<button type="button" data-facon="'+x+'" aria-pressed="'+(x===f)+'">'+iconeEquip(x)+esc(EQUIP_NOM[x])+'</button>').join("")+'</div>':
         (r.cook!=="aucune"&&facons[0]?'<span class="lbl">'+esc(EQUIP_NOM[facons[0]])+'</span>':""))+
@@ -2099,13 +2162,16 @@ function ficheRecette(id,slot){
       (phases?[["prep","1. Préparer"],["cuisson","2. Cuire"],["service","3. Servir"]].filter(([k])=>phases[k].length).map(([k,t])=>
         '<div class="phase"><h4>'+t+'</h4><ol>'+phases[k].map(s=>"<li>"+esc(s)+"</li>").join("")+'</ol></div>').join(""):
         '<ol>'+st.map(s=>"<li>"+esc(s)+"</li>").join("")+'</ol>')+
+      detailsHTML(r.id)+
       (touteFacons.length>facons.length?'<p class="hint">Se fait aussi avec : '+esc(touteFacons.filter(x=>!facons.includes(x)).map(x=>EQUIP_NOM[x].toLowerCase()).join(", "))+'.</p>':"")+
       (r.source?'<p class="foot">Recette adaptée de « <a href="'+esc(r.source.url)+'" target="_blank" rel="noopener">'+esc(r.source.titre)+'</a> », Livre de cuisine de Wikilivres, par ses contributeurs, '+
         'sous licence <a href="https://creativecommons.org/licenses/by-sa/3.0/deed.fr" target="_blank" rel="noopener">CC BY-SA 3.0</a>. Modifications : '+esc(r.source.modifs)+'. Cette fiche est sous la même licence.</p>':"")+'</div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="cuisine">J\'ai cuisiné ce plat</button>'+
-      (slot?'<button type="button" class="btn dark" id="goSwap">Changer ce plat</button>':"")+'</div>'+
+      (slot?'<button type="button" class="btn dark" id="goSwap">Changer ce plat</button>':"")+
+      (r.perso?'<button type="button" class="btn ghost" id="supprRecette">Supprimer ma recette</button>':"")+'</div>'+
     '<p class="hint">« J\'ai cuisiné ce plat » retire les ingrédients de Chez moi.</p>',
     s=>{ const b=s.querySelector("#goSwap"); if(b) b.onclick=()=>ficheEchange(slot);
+      const sup=s.querySelector("#supprRecette"); if(sup) sup.onclick=()=>supprimeMaRecette(id);
       s.querySelectorAll("[data-facon]").forEach(x=>x.onclick=()=>{ ST.profil.prefs=ST.profil.prefs||{}; ST.profil.prefs[r.cook]=x.dataset.facon; persist(); ficheRecette(id,slot); });
       s.querySelector("#cuisine").onclick=()=>{ let n=0;
         if(ST.plan&&ST.plan.days){ ST.plan.cuits=ST.plan.cuits||{}; ST.plan.cuits[r.id]=(ST.plan.cuits[r.id]||0)+1; }
