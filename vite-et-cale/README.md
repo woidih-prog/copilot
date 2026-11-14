@@ -30,7 +30,7 @@ Une seule page (`index.html`), sans serveur ni compte : le profil, la semaine et
 - **Hors connexion** une fois ouverte une première fois (`sw.js`), et installable sur l'écran d'accueil (`manifest.json`).
 
 ## Accès payant (Whop), désactivé par défaut
-Les identifiants Whop sont renseignés dans `index.html`, mais l'appli reste gratuite tant que `WHOP.actif` vaut `false`. Pour essayer le paiement sur un seul téléphone avant le lancement, ouvrir l'appli avec `?whop=test` (`?whop=fin` pour revenir en arrière). Une fois `WHOP.actif` à `true` :
+L'appli est payante : `WHOP.actif` vaut `true` dans `index.html` (le repasser à `false` la rend gratuite pour tout le monde). Un bêta-testeur entre sans payer avec un lien `…/vite-et-cale/?beta=CODE` : seule l'empreinte SHA-256 de chaque code est dans `BETA_CODES`, retirer une ligne coupe l'accès de ce code. Pour essayer le paiement sur un seul téléphone avant le lancement, ouvrir l'appli avec `?whop=test` (`?whop=fin` pour revenir en arrière). Une fois `WHOP.actif` à `true` :
 
 - après le questionnaire, la personne voit un aperçu flouté de sa semaine et le bouton « Voir ma semaine », qui ouvre la page de paiement Whop (carte, essai gratuit et codes promo se règlent dans le tableau de bord Whop) ;
 - de retour dans l'appli, « me connecter » ouvre la connexion Whop (OAuth 2.1 + PKCE, sans secret) puis l'appli demande à Whop si ce compte a accès au produit (`GET /users/{id}/access/{produit}`) ;
