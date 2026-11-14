@@ -2035,7 +2035,7 @@ function ficheEchange(slot){
   ouvrirPanneau('<div class="head"><h2>Remplacer le '+SLOT_NOM[slot].toLowerCase()+' de '+JOURS[ST.jour].toLowerCase()+'</h2><button type="button" class="x" data-close aria-label="Fermer">×</button></div>'+
     (alts.length?alts.map(r=>'<button type="button" class="alt" data-pick="'+r.id+'">'+plateSVG(r.id)+'<span><b>'+esc(r.n)+'</b><br><span class="muted" style="font-size:12.5px">'+(r.t||0)+' min · '+r.p+' g prot.</span></span><span class="c">'+eur(mealCost(r,P))+'</span></button>').join("")
       :'<p class="muted">Aucun autre plat ne correspond à ton profil pour ce moment de la journée.</p>'),
-    s=>s.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>{ d[slot]=b.dataset.pick; persist(); fermerPanneau(); renderApp(); toast("Plat remplacé."); }));
+    s=>s.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>{ d[slot]=b.dataset.pick; ST.plan.modif=true; persist(); fermerPanneau(); renderApp(); toast("Plat remplacé."); }));
 }
 
 /* ================= Démarrage ================= */
@@ -2053,7 +2053,7 @@ window.addEventListener("error",e=>{ if(!e.message) return; const t=$("toast"); 
 const WHOP={
   actif:false,   // false : l'appli reste gratuite pour tout le monde, sauf sur un téléphone passé en essai avec « ?whop=test »
   app:"app_RLzTeUQTh4rfOq",          // identifiant de l'appli Whop (Whop > Developer)
-  produit:"biz_QQtoMDdK3f5MIp",      // ce dont on vérifie l'accès : l'entreprise Whop (« biz_… ») ou un produit (« prod_… »)
+  produit:"prod_PRHwI1nWIW1t5",      // ce dont on vérifie l'accès : le produit payant « vite et calé » (pas l'entreprise entière, qui a aussi un produit gratuit)
   paiement:"https://whop.com/viteetcale/viteetcale-coffee-insider-community",   // page où l'on paie
   prix:"2,99 € par mois ou 19,99 € par an",
   essai:""       // ex. « 7 jours gratuits, puis » : à remplir seulement si l'essai est activé sur le lien Whop
@@ -2147,7 +2147,15 @@ const majAvant=PRIX&&PRIX.maj;
 if(PAYANT&&/[?&](code|error|status|payment|payment_id)=/.test(location.search)){ $("root").innerHTML='<div class="page"><p class="muted" style="padding:40px 0">Vérification de ton accès…</p></div>'; whopRetour().then(demarrer); }
 else{ demarrer(); whopRevue(); }
 /* Prix plus récents trouvés : on recalcule le menu (gardé en cache pour le hors connexion). */
-chargePrix().then(ok=>{ if(ok&&PRIX.maj!==majAvant&&ST.profil&&!$("onb")){ if(!$("scrim")) renderApp(); } });
+/* Les prix ont changé depuis que la semaine a été faite : si elle dépasse maintenant le budget, on la refait avec le même tirage,
+   sauf si la personne a déjà commencé ses courses ou choisi elle-même un plat (là, c'est le bandeau de la semaine qui le dit). */
+function tientBudget(){
+  const pl=ST.plan, P=ST.profil; if(!P||!pl||!pl.days||pl.modif||(ST.coches&&ST.coches.length)) return;
+  if(ticket(pl.days,P).total<=P.budget+0.005) return;
+  const g=generePourBudget(P,pl.seed); if(g.err) return;
+  ST.plan={days:g.days,seed:pl.seed,cree:pl.cree,horsBudget:!g.ok,temps:g.temps,retires:g.retires,complet:g.complet}; persist();
+}
+chargePrix().then(ok=>{ if(ok&&PRIX.maj!==majAvant&&ST.profil&&!$("onb")){ if(!$("scrim")){ if(accesOK()) tientBudget(); renderApp(); } } });
 const promosAvant=PROMOS&&PROMOS.maj;
 /* Promos : le fichier du jour, puis Open Prices en direct, puis toutes les minutes tant que l'appli est ouverte. */
 function rafraichitPromos(n){
