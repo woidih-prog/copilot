@@ -20,7 +20,7 @@ Une légende par vidéo du dossier `videos/`, prête à coller sur TikTok, Reels
 | 9 | `09-air-fryer` | Air fryer, four, robot cuiseur ou juste des plaques : tu coches ce que tu as, les recettes s'adaptent. | #petitbudget #courses #airfryer #recetteairfryer #recettefacile |
 | 10 | `10-allergies-et-gouts` | Sans porc, végétarien, sans gluten, ou juste « j'aime pas le thon » : tu le dis une fois, tu ne le revois plus. | #petitbudget #courses #sansporc #vegetarien #allergies |
 | 11 | `11-pas-le-temps` | 10 minutes par repas, ou zéro cuisson. Tu choisis ton temps, l'appli ne te propose que ce qui rentre dedans. | #petitbudget #courses #recetterapide #etudiant #repasrapide |
-| 12 | `12-plats-du-monde` | Couscous, mafé, colombo, rougail, lasagnes, chili : 66 plats, pas seulement des pâtes au beurre. | #petitbudget #courses #cuisinedumonde #recettepascher #mafé |
+| 12 | `12-plats-du-monde` | Couscous, mafé, colombo, rougail, lasagnes, chili : 76 plats, pas seulement des pâtes au beurre. | #petitbudget #courses #cuisinedumonde #recettepascher #mafé |
 | 13 | `13-fini-les-doublons` | Riz, farine, beurre : tu en rachètes « au cas où » ? L'appli les met à part : seulement si tu n'en as plus. | #petitbudget #courses #astuce #economies #antigaspi |
 | 14 | `14-il-manque-une-chose` | 19 h, frigo à moitié vide. L'appli regarde ce que tu as et te dit le plat faisable avec une seule chose à acheter. | #petitbudget #courses #repasdusoir #antigaspi #recettefacile |
 | 15 | `15-tout-en-un` | Frigo, budget, promos, repas : une seule appli, rien à télécharger, pas de compte à créer. | #petitbudget #courses #applicationutile #bonplan #organisation |
@@ -40,3 +40,25 @@ Les trois premières décident de la suite : commence par celles dont l'accroche
 8. Vidéo 4, puis 5, 9, 10, 3, 6, 13, 16, et la 15 en dernier (elle résume tout, elle sert d'épingle en haut du profil).
 
 Si tu en as déjà publié, reprends la liste à partir de la première que tu n'as pas postée.
+
+## Les 12 vidéos suivantes (17 à 28)
+
+Même principe : animations de 13 secondes, dans `videos/`. Les chiffres viennent d'exemples de semaines faits dans l'appli chez Lidl, avec 20 minutes de cuisine au plus par repas.
+
+| N° | Fichier | Légende | Hashtags |
+|---|---|---|---|
+| 17 | `17-deux-pour-41-euros` | Budget 50 € à deux. L'appli a fait la semaine complète, midi et soir, pour 41,08 €. Tu es à combien par semaine, toi ? | #petitbudget #courses #findemois #budget #menudelasemaine |
+| 18 | `18-defi-30-euros` | 30 € pour manger seul pendant 7 jours, midi et soir. L'appli le fait pour 24,73 €. Tu tentes ? | #petitbudget #courses #defi #etudiant #findemois |
+| 19 | `19-moins-d-un-euro` | Riz, lentilles corail et rougail tomate : 0,94 € l'assiette. Et ce n'est pas le seul plat à moins de 1 €. | #petitbudget #courses #recettepascher #vegetarien #recettefacile |
+| 20 | `20-burger-maison` | Burger maison et frites : 2,20 € l'assiette. Le prix est écrit sur chaque fiche. | #petitbudget #courses #burgermaison #faitmaison #fastfoodmaison |
+| 21 | `21-etudiant-25-euros` | Une plaque, un micro-ondes et 25 € par semaine. La semaine entière tient dedans. Envoie ça à ton coloc. | #petitbudget #courses #etudiant #vieetudiante #recetteetudiant |
+| 22 | `22-vegetarien` | 24 plats sans viande ni poisson, dont 14 prêts en 20 minutes. Et ça cale. | #petitbudget #courses #vegetarien #recettevegetarienne #sansviande |
+| 23 | `23-huit-minutes` | Rentré tard ? Omelette au fromage : 8 minutes, 1,06 € l'assiette. | #petitbudget #courses #recetterapide #repasdusoir #recettefacile |
+| 24 | `24-la-reunion` | Rougail saucisses : 2,23 € l'assiette. À La Réunion, les prix sont encore estimés : scanne une étiquette et ça devient juste pour tout le monde. | #petitbudget #courses #974 #lareunion #rougailsaucisse |
+| 25 | `25-ce-qu-elle-ne-fait-pas` | Trois choses que mon appli ne fait pas. Je préfère te le dire avant. | #petitbudget #courses #applicationutile #honnete #bonplan |
+| 26 | `26-le-dimanche` | 15 minutes le dimanche : le riz, les œufs durs, les crudités. Le soir, tu assembles. | #petitbudget #courses #batchcooking #organisation #mealprep |
+| 27 | `27-sans-compte` | Pas de compte, pas de pub, rien à télécharger. Tu ouvres le lien et ça marche. | #petitbudget #courses #applicationutile #bonplan #gratuit |
+| 28 | `28-hors-connexion` | Pas de réseau au fond du magasin ? Ta liste de courses marche quand même. | #petitbudget #courses #astuce #organisation #listedecourses |
+
+- La vidéo 27 dit « Gratuit pendant la bêta » : retire-la le jour où l'abonnement est activé.
+- La vidéo 24 est à publier dans les groupes de La Réunion plutôt que partout.
