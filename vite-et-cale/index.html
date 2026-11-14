@@ -1073,11 +1073,14 @@ function sectionSante(P){
     DEGOUTS.map(D=>'<button type="button" class="opt no" data-toggle="degouts" data-v="'+D[0]+'" aria-pressed="'+P.degouts.includes(D[0])+'">'+esc(D[1])+(D.length>3?'<small>'+esc(D[2])+'</small>':"")+'</button>').join("")+'</div></div>';
 }
 function sectionBudget(P){ return sectionFoyer(P)+sectionCuisine(P); }
-function sectionFoyer(P){
+function sectionFoyer(P){ return sectionPersonnes(P)+sectionMontant(P); }
+function sectionPersonnes(P){
   return '<div class="field"><span class="lbl">Combien de personnes à table</span><div class="stepper">'+
     '<button type="button" data-step="-1" aria-label="Une personne de moins">−</button><b class="num">'+P.personnes+'</b>'+
-    '<button type="button" data-step="1" aria-label="Une personne de plus">+</button><span class="muted">'+(P.personnes>1?"personnes":"personne")+'</span></div></div>'+
-    '<div class="field"><label class="lbl" for="budget">Budget courses par semaine</label><span class="rangeval num" id="budgetVal">'+P.budget+' €</span>'+
+    '<button type="button" data-step="1" aria-label="Une personne de plus">+</button><span class="muted">'+(P.personnes>1?"personnes":"personne")+'</span></div></div>';
+}
+function sectionMontant(P){
+  return '<div class="field"><label class="lbl" for="budget">Budget courses par semaine</label><span class="rangeval num" id="budgetVal">'+P.budget+' €</span>'+
     '<input id="budget" type="range" min="'+(10*P.personnes)+'" max="'+(50*P.personnes)+'" step="1" value="'+P.budget+'" data-range="budget">'+
     '<p class="hint">Repère avec les prix relevés en magasin : environ '+(P.region==="re"?40:30)+' € pour une personne seule, '+(P.region==="re"?26:20)+' € par personne à partir de deux, pour le midi et le soir, 7 jours sur 7.</p></div>';
 }
@@ -1143,11 +1146,11 @@ function renderOnb(){
   const steps=[
     ()=>'<div class="onb-body"><span class="etape-no">Étape 1 sur 5</span><h1>Vite <em>&amp;</em> Calé</h1>'+
        '<p>Ta semaine de repas et ta liste de courses, sans dépasser ton budget. Cinq étapes et c\'est prêt.</p>'+
-       '<div class="field" style="margin-top:10px"><label class="lbl" for="prenom">Ton prénom (facultatif)</label><input type="text" id="prenom" autocomplete="given-name" value="'+esc(P.prenom)+'"></div></div>'+sectionFoyer(P),
+       '<div class="field" style="margin-top:10px"><label class="lbl" for="prenom">Ton prénom (facultatif)</label><input type="text" id="prenom" autocomplete="given-name" value="'+esc(P.prenom)+'"></div></div>'+sectionPersonnes(P),
+    ()=>tete("Tes courses et ton budget","Ta ville, ton magasin, et ce que tu veux dépenser par semaine.")+sectionLieu(P)+sectionMontant(P),
     ()=>tete("Ce que tu as déjà","Ton frigo et ton placard. Tu peux passer cette étape et la remplir plus tard.")+sectionChezMoi(P,ONB.stock),
     ()=>tete("Ce que tu aimes, ce que tu ne manges pas","Ce que tu aimes revient plus souvent ; ce que tu ne manges pas est retiré.")+sectionSante(P),
-    ()=>tete("Ta cuisine et ton temps","Tes appareils et le temps que tu veux passer à cuisiner.")+sectionCuisine(P),
-    ()=>tete("Où tu fais tes courses","Ta ville, ton magasin et jusqu\'où tu vas pour une promo.")+sectionLieu(P)
+    ()=>tete("Ta cuisine et ton temps","Tes appareils et le temps que tu veux passer à cuisiner.")+sectionCuisine(P)
   ];
   $("root").innerHTML='<div id="onb" class="page"><div class="dots" aria-hidden="true">'+steps.map((_,i)=>'<i class="'+(i<=s?"on":"")+'"></i>').join("")+'</div>'+
     '<div id="onbForm">'+steps[s]()+'</div>'+
