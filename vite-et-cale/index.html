@@ -6,7 +6,8 @@
 <title>Vite &amp; Calé</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Une semaine de repas qui calent, à petit budget, de saison et presque sans cuisine.">
-<meta name="theme-color" content="#2D774A">
+<meta name="theme-color" content="#EAF7EC">
+<meta name="color-scheme" content="light">
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" href="./icon-192.png">
 <link rel="apple-touch-icon" href="./icon-192.png">
@@ -16,24 +17,15 @@
 <style>
 /* Layout : appli mobile, une colonne de 640px max, barre d'onglets fixée en bas, fiches en panneau qui monte. */
 :root{
-  --bg:#F1F4EC; --surface:#FFFFFF; --ink:#1B251E; --muted:#5A685F; --line:#D6DDD1;
+  --bg:#EAF7EC; --surface:#FFFFFF; --ink:#1B251E; --muted:#56655B; --line:#CFE3D3;
   --leaf:#2D774A; --leaf-soft:#E2EEE4; --squash:#B8650F; --squash-soft:#F7EAD9; --warn:#A33A2A; --warn-soft:#F6E1DC;
-  --plate:#FFFFFF; --plate-line:#DCE2D8; --pic-bg:#E7ECE2; --scrim:rgba(20,28,22,.45);
+  --plate:#FFFFFF; --plate-line:#D5E5D8; --pic-bg:#DCEFE0; --scrim:rgba(20,28,22,.45);
   --f-display:'Bricolage Grotesque',ui-sans-serif,system-ui,sans-serif;
   --f-body:'Figtree',ui-sans-serif,system-ui,sans-serif;
   --f-mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
   --r:14px; --nav-h:64px;
   color-scheme:light;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#111713; --surface:#18201B; --ink:#E4ECE6; --muted:#93A399; --line:#29342D;
-  --leaf:#6DC290; --leaf-soft:#1E3226; --squash:#E7A15C; --squash-soft:#352818; --warn:#F08A78; --warn-soft:#3A221D;
-  --plate:#EDEFEA; --plate-line:#3A463E; --pic-bg:#202A23; --scrim:rgba(0,0,0,.6); color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#111713; --surface:#18201B; --ink:#E4ECE6; --muted:#93A399; --line:#29342D;
-  --leaf:#6DC290; --leaf-soft:#1E3226; --squash:#E7A15C; --squash-soft:#352818; --warn:#F08A78; --warn-soft:#3A221D;
-  --plate:#EDEFEA; --plate-line:#3A463E; --pic-bg:#202A23; --scrim:rgba(0,0,0,.6); color-scheme:dark}
-
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0}
@@ -146,6 +138,33 @@ input[type=text],input[type=number],input[type=date],input[type=password],input[
 .dots{display:flex;gap:6px}
 .dots i{height:5px;flex:1;border-radius:4px;background:var(--line)}
 .dots i.on{background:var(--leaf)}
+.etape-no{font-size:12.5px;font-weight:700;color:var(--leaf);letter-spacing:.04em;text-transform:uppercase}
+.chez{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
+.chez button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 4px;border:1.5px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;line-height:1.2;text-align:center;cursor:pointer;min-height:76px}
+.chez button i{font-style:normal;font-size:26px;line-height:1}
+.chez button[aria-pressed="true"]{border-color:var(--leaf);background:var(--leaf-soft);font-weight:700}
+.rech{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column;gap:10px;padding:calc(18px + env(safe-area-inset-top,0px)) 18px calc(18px + env(safe-area-inset-bottom,0px));max-width:560px;margin:0 auto;overflow:hidden}
+.rech-etat{color:var(--muted);min-height:3em;margin:0}
+.rech-plats{display:flex;flex-wrap:wrap;gap:8px;min-height:124px;align-content:flex-start}
+.rech-plats span{width:56px;height:56px;border-radius:50%;overflow:hidden;background:var(--pic-bg);box-shadow:0 2px 8px rgba(27,37,30,.14);animation:pop .35s ease-out both}
+.rech-plats span>*{width:100%;height:100%;object-fit:cover;display:block}
+.rech-zone{position:relative;flex:1;min-height:210px}
+.rech-item{position:absolute;top:0;left:var(--x);width:96px;margin-left:-48px;display:flex;flex-direction:column;align-items:center;gap:1px;padding:8px 4px;border-radius:14px;background:var(--surface);box-shadow:0 4px 14px rgba(27,37,30,.14);font-size:12px;line-height:1.2;text-align:center;animation:tombe 1.5s ease-in both}
+.rech-item i{font-style:normal;font-size:30px;line-height:1.1}
+.rech-item b{color:var(--squash);font-variant-numeric:tabular-nums}
+.rech-item.deja b{color:var(--leaf)}
+.panier{position:absolute;left:50%;bottom:0;width:190px;margin-left:-95px}
+.panier svg{display:block;width:100%;overflow:visible}
+.panier.bump{animation:bump .25s ease-out}
+.panier-fond{position:absolute;left:22px;right:22px;bottom:58px;display:flex;flex-wrap:wrap-reverse;justify-content:center;gap:0;font-size:22px;line-height:1;max-height:50px;overflow:hidden}
+.rech-total{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:12px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.rech-total b:last-child{font-family:var(--f-display);font-size:24px;color:var(--leaf);font-variant-numeric:tabular-nums}
+.rech-nav{display:flex;justify-content:flex-end;min-height:48px}
+.rech-nav .btn{flex:1}
+@keyframes pop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
+@keyframes tombe{0%{transform:scale(.5);opacity:0}16%{transform:scale(1.04);opacity:1}22%,58%{transform:none;opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.3);opacity:0}}
+@keyframes bump{50%{transform:translateY(4px) scale(1.03)}}
+@media (prefers-reduced-motion:reduce){.rech-item{animation-duration:.01s}.rech-plats span,.panier.bump{animation:none}}
 .onb-body{display:flex;flex-direction:column;gap:6px}
 .onb-body > p{color:var(--muted);max-width:52ch}
 .onb-nav{display:flex;gap:10px;justify-content:space-between;margin-top:auto;padding-top:12px}
@@ -1053,15 +1072,18 @@ function sectionSante(P){
     '<div class="field"><span class="lbl">Je n\'aime pas</span><div class="opts">'+
     DEGOUTS.map(D=>'<button type="button" class="opt no" data-toggle="degouts" data-v="'+D[0]+'" aria-pressed="'+P.degouts.includes(D[0])+'">'+esc(D[1])+(D.length>3?'<small>'+esc(D[2])+'</small>':"")+'</button>').join("")+'</div></div>';
 }
-function sectionBudget(P){
-  const n=pools(P).repas.length;
+function sectionBudget(P){ return sectionFoyer(P)+sectionCuisine(P); }
+function sectionFoyer(P){
   return '<div class="field"><span class="lbl">Combien de personnes à table</span><div class="stepper">'+
     '<button type="button" data-step="-1" aria-label="Une personne de moins">−</button><b class="num">'+P.personnes+'</b>'+
     '<button type="button" data-step="1" aria-label="Une personne de plus">+</button><span class="muted">'+(P.personnes>1?"personnes":"personne")+'</span></div></div>'+
     '<div class="field"><label class="lbl" for="budget">Budget courses par semaine</label><span class="rangeval num" id="budgetVal">'+P.budget+' €</span>'+
     '<input id="budget" type="range" min="'+(10*P.personnes)+'" max="'+(50*P.personnes)+'" step="1" value="'+P.budget+'" data-range="budget">'+
-    '<p class="hint">Repère avec les prix relevés en magasin : environ '+(P.region==="re"?40:30)+' € pour une personne seule, '+(P.region==="re"?26:20)+' € par personne à partir de deux, pour le midi et le soir, 7 jours sur 7.</p></div>'+
-    '<div class="field"><span class="lbl">Ton équipement</span><div class="opts">'+
+    '<p class="hint">Repère avec les prix relevés en magasin : environ '+(P.region==="re"?40:30)+' € pour une personne seule, '+(P.region==="re"?26:20)+' € par personne à partir de deux, pour le midi et le soir, 7 jours sur 7.</p></div>';
+}
+function sectionCuisine(P){
+  const n=pools(P).repas.length;
+  return '<div class="field"><span class="lbl">Ton équipement</span><div class="opts">'+
     EQUIP.map(([v,nm,d])=>'<button type="button" class="opt eq" data-toggle="equip" data-v="'+v+'" aria-pressed="'+equipDe(P).includes(v)+'">'+iconeEquip(v)+'<span>'+nm+(d?'<small>'+d+'</small>':"")+'</span></button>').join("")+'</div>'+
     '<p class="hint">Les recettes s\'adaptent : un plat au four se fait aussi à l\'air fryer, une soupe ou un mijoté au robot cuiseur.</p></div>'+
     '<div class="field"><span class="lbl">Temps de cuisine</span><div class="opts">'+
@@ -1100,29 +1122,89 @@ function bindForm(container,P,rerender){
 }
 
 /* ================= Onboarding ================= */
-let ONB={step:0,draft:null};
+const PICTO={avoine:"🌾",lait:"🥛",banane:"🍌",fb:"🥣",yaourt:"🍶",pain:"🍞",oeuf:"🥚",thon:"🐟",maq:"🐟",pates:"🍝",riz:"🍚",semoule:"🌾",lcorail:"🫘",lbocal:"🫘",pchiche:"🫘",hrouge:"🫘",
+  tomate:"🥫",coco:"🥥",surg:"🥦",pdt:"🥔",patate:"🍠",tortilla:"🫓",fromage:"🧀",jambon:"🥓",steak:"🥩",poulet:"🍗",soupe:"🍲",noix:"🥜",fruit:"🍎",leg:"🥕",oignon:"🧅",lardons:"🥓",creme:"🥛",
+  cuisse:"🍗",saucisse:"🌭",colin:"🐟",hblanc:"🫘",poiscasse:"🫛",pate:"🥧",farine:"🌾",beurre:"🧈",lasagne:"🍝",biere:"🍺",merguez:"🌭",boeuf:"🥩",moules:"🦪",reblochon:"🧀",painburger:"🍔",
+  confiture:"🍯",cereales:"🥣",baguette:"🥖",citron:"🍋",cacahuete:"🥜"};
+function nomIng(id){ return id==="fruit"?"Fruits":id==="leg"?"Légumes":ING[id].n.replace(/ \(.*\)$/,""); }
+/* Étape « Chez moi » : une touche = j'en ai un paquet. Le détail des quantités se règle ensuite dans l'onglet Chez moi. */
+function sectionChezMoi(P,stock){
+  const I=interdits(P);
+  return '<div class="field"><button type="button" class="btn ghost" id="chezPhoto">📷 Prendre mon frigo en photo</button>'+
+    '<p class="hint">Ou touche ce que tu as déjà : ce sera retiré de ta liste de courses.</p></div>'+
+    LIEUX.map(([lieu,ids])=>'<div class="field"><span class="lbl">'+lieu+'</span><div class="chez">'+ids.filter(id=>!I.ing.has(id)).map(id=>
+      '<button type="button" data-chez="'+id+'" aria-pressed="'+(!!stock[id])+'"><i aria-hidden="true">'+(PICTO[id]||"🛒")+'</i>'+esc(nomIng(id))+'</button>').join("")+'</div></div>').join("");
+}
+let ONB={step:0,draft:null,stock:null};
 function renderOnb(){
   const P=ONB.draft, s=ONB.step;
+  if(!ONB.stock) ONB.stock=Object.assign({},ST.stock||{});
+  const tete=(t,p)=>'<div class="onb-body"><span class="etape-no">Étape '+(s+1)+' sur 5</span><h2>'+t+'</h2><p>'+p+'</p></div>';
   const steps=[
-    ()=>'<div class="onb-body"><div class="hero-plate">'+plateSVG("p44")+'</div><h1>Vite <em>&amp;</em> Calé</h1>'+
-       '<p>Une semaine de repas qui calent, à petit budget, avec des produits de saison et le moins de cuisine possible. Quatre questions et c\'est prêt.</p>'+
-       '<div class="field" style="margin-top:14px"><label class="lbl" for="prenom">Ton prénom (facultatif)</label><input type="text" id="prenom" autocomplete="given-name" value="'+esc(P.prenom)+'"></div></div>',
-    ()=>'<div class="onb-body"><h2>Où tu fais tes courses</h2><p>Pour estimer les prix et les produits de saison.</p></div>'+sectionLieu(P),
-    ()=>'<div class="onb-body"><h2>Tes goûts</h2><p>Ce que tu aimes revient plus souvent ; ce que tu ne manges pas est retiré. Touche pour cocher, touche encore pour enlever.</p></div>'+sectionSante(P),
-    ()=>'<div class="onb-body"><h2>Ton budget et ton temps</h2><p>Tu pourras tout changer plus tard dans Profil.</p></div>'+sectionBudget(P)
+    ()=>'<div class="onb-body"><span class="etape-no">Étape 1 sur 5</span><h1>Vite <em>&amp;</em> Calé</h1>'+
+       '<p>Ta semaine de repas et ta liste de courses, sans dépasser ton budget. Cinq étapes et c\'est prêt.</p>'+
+       '<div class="field" style="margin-top:10px"><label class="lbl" for="prenom">Ton prénom (facultatif)</label><input type="text" id="prenom" autocomplete="given-name" value="'+esc(P.prenom)+'"></div></div>'+sectionFoyer(P),
+    ()=>tete("Ce que tu as déjà","Ton frigo et ton placard. Tu peux passer cette étape et la remplir plus tard.")+sectionChezMoi(P,ONB.stock),
+    ()=>tete("Ce que tu aimes, ce que tu ne manges pas","Ce que tu aimes revient plus souvent ; ce que tu ne manges pas est retiré.")+sectionSante(P),
+    ()=>tete("Ta cuisine et ton temps","Tes appareils et le temps que tu veux passer à cuisiner.")+sectionCuisine(P),
+    ()=>tete("Où tu fais tes courses","Ta ville, ton magasin et jusqu\'où tu vas pour une promo.")+sectionLieu(P)
   ];
   $("root").innerHTML='<div id="onb" class="page"><div class="dots" aria-hidden="true">'+steps.map((_,i)=>'<i class="'+(i<=s?"on":"")+'"></i>').join("")+'</div>'+
     '<div id="onbForm">'+steps[s]()+'</div>'+
     '<div class="onb-nav">'+(s>0?'<button type="button" class="btn ghost" id="prev">Retour</button>':'<span></span>')+
-    '<button type="button" class="btn" id="next">'+(s<steps.length-1?"Continuer":"Créer ma semaine")+'</button></div></div>';
+    '<button type="button" class="btn" id="next">'+(s<steps.length-1?"Continuer":"Faire ma liste de courses")+'</button></div></div>';
   bindForm($("onbForm"),P,renderOnb);
+  $("onbForm").querySelectorAll("[data-chez]").forEach(b=>b.addEventListener("click",()=>{ const id=b.dataset.chez;
+    if(ONB.stock[id]) delete ONB.stock[id]; else ONB.stock[id]=ING[id].size; b.setAttribute("aria-pressed",!!ONB.stock[id]); }));
+  if($("chezPhoto")) $("chezPhoto").onclick=()=>toast("La photo du frigo arrive bientôt. En attendant, touche ce que tu as.");
   const pr=$("prenom"); if(pr) pr.oninput=e=>{P.prenom=e.target.value.slice(0,30);};
-  if($("prev")) $("prev").onclick=()=>{ONB.step--;renderOnb();};
+  if($("prev")) $("prev").onclick=()=>{ONB.step--;renderOnb();window.scrollTo(0,0);};
   $("next").onclick=()=>{
     if(s<steps.length-1){ ONB.step++; renderOnb(); window.scrollTo(0,0); return; }
-    $("next").disabled=true; ST.profil=P;
-    prepare(()=>{ nouveauPlan(); ST.onglet="courses"; ST.jour=(new Date().getDay()+6)%7; persist(); renderApp(); compteUtilisateur(); });
+    $("next").disabled=true; ST.profil=P; ST.stock=ONB.stock; ONB.stock=null;
+    prepare(()=>{ nouveauPlan(); ST.onglet="courses"; ST.jour=(new Date().getDay()+6)%7; persist();
+      recherche(()=>{ renderApp(); window.scrollTo(0,0); compteUtilisateur(); }); });
   };
+}
+/* Écran de recherche : les produits de la liste tombent un à un dans le panier, les plats de la semaine apparaissent.
+   Le calcul est déjà fait ; l'écran montre ce que l'appli a trouvé avant d'ouvrir la liste. */
+function recherche(fin){
+  const P=ST.profil, pl=ST.plan;
+  if(!pl||!pl.days){ fin(); return; }
+  const tk=ticket(pl.days,P), rows=tk.rows.slice().sort((a,b)=>(b.packs>0)-(a.packs>0)||b.cost-a.cost);
+  const plats=[...new Set(pl.days.flatMap(d=>SLOTS.map(k=>d[k])).filter(Boolean))];
+  const mag=(Object.values(MAGASINS).flat().find(m=>m[0]===P.magasin)||["",""])[1];
+  const etats=["Je regarde les prix chez "+mag+"…","Je retire ce que tu as déjà chez toi…",
+    P.ville?"Je regarde les promos autour de "+P.ville.nom+"…":"Je cherche les plats les moins chers…","Je vérifie que tout tient dans "+P.budget+" €…"];
+  const el=document.createElement("div"); el.className="rech"; el.id="rech";
+  el.innerHTML='<div><h2>Je prépare ta semaine'+(P.prenom?", "+esc(P.prenom):"")+'</h2><p class="rech-etat" id="rechEtat" role="status">'+esc(etats[0])+'</p></div>'+
+    '<div><span class="lbl">Ce que tu vas cuisiner</span><div class="rech-plats" id="rechPlats"></div></div>'+
+    '<div class="rech-zone" id="rechZone" aria-hidden="true"><div class="panier" id="panier"><div class="panier-fond" id="panierFond"></div>'+
+      '<svg viewBox="0 0 190 110"><path d="M52 44 Q95 -14 138 44" fill="none" stroke="var(--squash)" stroke-width="6" stroke-linecap="round"/>'+
+      '<path d="M14 44h162l-14 54a10 10 0 0 1-10 8H38a10 10 0 0 1-10-8z" fill="var(--squash-soft)" stroke="var(--squash)" stroke-width="5" stroke-linejoin="round"/>'+
+      '<path d="M50 58l6 36M80 58l3 36M110 58l-3 36M140 58l-6 36M24 74h142" fill="none" stroke="var(--squash)" stroke-width="3" stroke-linecap="round" opacity=".55"/></svg></div></div>'+
+    '<div class="rech-total"><b id="rechNb">0 produit</b><b id="rechTot">'+eur(0)+'</b></div>'+
+    '<div class="rech-nav"><button type="button" class="btn small ghost" id="rechPasser">Passer</button></div>';
+  document.body.appendChild(el);
+  const calme=window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches, pas=calme?90:Math.max(260,Math.min(420,Math.round(8000/rows.length)));
+  const zone=$("rechZone"), xs=[22,50,78,36,64]; let i=0, nb=0, tot=0, fini=false; const minuteurs=[];
+  const sortir=()=>{ if(fini) return; fini=true; minuteurs.forEach(clearTimeout); el.remove(); fin(); };
+  const fermer=()=>{ $("rechEtat").textContent=tk.total<=P.budget+0.005?"C\'est prêt : "+eur(tk.total)+" pour un budget de "+P.budget+" €.":"C\'est prêt. Je t\'explique ce que ton budget couvre.";
+    document.querySelector("#rech .rech-nav").innerHTML='<button type="button" class="btn" id="rechFin">Voir ma liste de courses</button>'; $("rechFin").onclick=sortir; $("rechFin").focus(); };
+  const un=()=>{
+    if(i>=rows.length){ minuteurs.push(setTimeout(fermer,calme?100:1500)); return; }
+    const r=rows[i], x=xs[i%xs.length], h=zone.clientHeight, deja=r.packs===0;
+    const t=document.createElement("div"); t.className="rech-item"+(deja?" deja":""); t.style.setProperty("--x",x+"%"); t.style.setProperty("--dx",(50-x)*zone.clientWidth/100+"px"); t.style.setProperty("--dy",Math.max(60,h-110)+"px");
+    t.innerHTML='<i>'+(PICTO[r.id]||"🛒")+'</i>'+esc(nomIng(r.id))+'<b>'+(deja?"déjà chez toi":eur(r.cost))+'</b>'; zone.appendChild(t);
+    minuteurs.push(setTimeout(()=>{ t.remove(); if(fini) return; if(!deja){ nb++; tot+=r.cost; $("rechNb").textContent=nb+(nb>1?" produits":" produit"); $("rechTot").textContent=eur(tot);
+      const f=$("panierFond"); if(f.childNodes.length<14) f.insertAdjacentHTML("beforeend","<span>"+(PICTO[r.id]||"🛒")+"</span>"); }
+      const p=$("panier"); p.classList.remove("bump"); void p.offsetWidth; p.classList.add("bump"); },calme?20:1450));
+    const k=Math.floor(i*plats.length/rows.length), k2=Math.floor((i+1)*plats.length/rows.length);
+    for(let j=k;j<k2;j++) $("rechPlats").insertAdjacentHTML("beforeend","<span>"+plateSVG(plats[j])+"</span>");
+    $("rechEtat").textContent=etats[Math.min(etats.length-1,Math.floor(i*etats.length/rows.length))];
+    i++; minuteurs.push(setTimeout(un,pas));
+  };
+  $("rechPasser").onclick=sortir; un();
 }
 
 /* ================= Appli ================= */
@@ -2135,12 +2217,12 @@ function renderMur(){
       '<p class="hint">Le paiement est géré par Whop. Un code bêta-testeur se saisit sur la page de paiement. Après le paiement, reviens ici et connecte-toi avec le même compte.</p>'+
       '<button type="button" class="btn small ghost" id="murProfil" style="justify-self:start">Modifier mes réponses</button></div></div>';
   $("murConnexion").onclick=()=>{ $("murConnexion").disabled=true; whopConnexion().catch(()=>{ MUR_MSG="Connexion impossible pour l'instant."; renderMur(); }); };
-  $("murProfil").onclick=()=>{ ONB={step:1,draft:JSON.parse(JSON.stringify(ST.profil))}; renderOnb(); };
+  $("murProfil").onclick=()=>{ ONB={step:0,draft:JSON.parse(JSON.stringify(ST.profil)),stock:null}; renderOnb(); };
   window.scrollTo(0,0);
 }
 
 function demarrer(){
-  if(!ST.profil){ ONB={step:0,draft:JSON.parse(JSON.stringify(PROFIL_DEFAUT))}; renderOnb(); }
+  if(!ST.profil){ ONB={step:0,draft:JSON.parse(JSON.stringify(PROFIL_DEFAUT)),stock:null}; renderOnb(); }
   else renderApp();
 }
 const majAvant=PRIX&&PRIX.maj;
