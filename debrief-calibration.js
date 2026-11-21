@@ -2627,6 +2627,12 @@ html.perso #home{display:flex;padding:0;align-items:stretch;text-align:left;just
 .cp-graph svg{width:100%;height:auto;display:block}
 .cp-legende{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:8px}
 .cp-legende i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.cp-etat-rappel{background:rgba(201,178,140,.08);border:1px solid rgba(201,178,140,.25);border-radius:10px;padding:10px 13px;font-size:14px;margin:0 0 14px;color:var(--muted)}
+.cp-etat-rappel b{color:var(--ink);font-weight:500}
+.cp-etat-phrase{font-size:14px;line-height:1.55;color:var(--amber);margin:14px 0 12px;font-style:italic}
+.cp-etat-q{display:block;font-size:13.5px;color:var(--ink);margin:12px 0 0}
+.cp-etat-q textarea{resize:vertical;font-family:inherit;line-height:1.45}
+button.cp-num{background:none;cursor:pointer;padding:0;font-family:inherit}
 .cp-rel-outils{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 16px;font-size:13px;color:var(--muted)}
 .cp-rel-tete,.cp-rel-l{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,2.3fr) 150px 170px 92px;gap:12px;align-items:center}
 .cp-rel-tete{font-size:11.5px;color:var(--muted);padding-bottom:8px}
@@ -2728,7 +2734,8 @@ $("cpAncienRetour").onclick = () => { ancien.classList.remove("on"); accueilEl.s
    --------------------------------------------------------------------- */
 const CP = {seances: [], actuelle: null, devoirs: [], entrainements: [], regl: {}, suivi: {url: "", mdp: ""},
             stats: null, statsTout: null, calls: [], suiviErreur: "", charge: null, enCours: false, rec: null, qui: "mix", onglet: "phases",
-            relances: {}, relOuvert: null, relOccupe: {}, relToutes: "", relFinis: false};
+            relances: {}, relOuvert: null, relOccupe: {}, relToutes: "", relFinis: false,
+            etat: {avant: [], apres: [], fiches: [], plan: null}};
 
 /* --- deux espaces : le tien et celui de ta femme. Chacun a ses séances, ses devoirs,
        ses entraînements et son suivi de calls. Les photos et les voix des coachs sont communes. --- */
@@ -2760,6 +2767,7 @@ async function chargeProfil(){
   CP.devoirs = (await Store.get(K("coach_perso_devoirs"))) || [];
   CP.entrainements = (await Store.get(K("coach_perso_entrainements"))) || [];
   CP.relances = (await Store.get(K("coach_perso_relances"))) || {}; CP.relOuvert = null;
+  CP.etat = Object.assign(etatVide(), (await Store.get(K("coach_perso_etat"))) || {});
   CP.actuelle = null; CP.stats = null; CP.statsTout = null; CP.calls = []; CP.charge = null; CP.suiviErreur = "";
   const autorises = profil().coachs;
   CP.qui = (await Store.get(K("coach_perso_qui"))) || (PROFIL === "woidih" ? (CP.regl._qui || "mix") : autorises[0]);
@@ -3428,6 +3436,107 @@ function ligneRelance(d){
 }
 
 /* ---------------------------------------------------------------------
+   Ton état : la partie intérieure du call. Avant (deux minutes pour se rendre
+   disponible), après (un ajustement, pas un procès), et quand un résultat pèse.
+   Exercices tirés du guide « Maîtrise intérieure et performance » : une synthèse
+   pédagogique, pas les mots de Josh. Tout reste dans ton navigateur.
+   --------------------------------------------------------------------- */
+const ETAPES_AVANT = [
+  ["Ton état", "Qu'est-ce que je pense, qu'est-ce que je ressens, où dans le corps ? Remarque-le, n'essaie pas de tout corriger."],
+  ["Ce qui dépend de toi", "Ta préparation, ton écoute, tes questions. Pas sa décision, ni son budget, ni son timing."],
+  ["Le présent", "Trois respirations lentes. Les pieds au sol, les épaules relâchées. Le call d'avant est fini."],
+  ["Tes principes", "Je sers. J'écoute. Je cherche la vérité. Je guide sans forcer."],
+  ["Ton intention", "Trois comportements que quelqu'un pourrait voir, pas un résultat. Écris-les."]
+];
+const QUESTIONS_APRES = [
+  ["present", "À quel moment as-tu été vraiment présent ?"],
+  ["attache", "À quel moment t'es-tu accroché au résultat ?"],
+  ["reussi", "Quel comportement précis as-tu bien exécuté ?"],
+  ["ajuste", "Ton seul ajustement pour le prochain call ?"]
+];
+const QUESTIONS_FICHE = [
+  ["veux", "Quel résultat est-ce que je veux absolument obtenir ?"],
+  ["peur", "Qu'est-ce que j'ai peur que ce résultat dise de moi ?"],
+  ["faits", "Quels sont les faits, sans interprétation ?"],
+  ["depend", "Qu'est-ce qui dépend réellement de moi aujourd'hui ?"],
+  ["action", "Quelle action juste puis-je faire maintenant, même sans être sûr du résultat ?"]
+];
+const PLAN_7_JOURS = [
+  ["Faits et histoire", "Après une situation qui t'a contrarié, écris trois lignes : le fait (ce qu'une caméra aurait filmé), l'histoire que tu t'es racontée, ce que ça a déclenché."],
+  ["Trois points de vue", "Reprends un call difficile : comme tu l'as vécu, comme le prospect a pu le vivre, comme un observateur neutre l'aurait vu."],
+  ["Trois scans", "Trois fois dans la journée, trente secondes : qu'est-ce que je pense, qu'est-ce que je ressens, de quoi ai-je envie là ?"],
+  ["Écouter sans préparer", "Dans une conversation, laisse l'autre finir sans préparer ta réponse. Résume dans ta tête ce que tu as compris."],
+  ["Une compétence", "Choisis une seule phase de ton call et entraîne-la : un roleplay ciblé dans l'onglet Phases."],
+  ["Désattachement", "Remplis la fiche de désattachement sur un résultat qui te tient trop."],
+  ["Bilan", "Relis tes notes de la semaine. Choisis un seul comportement à garder la semaine suivante."]
+];
+const RECENTRAGE = "Je peux vouloir ce résultat sans en avoir besoin pour être en paix. Je fais ma part avec sérieux. Le reste ne m'appartient pas entièrement.";
+const sauveEtat = () => Store.set(K("coach_perso_etat"), CP.etat);
+const etatVide = () => ({avant: [], apres: [], fiches: [], plan: null});
+const champEtat = id => (($(id) || {}).value || "").trim();
+
+function rendEtat(){
+  const E = CP.etat, dernierApres = E.apres.slice(-1)[0], dernierAvant = E.avant.slice(-1)[0];
+  const intentions = (dernierAvant && dernierAvant.intentions) || ["", "", ""];
+  const plan = E.plan, jourPlan = plan ? Math.min(6, Math.floor((Date.now() - plan.debut) / 86400000)) : -1;
+  let h = `<div class="cp-carte"><h4>Avant le call · deux minutes</h4>
+    ${dernierApres && dernierApres.r.ajuste ? `<p class="cp-etat-rappel">Ton ajustement du dernier call : <b>${escapeHTML(dernierApres.r.ajuste)}</b></p>` : ""}
+    ${ETAPES_AVANT.map(([t, d], i) => `<div class="cp-etape"><span class="cp-num">${i + 1}</span><div><b>${t}</b><small>${d}</small></div></div>`).join("")}
+    <input class="cp-champ" id="cpEtRessenti" placeholder="Ce que je ressens, là, en un mot ou une phrase (facultatif)">
+    ${[0, 1, 2].map(i => `<input class="cp-champ" id="cpEtInt${i}" placeholder="${["Ex. : laisser finir ses phrases, sans couper", "Ex. : demander les faits avant le pourquoi", "Ex. : me taire après le miroir"][i]}" value="${escapeHTML(intentions[i] || "")}">`).join("")}
+    <p class="cp-etat-phrase">« ${RECENTRAGE} »</p>
+    <div class="cp-btns"><button class="cp-btn plein" id="cpEtAvant">Je suis prêt, j'y vais</button></div></div>`;
+  h += `<div class="cp-carte"><h4>Après le call · trois minutes</h4>
+    <p class="cp-vide" style="margin-bottom:10px">Un débrief utile finit sur un ajustement concret, pas sur un procès contre toi-même.</p>
+    ${CP.calls.length ? `<select class="cp-champ" id="cpEtCall"><option value="">Quel call ? (facultatif)</option>${CP.calls.slice(0, 15).map(c => `<option value="${escapeHTML(c.id)}">${escapeHTML(nomCall(c))} · ${escapeHTML(String(c.date || "").slice(0, 10))}</option>`).join("")}</select>` : ""}
+    ${QUESTIONS_APRES.map(([k, q]) => `<label class="cp-etat-q">${q}<textarea class="cp-champ" id="cpEtA_${k}" rows="2"></textarea></label>`).join("")}
+    <div class="cp-btns"><button class="cp-btn plein" id="cpEtApres">Garder mon débrief</button></div></div>`;
+  h += `<div class="cp-carte"><h4>Quand un résultat pèse · cinq minutes</h4>
+    <p class="cp-vide" style="margin-bottom:10px">Ne te bats pas contre l'émotion. <b style="color:var(--ink)">Nomme-la</b> (« là, je ressens de la peur »), <b style="color:var(--ink)">sépare</b> ce qui s'est passé de ce que tu imagines, <b style="color:var(--ink)">accepte</b> qu'elle soit là sans lui obéir, puis <b style="color:var(--ink)">agis</b> : une petite action utile.</p>
+    ${QUESTIONS_FICHE.map(([k, q]) => `<label class="cp-etat-q">${q}<textarea class="cp-champ" id="cpEtF_${k}" rows="2"></textarea></label>`).join("")}
+    <div class="cp-btns"><button class="cp-btn plein" id="cpEtFiche">Garder ma fiche</button><button class="cp-btn" id="cpEtFicheCoach">En parler avec ${escapeHTML(coachCourant().nom)}</button></div>
+    <p class="cp-vide" style="font-size:12.5px;margin-top:12px">Le détachement n'est pas de l'indifférence. Si un état dure, t'empêche de fonctionner ou s'aggrave, parles-en à quelqu'un de confiance ou à un professionnel.</p></div>`;
+  h += `<div class="cp-carte"><h4>Sept jours pour commencer</h4>${plan ? PLAN_7_JOURS.map(([t, d], i) => `<div class="cp-etape ${plan.faits[i] ? "fait" : i === jourPlan ? "cours" : ""}">
+      <button class="cp-num" data-etjour="${i}" title="${plan.faits[i] ? "Fait" : "Marquer comme fait"}">${plan.faits[i] ? "✓" : i + 1}</button><div><b>Jour ${i + 1} · ${t}</b><small>${d}</small></div></div>`).join("")
+      + `<div class="cp-btns" style="margin-top:10px"><button class="cp-btn" id="cpEtPlanZero">Recommencer à zéro</button></div>`
+    : `<p class="cp-vide" style="margin-bottom:12px">Un exercice par jour, un quart d'heure suffit. La répétition compte plus que l'intensité.</p><button class="cp-btn plein" id="cpEtPlan">Commencer aujourd'hui</button>`}</div>`;
+  const hist = [...E.apres.map(x => ({t: x.t, txt: "Débrief" + (x.call ? " · " + x.call : "") + (x.r.ajuste ? " → " + x.r.ajuste : "")})),
+                ...E.fiches.map(x => ({t: x.t, txt: "Fiche · " + (x.r.veux || x.r.peur || "")}))].sort((a, b) => b.t - a.t).slice(0, 6);
+  if(hist.length) h += `<div class="cp-carte"><h4>Ce que tu as écrit</h4>${hist.map(x => `<div class="cp-ligne"><div class="cp-l1">${escapeHTML(x.txt.slice(0, 200))}<small>${jour(x.t)}</small></div></div>`).join("")}</div>`;
+  return h;
+}
+function brancheEtat(){
+  const E = CP.etat, vide = ids => ids.forEach(id => { if($(id)) $(id).value = ""; });
+  $("cpEtAvant").onclick = () => {
+    const intentions = [0, 1, 2].map(i => champEtat("cpEtInt" + i));
+    if(!intentions.some(Boolean)) return toast("Écris au moins un comportement pour ce call.");
+    E.avant = E.avant.concat({t: Date.now(), ressenti: champEtat("cpEtRessenti"), intentions}).slice(-60);
+    sauveEtat(); vide(["cpEtRessenti"]); toast("Bon call. Pas le résultat : le prochain échange.");
+  };
+  $("cpEtApres").onclick = () => {
+    const r = {}; QUESTIONS_APRES.forEach(([k]) => r[k] = champEtat("cpEtA_" + k));
+    if(!r.ajuste) return toast("Écris au moins ton ajustement pour le prochain call.");
+    const c = $("cpEtCall") && CP.calls.find(x => x.id === $("cpEtCall").value);
+    E.apres = E.apres.concat({t: Date.now(), call: c ? nomCall(c) : "", r}).slice(-60);
+    sauveEtat(); rendCoaching(); toast("Gardé. Ton ajustement t'attendra avant le prochain call.");
+  };
+  const lisFiche = () => { const r = {}; QUESTIONS_FICHE.forEach(([k]) => r[k] = champEtat("cpEtF_" + k)); return r; };
+  $("cpEtFiche").onclick = () => {
+    const r = lisFiche(); if(!Object.values(r).some(Boolean)) return toast("La fiche est vide.");
+    E.fiches = E.fiches.concat({t: Date.now(), r}).slice(-60); sauveEtat(); rendCoaching(); toast("Fiche gardée.");
+  };
+  $("cpEtFicheCoach").onclick = () => {
+    const r = lisFiche(); if(!Object.values(r).some(Boolean)) return toast("Remplis au moins une question, puis parle-en.");
+    E.fiches = E.fiches.concat({t: Date.now(), r}).slice(-60); sauveEtat();
+    nouvelleSeance({type: "qr", titre: "Ce qui me pèse", ouverture: "J'ai un résultat qui me pèse. Voilà ma fiche :\n" +
+      QUESTIONS_FICHE.filter(([k]) => r[k]).map(([k, q]) => "- " + q + " " + r[k]).join("\n") + "\nAide-moi à y voir clair, sans me rassurer pour rien."});
+  };
+  if($("cpEtPlan")) $("cpEtPlan").onclick = () => { E.plan = {debut: new Date(aujourdhui() + "T00:00:00").getTime(), faits: []}; sauveEtat(); rendCoaching(); };
+  if($("cpEtPlanZero")) $("cpEtPlanZero").onclick = () => { E.plan = null; sauveEtat(); rendCoaching(); };
+  document.querySelectorAll("[data-etjour]").forEach(b => b.onclick = () => { const i = +b.dataset.etjour; E.plan.faits[i] = !E.plan.faits[i]; sauveEtat(); rendCoaching(); });
+}
+
+/* ---------------------------------------------------------------------
    Coaching
    --------------------------------------------------------------------- */
 async function ouvreCoaching(phaseOuverte){
@@ -3449,6 +3558,7 @@ function rendCoaching(phaseOuverte){
       <button data-onglet="analyse" class="${CP.onglet === "analyse" ? "on" : ""}">Analyse de call</button>
       <button data-onglet="roleplay" class="${CP.onglet === "roleplay" ? "on" : ""}">Roleplay</button>
       <button data-onglet="qr" class="${CP.onglet === "qr" ? "on" : ""}">Questions-réponses</button>
+      <button data-onglet="etat" class="${CP.onglet === "etat" ? "on" : ""}">Ton état</button>
     </div>`;
   if(enCours.length) h += `<div class="cp-carte"><h4>À reprendre</h4>${enCours.slice(0, 5).map(s => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(s.titre)}</b>
       <small>${escapeHTML(coachDe(s.qui).nom)} · ${jour(s.debut)} · ${(n => n + " réponse" + (n > 1 ? "s" : ""))(s.conv.filter(m => m.role === "moi").length)} de ta part</small></div>
@@ -3474,6 +3584,8 @@ function rendCoaching(phaseOuverte){
     h += `<div class="cp-carte"><h4>Roleplay</h4><p class="cp-vide" style="margin-bottom:14px">Le plus utile : un prospect construit pour la phase que tu rates le plus. Ou un roleplay libre.</p>
       <div class="cp-btns">${faibles.slice(0, 3).map(k => `<button class="cp-btn plein" data-entrainer="${k}">Sur « ${escapeHTML(nomPhase(k))} »</button>`).join("")}
       <button class="cp-btn" id="cpRpLibre">Roleplay libre</button></div></div>`;
+  } else if(CP.onglet === "etat"){
+    h += rendEtat();
   } else {
     h += `<div class="cp-carte"><h4>Questions-réponses</h4><p class="cp-vide" style="margin-bottom:14px">Raconte un call, une situation, un doute. Il te fera chercher avant de te répondre.</p>
       <button class="cp-btn plein" id="cpNouvelleQR">Nouvelle séance avec ${escapeHTML(coachCourant().nom)}</button></div>`;
@@ -3499,6 +3611,7 @@ function rendCoaching(phaseOuverte){
   el.querySelectorAll("[data-analyser]").forEach(b => b.onclick = () => nouvelleAnalyse(CP.calls.find(c => c.id === b.dataset.analyser), b.dataset.phase));
   if($("cpRpLibre")) $("cpRpLibre").onclick = () => lanceRoleplay("");
   if($("cpNouvelleQR")) $("cpNouvelleQR").onclick = () => nouvelleSeance({type: "qr", titre: "Questions-réponses"});
+  if(CP.onglet === "etat") brancheEtat();
 }
 
 /* ce que tes coachs ont en tête : le même fil que celui qu'ils relisent */
