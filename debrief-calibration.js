@@ -3480,6 +3480,7 @@ function rendEtat(){
   const intentions = (dernierAvant && dernierAvant.intentions) || ["", "", ""];
   const plan = E.plan, jourPlan = plan ? Math.min(6, Math.floor((Date.now() - plan.debut) / 86400000)) : -1;
   let h = `<div class="cp-carte"><h4>Avant le call · deux minutes</h4>
+    <p class="cp-vide" style="margin-bottom:12px">Un outil, pas une béquille. Si tu la fais parce que tu en as envie, elle t'aide. Si tu la fais parce que sans elle tu as peur de rater ton call, saute-la : c'est elle qui te tient.</p>
     ${dernierApres && dernierApres.r.ajuste ? `<p class="cp-etat-rappel">Ton ajustement du dernier call : <b>${escapeHTML(dernierApres.r.ajuste)}</b></p>` : ""}
     ${ETAPES_AVANT.map(([t, d], i) => `<div class="cp-etape"><span class="cp-num">${i + 1}</span><div><b>${t}</b><small>${d}</small></div></div>`).join("")}
     <input class="cp-champ" id="cpEtRessenti" placeholder="Ce que je ressens, là, en un mot ou une phrase (facultatif)">
@@ -3509,7 +3510,6 @@ function brancheEtat(){
   const E = CP.etat, vide = ids => ids.forEach(id => { if($(id)) $(id).value = ""; });
   $("cpEtAvant").onclick = () => {
     const intentions = [0, 1, 2].map(i => champEtat("cpEtInt" + i));
-    if(!intentions.some(Boolean)) return toast("Écris au moins un comportement pour ce call.");
     E.avant = E.avant.concat({t: Date.now(), ressenti: champEtat("cpEtRessenti"), intentions}).slice(-60);
     sauveEtat(); vide(["cpEtRessenti"]); toast("Bon call. Pas le résultat : le prochain échange.");
   };
