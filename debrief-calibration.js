@@ -689,7 +689,7 @@ const DESTINATION_JOSH = "l'étau qui se ferme : le call part large et se resser
         "Chaque question partait-elle de ce que le prospect venait de dire, en se resserrant ?", "A-t-il fait chiffrer ce que la situation a déjà coûté, sur le passé réel ?",
         "Le prospect a-t-il reconnu sa part ?", "A-t-il trouvé un moment de bascule récent et précis ?", "La conséquence en jeu était-elle réelle et personnelle ?",
         "L'étau s'est-il fermé : problème, horloge et conséquence reliés, urgence maintenant, plus d'autre option ?",
-        "A-t-il abordé l'argent et le dernier doute avant de présenter ?", "A-t-il vérifié que le prospect remontait (plus léger, engagé) avant le pitch ?", "A-t-il obtenu une décision ?"],
+        "A-t-il abordé l'argent et le dernier doute avant de présenter, et vérifié que le prospect peut payer sans se mettre en danger ?", "S'il ne pouvait pas, l'a-t-il dit au lieu de pousser (pas d'acompte pris sur l'argent qui sert à vivre, pas de mineur sans ses parents) ?", "A-t-il vérifié que le prospect remontait (plus léger, engagé) avant le pitch ?", "A-t-il obtenu une décision ?"],
       regle: "Le call se déroule normalement, dans son ordre naturel.", fin: "le call va au bout : engagement obtenu, paiement fait, ou le prospect met fin.",
       toursMax: 60, commence: "closer", terrain: "decouverte"},
     cadre: {nom: "Le cadre", court: "Les premières minutes : qui mène", depart: "Le call vient de commencer. Rien n'a encore été dit sur sa situation.",
@@ -743,7 +743,7 @@ const DESTINATION_JOSH = "l'étau qui se ferme : le call part large et se resser
     recap: {nom: "Le récap, l'argent, le dernier doute", court: "Avant de présenter", depart: "La découverte est faite et l'étau est fermé. Le closer va bientôt présenter.",
       objectif: "Récapituler avec ses mots et ses chiffres précis et le faire valider ; lui faire dire de quoi il a besoin ; demander comment il compte investir ; « y a-t-il autre chose que je devrais savoir ? ».",
       criteres: ["Le récap reprenait-il ses mots et ses chiffres précis ?", "L'a-t-il fait valider ?", "A-t-il fait dire au prospect de quoi il a besoin ?",
-        "A-t-il osé poser la question de l'argent avant de présenter ?", "A-t-il demandé s'il y avait autre chose à savoir, sans laisser de doute en route ?"],
+        "A-t-il osé poser la question de l'argent avant de présenter ?", "A-t-il vérifié qu'il peut investir sans se mettre en danger (revenu, épargne, charges), et l'aurait-il dit franchement si ce n'était pas le cas ?", "A-t-il demandé s'il y avait autre chose à savoir, sans laisser de doute en route ?"],
       regle: "INTERDIT : le prix n'a pas été annoncé. AUTORISÉ : un petit doute glissé (« je me demande si j'aurai le temps ») qui ressortira au prix si personne ne le règle maintenant.",
       fin: "le récap est validé, l'argent abordé, et le dernier doute sorti.", toursMax: 10, commence: "closer", terrain: "decouverte"},
     remontee: {nom: "La remontée avant le pitch", court: "Il doit ressortir plus léger", depart: "La découverte a été dure. Le prospect est un peu sonné, la tête « partout ». Le closer s'apprête à présenter.",
@@ -3938,6 +3938,7 @@ COMMENT TU COACHES
 Tu commences par comprendre ce qui s'est vraiment passé, une question à la fois. Tu le fais chercher avant de lui donner ta réponse, et tu la donnes s'il bloque vraiment ou s'il te la demande deux fois.
 Quand il te propose une phrase qu'il dirait en call, tu la lui fais refaire tant qu'elle ne sonne pas juste. Tu lui dis pourquoi elle ne touche pas le prospect, et tu lui en demandes une autre. Après deux essais, tu lui donnes la tienne et tu lui demandes de la redire avec ses mots.
 Tu t'appuies sur le réel : les mots du prospect, ceux de ton élève, le moment exact du call si tu as la transcription.
+Tu regardes aussi si le prospect pouvait payer. Pousser quelqu'un qui n'a pas les moyens démontrés (il emprunte pour vivre, son épargne est celle du quotidien, il est mineur sans ses parents) est une faute, même si la vente est faite. Dire franchement « pas maintenant » à quelqu'un qui ne peut pas est une réussite, et tu la lui comptes comme telle.
 Tu relèves ce qu'il fait bien aussi souvent que ce qu'il rate, pour de vrai, avec ses mots, jamais pour adoucir. Un bon réflexe, c'est un comportement qu'il sait déjà faire : tu t'en sers pour corriger le reste. Les deux sont reliés.
 Tu es franc. Tu nommes ce qu'il évite, y compris chez lui : sa peur de déranger, sa peur d'aller trop loin, son envie de passer vite à l'offre. Dur quand il le faut, jamais méprisant, et chaleureux quand il est découragé.
 Pas de phrase magique. S'il cherche un raccourci, tu le lui dis, et tu le ramènes à ce qui fait progresser : comprendre, répéter, s'entraîner. Tu lui donnes souvent un travail précis, et tu le lui redemandes la fois suivante. Il peut mettre une séance en pause : c'est normal.
