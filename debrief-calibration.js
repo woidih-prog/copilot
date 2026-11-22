@@ -119,7 +119,7 @@ async function filEcrit(e){
 }
 // une ligne de roleplay, telle que le coach la relira
 function ligneRoleplay(e){
-  return [e.vu, e.joue ? "Là où ça a basculé : " + e.joue : "", e.faute ? "Sa faute : " + e.faute : "",
+  return [e.vu, e.fort ? "Ce qu'il a bien fait : " + e.fort : "", e.joue ? "Là où ça a basculé : " + e.joue : "", e.faute ? "Sa faute : " + e.faute : "",
           e.aurait_du ? "Il fallait dire : « " + e.aurait_du + " »" : "", e.a_travailler ? "À corriger : " + e.a_travailler : "",
           e.note != null ? "Note " + e.note + "/10." : ""].filter(Boolean).join(" ").slice(0, 700);
 }
@@ -192,7 +192,7 @@ TU N'AS PAS SA MÉTHODE SOUS LES YEUX, ET C'EST VOULU.
 D'abord tu comprends ce qui s'est passé, comme un coach qui écoute un enregistrement. La méthode viendra après, et ce sera toi qui iras la chercher.
 
 1. Relis l'échange du début à la fin. Raconte ce que tu as vu, deux ou trois phrases, avec tes mots.
-2. Choisis toi-même les moments qui ont compté (deux à six). Pour chacun : ce que le prospect venait d'offrir, ce que le closer en a fait, ce que ça a coûté. Cite les mots.
+2. Choisis toi-même les moments qui ont compté (deux à six), dont au moins un où il a eu le bon réflexe, s'il y en a un. Pour chacun : ce que le prospect venait d'offrir, ce que le closer en a fait, ce que ça a rapporté ou coûté. Cite les mots. Ce qu'il fait bien compte autant que ce qu'il rate : c'est souvent la clé pour corriger le reste.
 3. Remonte à la cause : où le call a vraiment basculé.
 4. Nomme le mécanisme avec une image.
 5. Dis ce qu'il n'a pas entendu, et compte ses questions qui rebondissaient sur la dernière phrase du prospect et celles qui ouvraient un sujet neuf.
@@ -205,7 +205,7 @@ Sans flatterie. Tout en français, dans son vocabulaire de closer francophone.
 
 Réponds uniquement avec ce JSON, sans markdown, et sois concis dans chaque champ :
 {"lecture":"deux ou trois phrases",
- "moments":[{"quand":"le moment, cite les mots","offert":"ce que le prospect venait d offrir","fait":"ce que le closer en a fait","coute":"ce que ca a coute"}],
+ "moments":[{"quand":"le moment, cite les mots","offert":"ce que le prospect venait d offrir","fait":"ce que le closer en a fait","coute":"ce que ca a rapporte ou coute"}],
  "bascule":"le moment ou ca a bascule et pourquoi, ou null",
  "mecanique":"le mecanisme avec une image, une ou deux phrases",
  "ecoute":{"rebonds":nombre,"neufs":nombre,"rates":["ce qu il n a pas entendu, cite"]},
@@ -243,7 +243,7 @@ Réponds uniquement avec ce JSON, sans markdown :
  "methode":"pourquoi cette fiche repond a sa faute, ou, si aucune ne convient, ce qui manque dans sa base",
  "exercice":"l exercice prioritaire pour la prochaine fois, une phrase",
  "exercices":[{"titre":"nom court","consigne":"ce qu il fait exactement, seul a voix haute ou en roleplay, avec quel moment du call travailler","repetitions":"combien de fois, ou combien de sessions","reussi_si":"a quoi il reconnait que c est acquis, concretement"}]}
-Donne exactement trois exercices, tous tournes vers SA faute principale et LA chose a corriger. Du plus simple au plus exigeant. Pas d exercice generique : chacun doit pouvoir se faire des demain.`;
+Donne exactement trois exercices : deux tournes vers SA faute principale et LA chose a corriger, du plus simple au plus exigeant, et un pour refaire ce qui etait bon dans un autre moment du call, pour qu il le reproduise exprès.${(j.fort ? " Ce qui etait bon : " + j.fort : "")} Pas d exercice generique : chacun doit pouvoir se faire des demain.`;
 }
 
 function htmlCouches(p){
@@ -457,7 +457,7 @@ $("btnSparFin").onclick = async () => {
   const idFil = "r" + SPAR.debut;
   filEcrit({id: idFil, t: Date.now(), type: "roleplay", coach: manniereDuCoach().nom,
             titre: "Roleplay « " + segmentCourant().nom + " »" + (SPAR.p.metier ? " contre un prospect " + SPAR.p.metier : "") + (SPAR.reel ? " (rejeu d'un vrai call)" : ""),
-            vu: j.lecture || "", joue: j.bascule || "", faute: j.faute || "", a_travailler: j.une_chose || "", note, trouve: j.trouve}).catch(() => {});
+            vu: j.lecture || "", joue: j.bascule || "", fort: j.fort || "", faute: j.faute || "", a_travailler: j.une_chose || "", note, trouve: j.trouve}).catch(() => {});
 
   // Deuxième temps : il va chercher dans ta méthode ce qui répond à SA lecture.
   let m;
@@ -2627,6 +2627,8 @@ html.perso #home{display:flex;padding:0;align-items:stretch;text-align:left;just
 .cp-graph svg{width:100%;height:auto;display:block}
 .cp-legende{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:8px}
 .cp-legende i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.cp-deux{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.cp-deux .cp-carte{margin-bottom:14px}
 .cp-etat-rappel{background:rgba(201,178,140,.08);border:1px solid rgba(201,178,140,.25);border-radius:10px;padding:10px 13px;font-size:14px;margin:0 0 14px;color:var(--muted)}
 .cp-etat-rappel b{color:var(--ink);font-weight:500}
 .cp-etat-phrase{font-size:14px;line-height:1.55;color:var(--amber);margin:14px 0 12px;font-style:italic}
@@ -3010,6 +3012,8 @@ function avantApres(k){
 function rendAccueil(){
   const st = CP.stats, enCours = CP.seances.filter(s => s.etat !== "terminee").sort((a, b) => b.maj - a.maj);
   const prio = st && st.grille && st.grille.faiblesses && st.grille.faiblesses[0];
+  const fortes = lignesGrille().filter(l => l.n && l.taux != null).sort((a, b) => b.taux - a.taux);
+  const force = fortes[0] && (!prio || fortes[0].k !== prio.k) ? fortes[0] : null;
   const heure = new Date().getHours();
   accueilEl.innerHTML = `<div class="cp-page">
     <div class="cp-haut"><span class="cp-marque">Closing Copilot</span>
@@ -3024,7 +3028,7 @@ function rendAccueil(){
       <input class="cp-champ" id="cpProfilDesc" placeholder="Ce qu'elle vend (facultatif)">
       <div class="cp-btns" style="margin-top:10px"><button class="cp-btn plein" id="cpProfilOk">Créer son espace</button></div></div>
     <h1 class="cp-titre">${heure < 18 ? "Bonjour" : "Bonsoir"} ${escapeHTML(nomProfil())}.</h1>
-    <p class="cp-sous">${prio ? "En ce moment, ce qui te coûte le plus : <b style='color:var(--ink)'>" + escapeHTML(prio.nom) + "</b>, réussi dans " + prio.taux + " % de tes calls." : "Tes calls d'un côté, ton travail de l'autre. Les deux sont reliés."}</p>
+    <p class="cp-sous">${force ? "Ce que tu tiens le mieux : <b style='color:var(--sage)'>" + escapeHTML(force.nom) + "</b>, réussi dans " + force.taux + " % de tes calls." + (prio ? "<br>" : "") : ""}${prio ? "Ce qui te coûte le plus : <b style='color:var(--ink)'>" + escapeHTML(prio.nom) + "</b>, réussi dans " + prio.taux + " % de tes calls." : (force ? "" : "Tes calls d'un côté, ton travail de l'autre. Les deux sont reliés.")}</p>
     ${TESTEUR && CP.essai ? `<p style="font-size:13px;color:var(--muted);margin:-10px 0 22px">${escapeHTML(ligneEssai())}</p>` : ""}
     <div class="cp-portes">
       <button class="cp-porte" id="cpPorteTracking"><div class="cp-ico">${ICO.suivi}</div><h3>Tracking</h3>
@@ -3187,6 +3191,14 @@ function rendTracking(){
     <div class="cp-kpi"><span>Signés</span><b>${st.signes}</b></div>
     <div class="cp-kpi"><span>Taux par prospect</span><b>${st.taux_prospect ?? "–"}${st.taux_prospect != null ? " %" : ""}</b></div>
     <div class="cp-kpi"><span>Grille respectée</span><b>${scoreMoy ?? "–"}${scoreMoy != null ? " %" : ""}</b></div></div>`;
+  const tenues = lignesGrille().filter(l => l.n && l.taux != null).sort((a, b) => b.taux - a.taux);
+  if(tenues.length >= 2){
+    const haut = tenues.slice(0, 3), bas = tenues.slice(-3).reverse().filter(l => !haut.includes(l));
+    const ligne = (l, c) => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(l.nom)}</b><small>réussi dans ${l.taux} % de tes calls${l.signe_si_fait != null ? " · tu signes " + l.signe_si_fait + " % quand tu le fais" : ""}</small></div><span class="cp-pastille ${c}">${l.taux} %</span></div>`;
+    h += `<div class="cp-deux"><div class="cp-carte"><h4>Ce que tu tiens</h4>${haut.map(l => ligne(l, "ok")).join("")}
+        <p class="cp-vide" style="font-size:12.5px;margin-top:10px">Ce que tu sais déjà faire. C'est souvent par là qu'on corrige le reste.</p></div>
+      ${bas.length ? `<div class="cp-carte"><h4>Ce qui te coûte</h4>${bas.map(l => ligne(l, "ko")).join("")}</div>` : ""}</div>`;
+  }
   h += `<div class="cp-carte"><h4>Ta progression</h4>${graphique()}</div>`;
   const trav = [...new Set(CP.entrainements.map(e => e.k).filter(Boolean))].map(k => [k, avantApres(k)]).filter(x => x[1]);
   if(trav.length) h += `<div class="cp-carte"><h4>Avant et après tes entraînements</h4>${trav.map(([k, a]) => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(nomPhase(k))}</b>
@@ -3883,6 +3895,7 @@ ${phase}Il doit toujours savoir d'où il part, où vous allez, et pourquoi. Dès
 La destination d'un call de vente, ${c.k === "keenan" ? "c'est l'écart entre sa situation actuelle et celle qu'il vise, ce que cet écart lui coûte, et pourquoi le combler maintenant" : "c'est " + DESTINATION_JOSH}. Chaque moment que vous travaillez est relié à cette destination, et tu le lui dis. Un call qui s'éparpille (questions au hasard, retours au général) ou un closer qui relâche la pression pour se rassurer casse l'entonnoir : tu le lui montres.
 Un détail du call (le budget, ses chiffres, son taux de conversion, la technique de son métier) ne mérite du temps que s'il sert cette destination. Sinon tu le dis franchement, « ça, ce n'est pas là que ça s'est joué », et tu ramènes.
 Tu as le chrono du call en tête : une découverte complète tient en général en une vingtaine de minutes. Si la transcription a les minutes, tu les cites, et tu lui dis quand il a passé trop de temps sur quelque chose.
+Dans un vrai call, tu commences par ce qu'il a bien fait : un moment précis, ses mots, pourquoi c'était juste. Puis tu vas à ce qui a coûté, et tu relies les deux quand c'est possible (« là tu l'as fait, ici tu ne l'as pas fait : qu'est-ce qui a changé ? »).
 Un point à la fois. Quand il est acquis, tu le dis, tu fais le point en une phrase (« on a ça, maintenant on va là ») et tu passes au suivant. Tu ne tournes pas plus de cinq ou six échanges sur le même point.
 Quand ce n'est pas évident, ta question dit pourquoi tu la poses.
 Quand vous avez fait le tour, tu lui demandes ce qu'il retient, avec ses mots, avant de conclure.
@@ -3925,6 +3938,7 @@ COMMENT TU COACHES
 Tu commences par comprendre ce qui s'est vraiment passé, une question à la fois. Tu le fais chercher avant de lui donner ta réponse, et tu la donnes s'il bloque vraiment ou s'il te la demande deux fois.
 Quand il te propose une phrase qu'il dirait en call, tu la lui fais refaire tant qu'elle ne sonne pas juste. Tu lui dis pourquoi elle ne touche pas le prospect, et tu lui en demandes une autre. Après deux essais, tu lui donnes la tienne et tu lui demandes de la redire avec ses mots.
 Tu t'appuies sur le réel : les mots du prospect, ceux de ton élève, le moment exact du call si tu as la transcription.
+Tu relèves ce qu'il fait bien aussi souvent que ce qu'il rate, pour de vrai, avec ses mots, jamais pour adoucir. Un bon réflexe, c'est un comportement qu'il sait déjà faire : tu t'en sers pour corriger le reste. Les deux sont reliés.
 Tu es franc. Tu nommes ce qu'il évite, y compris chez lui : sa peur de déranger, sa peur d'aller trop loin, son envie de passer vite à l'offre. Dur quand il le faut, jamais méprisant, et chaleureux quand il est découragé.
 Pas de phrase magique. S'il cherche un raccourci, tu le lui dis, et tu le ramènes à ce qui fait progresser : comprendre, répéter, s'entraîner. Tu lui donnes souvent un travail précis, et tu le lui redemandes la fois suivante. Il peut mettre une séance en pause : c'est normal.
 
