@@ -2627,6 +2627,14 @@ html.perso #home{display:flex;padding:0;align-items:stretch;text-align:left;just
 .cp-graph svg{width:100%;height:auto;display:block}
 .cp-legende{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:8px}
 .cp-legende i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.cp-mois{display:flex;flex-wrap:wrap;gap:8px 22px;margin-bottom:14px}
+.cp-mois div{font-size:13.5px}.cp-mois b{text-transform:capitalize;font-weight:600;margin-right:6px}.cp-mois span{color:var(--muted)}.cp-mois em{color:var(--sage);font-style:normal}
+.cp-barres{display:flex;align-items:flex-end;gap:6px;overflow-x:auto;padding-bottom:2px}
+.cp-barre-sem{flex:1 0 34px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.cp-barre-sem small{font-size:11px;color:var(--ink);white-space:nowrap}.cp-barre-sem small em{color:var(--sage);font-style:normal}
+.cp-col{width:100%;max-width:44px;background:#3A3833;border-radius:6px 6px 3px 3px;display:flex;align-items:flex-end;overflow:hidden}
+.cp-col i{display:block;width:100%;background:var(--sage)}
+.cp-barre-sem span{font-size:10.5px;color:var(--muted);white-space:nowrap}
 .cp-deux{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
 .cp-deux .cp-carte{margin-bottom:14px}
 .cp-etat-rappel{background:rgba(201,178,140,.08);border:1px solid rgba(201,178,140,.25);border-radius:10px;padding:10px 13px;font-size:14px;margin:0 0 14px;color:var(--muted)}
@@ -3199,6 +3207,8 @@ function rendTracking(){
         <p class="cp-vide" style="font-size:12.5px;margin-top:10px">Ce que tu sais déjà faire. C'est souvent par là qu'on corrige le reste.</p></div>
       ${bas.length ? `<div class="cp-carte"><h4>Ce qui te coûte</h4>${bas.map(l => ligne(l, "ko")).join("")}</div>` : ""}</div>`;
   }
+  const barres = barresSemaines();
+  if(barres) h += `<div class="cp-carte"><h4>Tes calls, semaine par semaine</h4>${barres}</div>`;
   h += `<div class="cp-carte"><h4>Ta progression</h4>${graphique()}</div>`;
   const trav = [...new Set(CP.entrainements.map(e => e.k).filter(Boolean))].map(k => [k, avantApres(k)]).filter(x => x[1]);
   if(trav.length) h += `<div class="cp-carte"><h4>Avant et après tes entraînements</h4>${trav.map(([k, a]) => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(nomPhase(k))}</b>
@@ -3222,6 +3232,23 @@ function rendTracking(){
     el.querySelectorAll("[data-analyser]").forEach(b => b.onclick = () => nouvelleAnalyse(CP.calls.find(c => c.id === b.dataset.analyser)));
     el.querySelectorAll("[data-travailler]").forEach(b => b.onclick = () => { CP.onglet = "phases"; ouvreCoaching(b.dataset.travailler); });
   }
+}
+/* les barres, comme sur ta page « Mon suivi » : calls et signés par semaine, et le total de chaque mois */
+function barresSemaines(){
+  const sem = ((CP.statsTout || {}).semaines || []).slice(-16);
+  if(!sem.length) return "";
+  const max = Math.max(1, ...sem.map(s => s.calls || 0));
+  const mois = [];
+  sem.forEach(s => { const m = String(s.semaine).slice(0, 7), d = mois[mois.length - 1];
+    if(d && d.m === m){ d.calls += s.calls || 0; d.signes += s.signes || 0; } else mois.push({m, calls: s.calls || 0, signes: s.signes || 0}); });
+  const nomMois = m => new Date(m + "-15T12:00:00").toLocaleDateString("fr-FR", {month: "long"});
+  const pc = (a, b) => b ? Math.round(a / b * 100) + " %" : "–";
+  return `<div class="cp-mois">${mois.map(m => `<div><b>${nomMois(m.m)}</b><span>${m.calls} calls · <em>${m.signes} signés</em> · ${pc(m.signes, m.calls)}</span></div>`).join("")}</div>
+    <div class="cp-barres">${sem.map(s => { const c = s.calls || 0, n = s.signes || 0;
+      return `<div class="cp-barre-sem" title="Semaine du ${jour(s.semaine + "T12:00:00")} : ${c} calls, ${n} signés (${pc(n, c)})">
+        <small>${c}·<em>${n}</em></small><div class="cp-col" style="height:${Math.max(3, c / max * 120)}px"><i style="height:${c ? n / c * 100 : 0}%"></i></div>
+        <span>${jour(s.semaine + "T12:00:00")}</span></div>`; }).join("")}</div>
+    <p class="cp-vide" style="font-size:12.5px;margin-top:8px">Une barre = une semaine. En vert, les signés. Au-dessus : calls · signés.</p>`;
 }
 /* la courbe : ta grille (calls réels) et ton taux de signature, semaine par semaine, avec tes entraînements */
 function graphique(){
