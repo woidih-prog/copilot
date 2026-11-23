@@ -2581,6 +2581,10 @@ html.perso #home{display:flex;padding:0;align-items:stretch;text-align:left;just
 .cp-kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
 .cp-kpi span{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
 .cp-kpi b{font-size:26px;font-weight:600;letter-spacing:-.02em}
+.cp-kpi small{display:block;font-size:12px;color:var(--muted);margin-top:4px}
+.cp-enc label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted)}
+.cp-enc select,.cp-enc input{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink);font-size:13px;color-scheme:dark}
+.cp-enc label input{width:90px!important;max-width:90px}
 .cp-barre{height:6px;border-radius:3px;background:#2A2926;overflow:hidden;width:120px;flex:none}
 .cp-barre i{display:block;height:100%;background:var(--amber)}
 .cp-onglets{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
@@ -3165,6 +3169,67 @@ function brancheFormulaireSuivi(apres){
     await chargeSuivi(true); apres();
   };
 }
+/* ---------------------------------------------------------------------
+   L'encaissement : tu es payé sur ce qui est encaissé, pas sur ce qui est signé.
+   Pour chaque vente signée, tu indiques en combien de fois le client paie et
+   combien de versements sont arrivés. Le taux compare l'encaissé à ce qui
+   aurait dû l'être à ce jour (un versement à la signature, puis un par mois).
+   Ces chiffres restent dans ton navigateur, avec tes relances.
+   --------------------------------------------------------------------- */
+const PRIX_VENTE = 3000, FOIS_POSSIBLES = [1, 2, 3, 4, 6, 10];
+const tauxCommission = () => { const v = Number(CP.regl._commission); return v > 0 && v <= 100 ? v : 10; };
+const moisDepuis = d => { const a = new Date(d + "T12:00:00"), b = new Date(); if(isNaN(a)) return 0;
+  return Math.max(0, (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth() - (b.getDate() < a.getDate() ? 1 : 0)); };
+const euros = v => Math.round(v).toLocaleString("fr-FR") + " €";
+function ventesSignees(){
+  return dossiersRelance().filter(d => d.statut === "signe").map(d => {
+    const cs = d.calls.find(c => /sign|vendu/i.test(c.issue || "")) || d.dernier, date = String(cs.date || "").slice(0, 10);
+    const p = d.r.paie || {}, fois = FOIS_POSSIBLES.includes(+p.fois) ? +p.fois : 4, montant = +p.montant > 0 ? +p.montant : PRIX_VENTE;
+    const rembourse = p.payes === "rembourse", connu = rembourse || (p.payes !== undefined && p.payes !== null && p.payes !== "");
+    const payes = connu && !rembourse ? Math.min(fois, Math.max(0, +p.payes || 0)) : 0;
+    const dus = Math.min(fois, moisDepuis(date) + 1), part = montant / fois;
+    return {d, nom: nomCall(cs), date, fois, montant, rembourse, connu, payes, dus,
+            encaisse: payes * part, duAuj: dus * part, aVenir: rembourse ? 0 : (fois - payes) * part};
+  }).sort((a, b) => b.date.localeCompare(a.date));
+}
+function bilanEncaissement(){
+  const v = ventesSignees(), c = v.filter(x => x.connu);
+  const du = c.reduce((a, x) => a + x.duAuj, 0), recu = c.reduce((a, x) => a + Math.min(x.encaisse, x.duAuj), 0);
+  return {ventes: v, connues: c.length, taux: du ? Math.round(recu / du * 100) : null,
+          encaisse: c.reduce((a, x) => a + x.encaisse, 0), aVenir: c.reduce((a, x) => a + x.aVenir, 0),
+          perdu: c.reduce((a, x) => a + (x.rembourse ? x.montant : Math.max(0, x.duAuj - x.encaisse)), 0)};
+}
+function carteEncaissement(b){
+  const pc = tauxCommission(), com = v => euros(v * pc / 100);
+  const lignes = b.ventes.slice(0, 60).map(x => {
+    const k = escapeHTML(x.d.k), etat = !x.connu ? "" : x.rembourse ? '<span class="cp-pastille ko">remboursé</span>'
+      : x.payes >= x.dus ? '<span class="cp-pastille ok">à jour</span>' : `<span class="cp-pastille ko">${x.dus - x.payes} en retard</span>`;
+    return `<div class="cp-ligne cp-enc"><div class="cp-l1"><b>${escapeHTML(x.nom)}</b>
+      <small>signé le ${x.date ? jourLong(x.date) : "?"} · ${x.connu ? euros(x.encaisse) + " encaissés sur " + euros(x.montant) : "versements à renseigner"} · ${x.dus}/${x.fois} versement${x.dus > 1 ? "s" : ""} dû${x.dus > 1 ? "s" : ""} à ce jour</small></div>
+      ${etat}
+      <label>Prix<input type="number" min="0" step="100" inputmode="numeric" data-enc-montant="${k}" value="${x.montant}"></label>
+      <label>En<select data-enc-fois="${k}">${FOIS_POSSIBLES.map(f => `<option value="${f}"${f === x.fois ? " selected" : ""}>${f} fois</option>`).join("")}</select></label>
+      <label>Reçus<select data-enc-payes="${k}"><option value=""${x.connu ? "" : " selected"}>—</option>${Array.from({length: x.fois + 1}, (_, i) => `<option value="${i}"${x.connu && !x.rembourse && x.payes === i ? " selected" : ""}>${i} / ${x.fois}</option>`).join("")}<option value="rembourse"${x.rembourse ? " selected" : ""}>Remboursé</option></select></label></div>`;
+  }).join("");
+  return `<div class="cp-carte"><h4>Ton encaissement</h4>
+    <p class="cp-vide" style="margin:0 0 12px">Tu es payé sur ce qui est encaissé. Pour chaque vente, indique en combien de fois le client paie et combien de versements sont arrivés. Le taux compare l'encaissé à ce qui aurait dû l'être à ce jour.</p>
+    <div class="cp-kpis">
+      <div class="cp-kpi"><span>Taux d'encaissement</span><b${b.taux != null && b.taux < 90 ? ' style="color:var(--clay)"' : ""}>${b.taux ?? "–"}${b.taux != null ? " %" : ""}</b></div>
+      <div class="cp-kpi"><span>Encaissé · ta commission</span><b>${euros(b.encaisse)}</b><small>${com(b.encaisse)} pour toi</small></div>
+      <div class="cp-kpi"><span>À venir · ta commission</span><b>${euros(b.aVenir)}</b><small>${com(b.aVenir)} si tout est payé</small></div>
+      <div class="cp-kpi"><span>Manqué (retards, remboursements)</span><b${b.perdu ? ' style="color:var(--clay)"' : ""}>${euros(b.perdu)}</b><small>${com(b.perdu)} de commission</small></div></div>
+    <div class="cp-rel-outils"><span>Ta commission</span><input type="number" min="1" max="100" step="0.5" id="cpEncPc" value="${pc}" style="width:70px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink)"><span>%</span>
+      <span style="margin-left:auto">${b.connues} vente${b.connues > 1 ? "s" : ""} renseignée${b.connues > 1 ? "s" : ""} sur ${b.ventes.length}</span></div>
+    ${lignes || '<p class="cp-vide">Aucune vente signée dans ton suivi pour l\'instant.</p>'}
+    ${b.ventes.length ? '<p class="cp-vide" style="font-size:12.5px;margin-top:10px">Repère : au-dessus de 90 %, tes clients paient. En dessous de 70 %, tu signes des gens qui n\'en ont pas les moyens, et une partie de ton travail n\'est jamais payée.</p>' : ""}</div>`;
+}
+function brancheEncaissement(el, apres){
+  const maj = (k, champ, v) => { const r = relance(k); r.paie = Object.assign({}, r.paie, {[champ]: v}); sauveRelances(); apres(); };
+  el.querySelectorAll("[data-enc-fois]").forEach(x => x.onchange = () => maj(x.dataset.encFois, "fois", +x.value));
+  el.querySelectorAll("[data-enc-payes]").forEach(x => x.onchange = () => maj(x.dataset.encPayes, "payes", x.value === "" || x.value === "rembourse" ? x.value : +x.value));
+  el.querySelectorAll("[data-enc-montant]").forEach(x => x.onchange = () => maj(x.dataset.encMontant, "montant", Math.max(0, +x.value || 0)));
+  const pc = $("cpEncPc"); if(pc) pc.onchange = () => { CP.regl._commission = Math.min(100, Math.max(0, +pc.value || 10)); sauve(); apres(); };
+}
 function rendTracking(){
   const el = $("cpTrackingIn"), st = CP.stats;
   let h = `<div class="cp-haut"><button class="cp-lien" id="cpTrRetour">← Accueil</button>
@@ -3174,12 +3239,15 @@ function rendTracking(){
     ${TESTEUR ? `<p id="cpTrEtat" style="font-size:13px;color:var(--muted);margin:-8px 0 16px">${CP.essai ? "Ton essai : " + CP.essai.call.fait + "/" + CP.essai.call.max + " calls analysés. Tes nouveaux calls sont relevés tout seuls toutes les heures." : ""}</p>` : ""}`;
   if(!st){ el.innerHTML = h + formulaireSuivi(); branche(); brancheFormulaireSuivi(rendTracking); return; }
   const scoreMoy = (() => { const v = CP.calls.filter(c => String(c.date || "") >= new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10)).map(scoreCall).filter(x => x !== null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; })();
+  const enc = bilanEncaissement();
   h += `<div class="cp-kpis">
     <div class="cp-kpi"><span>Calls</span><b>${st.calls}</b></div>
     <div class="cp-kpi"><span>Signés</span><b>${st.signes}</b></div>
     <div class="cp-kpi"><span>Taux par prospect</span><b>${st.taux_prospect ?? "–"}${st.taux_prospect != null ? " %" : ""}</b></div>
-    <div class="cp-kpi"><span>Grille respectée</span><b>${scoreMoy ?? "–"}${scoreMoy != null ? " %" : ""}</b></div></div>`;
+    <div class="cp-kpi"><span>Grille respectée</span><b>${scoreMoy ?? "–"}${scoreMoy != null ? " %" : ""}</b></div>
+    <div class="cp-kpi"><span>Taux d'encaissement</span><b>${enc.taux ?? "–"}${enc.taux != null ? " %" : ""}</b></div></div>`;
   h += `<div class="cp-carte"><h4>Ta progression</h4>${graphique()}</div>`;
+  h += carteEncaissement(enc);
   const trav = [...new Set(CP.entrainements.map(e => e.k).filter(Boolean))].map(k => [k, avantApres(k)]).filter(x => x[1]);
   if(trav.length) h += `<div class="cp-carte"><h4>Avant et après tes entraînements</h4>${trav.map(([k, a]) => `<div class="cp-ligne"><div class="cp-l1"><b>${escapeHTML(nomPhase(k))}</b>
       <small>${a.fois} entraînement${a.fois > 1 ? "s" : ""} depuis le ${jour(a.date)}</small></div>
@@ -3201,6 +3269,7 @@ function rendTracking(){
     if($("cpTrReleve")) $("cpTrReleve").onclick = async () => { $("cpTrReleve").disabled = true; await releveTesteur($("cpTrEtat")); await chargeSuivi(true); rendTracking(); };
     el.querySelectorAll("[data-analyser]").forEach(b => b.onclick = () => nouvelleAnalyse(CP.calls.find(c => c.id === b.dataset.analyser)));
     el.querySelectorAll("[data-travailler]").forEach(b => b.onclick = () => { CP.onglet = "phases"; ouvreCoaching(b.dataset.travailler); });
+    brancheEncaissement(el, rendTracking);
   }
 }
 /* la courbe : ta grille (calls réels) et ton taux de signature, semaine par semaine, avec tes entraînements */
