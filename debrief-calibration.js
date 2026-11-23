@@ -3513,6 +3513,7 @@ function pageSetter(liste){
   + '.t .ret{color:var(--rouge);font-size:12px}.d{border-top:1px solid var(--trait);padding:14px 16px;display:none}.p.o .d{display:block}'
   + '.ch{margin:0 0 12px}.ch span{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:0 0 3px}.ch p{margin:0 0 4px}'
   + '.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}.env{font-size:13px;color:var(--muted);border-left:2px solid var(--trait);padding-left:10px;margin:6px 0}'
+  + '.guide{background:var(--carte);border:1px solid var(--trait);border-radius:14px;padding:12px 16px;margin:0 0 18px;font-size:14px}.guide summary{cursor:pointer;font-weight:600}.guide ol{padding-left:20px;margin:12px 0}.guide li{margin:0 0 8px}.guide p{margin:8px 0 0;color:var(--muted)}'
   + '.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--txt);color:var(--bg);padding:9px 16px;border-radius:9px;display:none}'
   + '</style></head><body><div class="page" id="app"></div><div class="toast" id="toast"></div>'
   + '<script>var D=' + data + ';\n' + SCRIPT_SETTER + '<\/script></body></html>';
@@ -3556,6 +3557,15 @@ function rend(){
   var bloc=function(t,l){return l.length?"<h2>"+t+" · "+l.length+"</h2>"+l.sort(tri).map(function(x){return carte(x.p)}).join(""):""};
   var n=Object.keys(E).length;
   document.getElementById("app").innerHTML='<h1>Relances</h1><p class="sous">Les prospects de '+esc(D.de)+' à relancer, au '+esc(D.le)+'. Tes changements restent dans ce navigateur : ouvre toujours ce fichier au même endroit.</p>'
+   +'<details class="guide"'+(n?'':' open')+'><summary>Comment ça marche (2 minutes)</summary><ol>'
+   +'<li><b>Commence par « À faire aujourd\'hui ».</b> Ce sont les prospects dont la date de relance est arrivée. Clique sur un nom pour ouvrir sa fiche.</li>'
+   +'<li><b>Lis la fiche avant d\'écrire.</b> Ce qui l\'a bloqué, ce qui était convenu, et ses mots exacts. Ton message part de là : il doit sentir qu\'on l\'a écouté.</li>'
+   +'<li><b>Relis le message, adapte-le, puis « Copier ».</b> Colle-le dans WhatsApp. Si tu écris depuis ton numéro, présente-toi et change la signature (ex. : « Je suis X, je travaille avec '+esc(D.de)+' »).</li>'
+   +'<li><b>Clique « Je l\'ai envoyé ».</b> Le statut passe à « Relancé » et la prochaine relance se cale toute seule (3 jours, puis 5, puis 7).</li>'
+   +'<li><b>Il répond ?</b> Change le statut : « Rendez-vous calé » si un call est fixé (note le jour et l\'heure), « Sans suite » s\'il dit non. Écris dans « Ta note » ce qu\'il a dit.</li>'
+   +'<li><b>À la fin de ta session, « Envoyer mon point à '+esc(D.de)+' ».</b> Un petit fichier se télécharge : envoie-le-lui.</li></ol>'
+   +'<p><b>Les règles :</b> pas de pression, pas de fausse urgence, pas de promo ou de promesse inventée. Une seule question par message. Après 3 relances sans réponse, on lui laisse une porte de sortie. Ce qu\'il y a dans ce fichier est confidentiel : ça ne sort pas.</p>'
+   +'<p><b>Important :</b> ouvre toujours ce fichier au même endroit, sur le même navigateur, sinon tes changements ne sont pas là.</p></details>'
    +'<div class="barre"><button class="plein" id="pt">Envoyer mon point à '+esc(D.de)+'</button>'+(n?'<small style="color:var(--muted);align-self:center">'+n+" prospect"+(n>1?"s":"")+" mis à jour</small>":"")+"</div>"
    +(dus.length?bloc("À faire aujourd'hui",dus):"<h2>À faire aujourd'hui</h2><p class=\"sous\">Rien en retard.</p>")+bloc("Sans date",sd)+bloc("À venir",av)+bloc("Terminés",fin);
   var q=function(s,f){document.querySelectorAll(s).forEach(f)};
