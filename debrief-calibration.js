@@ -3371,7 +3371,7 @@ async function ouvreRelances(){
 function rendRelances(){
   const el = $("cpRelancesIn");
   let h = `<div class="cp-haut"><button class="cp-lien" id="cpRelRetour">← Accueil</button>
-    <div class="cp-btns"><button class="cp-btn" id="cpRelMaj">Actualiser</button></div></div>
+    <div class="cp-btns"><button class="cp-btn" id="cpRelSetter">Page pour mon setter</button><button class="cp-btn" id="cpRelPoint">Importer son point</button><input type="file" id="cpRelFichier" accept=".json,application/json" hidden><button class="cp-btn" id="cpRelMaj">Actualiser</button></div></div>
     <h1 class="cp-titre">Relances</h1><p class="cp-sous">Tes prospects qui n'ont pas signé pendant le call : ce qui s'est dit, ce qui était convenu, et le message à leur envoyer.</p>`;
   if(!CP.stats){ el.innerHTML = h + formulaireSuivi(); $("cpRelRetour").onclick = accueil; if($("cpRelMaj")) $("cpRelMaj").onclick = ouvreRelances; brancheFormulaireSuivi(rendRelances); return; }
   const tous = dossiersRelance(), auj = aujourdhui();
@@ -3399,6 +3399,13 @@ function rendRelances(){
   el.innerHTML = h;
   $("cpRelRetour").onclick = accueil;
   $("cpRelMaj").onclick = async () => { $("cpRelMaj").textContent = "…"; await chargeSuivi(true); rendRelances(); };
+  if($("cpRelSetter")) $("cpRelSetter").onclick = telechargeSetter;
+  if($("cpRelPoint")) $("cpRelPoint").onclick = () => $("cpRelFichier").click();
+  if($("cpRelFichier")) $("cpRelFichier").onchange = async ev => {
+    const fi = ev.target.files && ev.target.files[0]; if(!fi) return;
+    try{ const n = importePointSetter(await fi.text()); toast(n + " prospect" + (n > 1 ? "s" : "") + " mis à jour par ton setter."); rendRelances(); }
+    catch(e){ toast(e.message); }
+  };
   const fin = el.querySelector(".cp-rel-finis"); if(fin) fin.ontoggle = () => { CP.relFinis = fin.open; };
   el.querySelectorAll("[data-canal]").forEach(b => b.onclick = () => { CP.regl._canalRelance = b.dataset.canal; sauve(); rendRelances(); });
   const dossier = k => dossiersRelance().find(d => d.k === k);
@@ -3459,6 +3466,7 @@ function ligneRelance(d){
       <div class="cp-rel-fiche">${champ("Sa situation", f.situation)}${champ("Ce qu'il veut", f.veut)}${champ("Ce qui lui pèse", f.douleur)}${champ("Ce qui a bloqué", f.blocage)}${champ("Ce qui était convenu", f.convenu)}${champ("L'angle de relance", f.angle)}</div>
       ${(f.citations || []).length ? `<div class="cp-rel-champ"><span>Ses mots</span>${f.citations.map(x => `<p>« ${escapeHTML(x)} »</p>`).join("")}</div>` : ""}`;
     else if(!occ) h += `<p class="cp-vide">${escapeHTML(c.resume || "Pas encore de fiche.")}</p>`;
+    if(r.noteSetter) h += `<div class="cp-rel-champ"><span>La note de ton setter</span><p>${escapeHTML(r.noteSetter)}</p></div>`;
     h += `<div class="cp-rel-champ"><span>Ta note (ce qui s'est passé depuis le call)</span>
         <textarea data-rel-note="${k}" rows="2" placeholder="Ex. : il m'a écrit hier, il attend sa paie du 30.">${escapeHTML(r.note || "")}</textarea></div>`;
     if(r.brouillon && r.brouillon.txt) h += `<div class="cp-rel-champ"><span>Le message (${r.brouillon.canal === "email" ? "e-mail" : "WhatsApp"}) : relis-le, change ce que tu veux</span>
@@ -3468,10 +3476,133 @@ function ligneRelance(d){
       <button class="cp-btn" data-rel-redige="${k}"${occ ? " disabled" : ""}>${r.brouillon && r.brouillon.txt ? "Réécrire le message" : "Rédiger le message"}</button>
       <button class="cp-btn" data-rel-fiche="${k}"${occ ? " disabled" : ""}>${f ? "Refaire la fiche" : "Préparer la fiche"}</button>
       <button class="cp-btn" data-rel-analyse="${escapeHTML(c.id)}">Analyser ce call avec le coach</button></div>`;
-    if((r.messages || []).length) h += `<div class="cp-rel-champ" style="margin-top:14px"><span>Déjà envoyé</span>${r.messages.slice().reverse().map(m => `<p><small style="display:inline;color:var(--muted)">${jour(m.t)} · ${m.canal === "email" ? "e-mail" : "WhatsApp"}</small><br>${escapeHTML(m.txt).replace(/\n/g, "<br>")}</p>`).join("")}</div>`;
+    if((r.messages || []).length) h += `<div class="cp-rel-champ" style="margin-top:14px"><span>Déjà envoyé</span>${r.messages.slice().reverse().map(m => `<p><small style="display:inline;color:var(--muted)">${jour(m.t)} · ${m.canal === "email" ? "e-mail" : "WhatsApp"}${m.par === "setter" ? " · par ton setter" : ""}</small><br>${escapeHTML(m.txt).replace(/\n/g, "<br>")}</p>`).join("")}</div>`;
     h += `</div>`;
   }
   return h + `</div>`;
+}
+
+/* ---------------------------------------------------------------------
+   Pour ton setter : une page à part, un seul fichier, à lui envoyer.
+   Il y voit les prospects à relancer (fiche, ses mots, le message préparé),
+   change les statuts et les dates, note ce qui se passe, puis te renvoie
+   son point (un petit fichier) que tu importes ici. Ni ta clé, ni ton
+   coaching, ni les transcriptions ne partent dans ce fichier.
+   --------------------------------------------------------------------- */
+function donneesSetter(){
+  return dossiersRelance().filter(d => d.actif).map(d => {
+    const r = d.r, f = r.fiche || {}, c = d.dernier;
+    return {k: d.k, nom: f.prospect || nomCall(c), date: String(c.date || "").slice(0, 10), etape: c.etape || "", offre: c.offre || "",
+      statut: d.statut, prochaine: d.prochaine || "", note: r.note || "", resume: f.situation ? "" : String(c.resume || "").slice(0, 400),
+      fiche: r.fiche ? {situation: f.situation || "", veut: f.veut || "", douleur: f.douleur || "", blocage: f.blocage || "", convenu: f.convenu || "", angle: f.angle || "", citations: f.citations || []} : null,
+      message: (r.brouillon && r.brouillon.txt) || "", envoyes: (r.messages || []).slice(-4).map(m => ({t: m.t, canal: m.canal, txt: m.txt, par: m.par || ""}))};
+  });
+}
+function pageSetter(liste){
+  const data = JSON.stringify({id: "rel-" + Date.now(), de: nomProfil(), le: aujourdhui(), liste}).replace(/</g, "\\u003c");
+  return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+  + '<title>Relances</title><style>'
+  + ':root{--bg:#141413;--carte:#1f1e1c;--trait:#34322e;--txt:#ece8e1;--muted:#9c978e;--vert:#9cc3a6;--ambre:#e0b46c;--rouge:#d98b73}'
+  + '*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}'
+  + '.page{max-width:900px;margin:0 auto;padding:28px 16px 80px}h1{font-size:30px;margin:0 0 4px}.sous{color:var(--muted);margin:0 0 20px}'
+  + '.barre{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 20px}button,select,input,textarea{font:inherit;color:var(--txt);background:var(--carte);border:1px solid var(--trait);border-radius:9px}'
+  + 'button{padding:8px 14px;cursor:pointer}button.plein{background:var(--txt);color:var(--bg);border-color:var(--txt)}select,input{padding:6px 8px}'
+  + 'textarea{width:100%;padding:10px;resize:vertical}h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:26px 0 10px}'
+  + '.p{background:var(--carte);border:1px solid var(--trait);border-radius:14px;margin:0 0 10px;overflow:hidden}'
+  + '.t{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 16px;cursor:pointer}.t b{font-size:16px}.t .bl{flex:1 1 260px;color:var(--muted);font-size:13px}'
+  + '.t .ret{color:var(--rouge);font-size:12px}.d{border-top:1px solid var(--trait);padding:14px 16px;display:none}.p.o .d{display:block}'
+  + '.ch{margin:0 0 12px}.ch span{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:0 0 3px}.ch p{margin:0 0 4px}'
+  + '.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}.env{font-size:13px;color:var(--muted);border-left:2px solid var(--trait);padding-left:10px;margin:6px 0}'
+  + '.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--txt);color:var(--bg);padding:9px 16px;border-radius:9px;display:none}'
+  + '</style></head><body><div class="page" id="app"></div><div class="toast" id="toast"></div>'
+  + '<script>var D=' + data + ';\n' + SCRIPT_SETTER + '<\/script></body></html>';
+}
+const SCRIPT_SETTER = String.raw`
+var CLE="setter_"+D.id, E={};
+try{E=JSON.parse(localStorage.getItem(CLE)||"{}")}catch(e){}
+function sauve(){try{localStorage.setItem(CLE,JSON.stringify(E))}catch(e){}}
+function ed(k){return E[k]=E[k]||{}}
+function v(p,k,c){var e=E[k.k]||{};return e[c]!==undefined?e[c]:k[c]}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function auj(){var d=new Date();return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)}
+function dans(n){var d=new Date(Date.now()+n*864e5);return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)}
+function toast(t){var x=document.getElementById("toast");x.textContent=t;x.style.display="block";clearTimeout(toast.h);toast.h=setTimeout(function(){x.style.display="none"},2200)}
+var ST=[["a_relancer","À relancer"],["relance","Relancé, j'attends"],["rdv","Rendez-vous calé"],["signe","Signé"],["perdu","Sans suite"]];
+var OUV=null;
+function carte(p){
+  var st=v(0,p,"statut"),pr=v(0,p,"prochaine"),e=E[p.k]||{},f=p.fiche,o=OUV===p.k,a=auj();
+  var h='<div class="p'+(o?" o":"")+'"><div class="t" data-o="'+esc(p.k)+'"><b>'+esc(p.nom)+'</b><span class="bl">'+esc(f?(f.blocage||f.situation):p.resume)+'</span>'
+   +(pr&&pr<a&&["a_relancer","relance"].indexOf(st)>=0?'<span class="ret">en retard</span>':"")+'<small style="color:var(--muted)">'+esc(pr||"sans date")+'</small></div><div class="d">';
+  h+='<div class="ctl"><select data-s="'+esc(p.k)+'">'+ST.map(function(s){return'<option value="'+s[0]+'"'+(s[0]===st?" selected":"")+'>'+s[1]+'</option>'}).join("")+'</select>'
+   +'<input type="date" data-d="'+esc(p.k)+'" value="'+esc(pr)+'"><small style="color:var(--muted)">Call du '+esc(p.date)+(p.etape?" · "+esc(p.etape):"")+'</small></div>';
+  function ch(n,t){return t?'<div class="ch"><span>'+n+'</span><p>'+esc(t)+'</p></div>':""}
+  if(f){h+=ch("Sa situation",f.situation)+ch("Ce qu'il veut",f.veut)+ch("Ce qui lui pèse",f.douleur)+ch("Ce qui a bloqué",f.blocage)+ch("Ce qui était convenu",f.convenu)+ch("L'angle de relance",f.angle);
+    if(f.citations&&f.citations.length)h+='<div class="ch"><span>Ses mots</span>'+f.citations.map(function(c){return"<p>« "+esc(c)+" »</p>"}).join("")+"</div>"}
+  else h+=ch("Ce qu'on sait",p.resume);
+  if(p.note)h+=ch("Note de "+D.de,p.note);
+  var msg=e.message!==undefined?e.message:p.message;
+  h+='<div class="ch"><span>Le message (relis-le, adapte-le)</span><textarea rows="6" data-m="'+esc(p.k)+'" placeholder="Écris ton message à partir de la fiche.">'+esc(msg)+'</textarea></div>'
+   +'<div class="ctl"><button class="plein" data-c="'+esc(p.k)+'">Copier</button><button data-e="'+esc(p.k)+'">Je l\'ai envoyé</button></div>'
+   +'<div class="ch"><span>Ta note pour '+esc(D.de)+'</span><textarea rows="2" data-n="'+esc(p.k)+'" placeholder="Ex. : il a répondu, rappel jeudi 18 h.">'+esc(e.note||"")+'</textarea></div>';
+  var env=(p.envoyes||[]).concat(e.envoyes||[]);
+  if(env.length)h+='<div class="ch"><span>Déjà envoyé</span>'+env.slice().reverse().map(function(m){return'<div class="env">'+new Date(m.t).toLocaleDateString("fr-FR")+(m.par?" · "+esc(m.par):"")+"<br>"+esc(m.txt).replace(/\n/g,"<br>")+"</div>"}).join("")+"</div>";
+  return h+"</div></div>";
+}
+function rend(){
+  var a=auj(),L=D.liste.map(function(p){return{p:p,st:v(0,p,"statut"),pr:v(0,p,"prochaine")}});
+  var act=function(x){return["a_relancer","relance","rdv"].indexOf(x.st)>=0};
+  var dus=L.filter(function(x){return act(x)&&x.pr&&x.pr<=a}),sd=L.filter(function(x){return act(x)&&!x.pr}),av=L.filter(function(x){return act(x)&&x.pr>a}),fin=L.filter(function(x){return!act(x)});
+  var tri=function(x,y){return String(x.pr).localeCompare(String(y.pr))};
+  var bloc=function(t,l){return l.length?"<h2>"+t+" · "+l.length+"</h2>"+l.sort(tri).map(function(x){return carte(x.p)}).join(""):""};
+  var n=Object.keys(E).length;
+  document.getElementById("app").innerHTML='<h1>Relances</h1><p class="sous">Les prospects de '+esc(D.de)+' à relancer, au '+esc(D.le)+'. Tes changements restent dans ce navigateur : ouvre toujours ce fichier au même endroit.</p>'
+   +'<div class="barre"><button class="plein" id="pt">Envoyer mon point à '+esc(D.de)+'</button>'+(n?'<small style="color:var(--muted);align-self:center">'+n+" prospect"+(n>1?"s":"")+" mis à jour</small>":"")+"</div>"
+   +(dus.length?bloc("À faire aujourd'hui",dus):"<h2>À faire aujourd'hui</h2><p class=\"sous\">Rien en retard.</p>")+bloc("Sans date",sd)+bloc("À venir",av)+bloc("Terminés",fin);
+  var q=function(s,f){document.querySelectorAll(s).forEach(f)};
+  q("[data-o]",function(b){b.onclick=function(){OUV=OUV===b.dataset.o?null:b.dataset.o;rend()}});
+  q("[data-s]",function(s){s.onchange=function(){var e=ed(s.dataset.s);e.statut=s.value;e.t=Date.now();if(s.value==="signe"||s.value==="perdu")e.prochaine="";sauve();rend()}});
+  q("[data-d]",function(i){i.onchange=function(){var e=ed(i.dataset.d);e.prochaine=i.value;e.t=Date.now();sauve();rend()}});
+  q("[data-m]",function(t){t.onchange=function(){ed(t.dataset.m).message=t.value;sauve()}});
+  q("[data-n]",function(t){t.onchange=function(){var e=ed(t.dataset.n);e.note=t.value.trim();e.t=Date.now();sauve()}});
+  q("[data-c]",function(b){b.onclick=function(){var t=document.querySelector('[data-m="'+CSS.escape(b.dataset.c)+'"]');if(!t.value.trim())return;navigator.clipboard.writeText(t.value).then(function(){toast("Message copié")},function(){t.select();toast("Copie avec Ctrl+C")})}});
+  q("[data-e]",function(b){b.onclick=function(){var k=b.dataset.e,t=document.querySelector('[data-m="'+CSS.escape(k)+'"]');if(!t.value.trim())return toast("Il n'y a pas de message.");
+    var e=ed(k),p=D.liste.filter(function(x){return x.k===k})[0];e.envoyes=(e.envoyes||[]).concat({t:Date.now(),canal:"whatsapp",txt:t.value.trim(),par:"setter"});
+    var nb=(p.envoyes||[]).length+e.envoyes.length;e.statut="relance";e.prochaine=dans(nb===1?3:nb===2?5:7);e.message="";e.t=Date.now();sauve();rend();toast("Noté. Prochaine relance le "+e.prochaine)}});
+  document.getElementById("pt").onclick=function(){
+    var j=JSON.stringify({id:D.id,le:new Date().toISOString(),maj:E}),b=new Blob([j],{type:"application/json"}),u=URL.createObjectURL(b),x=document.createElement("a");
+    x.href=u;x.download="point-setter-"+auj()+".json";x.click();setTimeout(function(){URL.revokeObjectURL(u)},1000);
+    toast("Fichier téléchargé : envoie-le à "+D.de)};
+}
+rend();
+`;
+function telechargeSetter(){
+  const liste = donneesSetter();
+  if(!liste.length) return toast("Aucun prospect à relancer pour l'instant.");
+  const b = new Blob([pageSetter(liste)], {type: "text/html"});
+  const a = document.createElement("a"), u = URL.createObjectURL(b);
+  a.href = u; a.download = "relances-" + aujourdhui() + ".html"; a.click();
+  setTimeout(() => URL.revokeObjectURL(u), 1000);
+  const sans = liste.filter(p => !p.fiche).length, sansMsg = liste.filter(p => !p.message).length;
+  toast(liste.length + " prospects dans le fichier" + (sans ? " · " + sans + " sans fiche" : "") + (sansMsg ? " · " + sansMsg + " sans message préparé" : "") + ". Envoie-le à ton setter.");
+}
+/* son point revient : statuts, dates, notes et messages envoyés */
+function importePointSetter(texte){
+  let p; try{ p = JSON.parse(texte); }catch(_){ throw new Error("Ce fichier n'est pas un point de setter."); }
+  if(!p || typeof p.maj !== "object") throw new Error("Ce fichier n'est pas un point de setter.");
+  let n = 0;
+  Object.entries(p.maj).forEach(([k, e]) => {
+    if(!e || typeof e !== "object") return;
+    const r = relance(k); n++;
+    if(e.statut && STATUTS_RELANCE.some(([v]) => v === e.statut)) r.statut = e.statut;
+    if(e.prochaine !== undefined && (e.prochaine === "" || /^\d{4}-\d\d-\d\d$/.test(e.prochaine))) r.prochaine = e.prochaine;
+    if(e.note) r.noteSetter = String(e.note).slice(0, 2000);
+    (e.envoyes || []).forEach(m => {
+      if(!m || !m.txt || (r.messages || []).some(x => x.t === m.t)) return;
+      r.messages = (r.messages || []).concat({t: +m.t || Date.now(), canal: m.canal || "whatsapp", txt: String(m.txt).slice(0, 4000), par: "setter"}).slice(-12);
+    });
+  });
+  sauveRelances();
+  return n;
 }
 
 /* ---------------------------------------------------------------------
